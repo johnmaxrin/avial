@@ -14,6 +14,7 @@
 #include "include/AvialOps.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 
 class MLIRCodeGen : public Visitor
 {
@@ -26,6 +27,7 @@ public:
     {
         // Load Dialects here.
         context.getOrLoadDialect<mlir::func::FuncDialect>();
+        context.getOrLoadDialect<mlir::arith::ArithDialect>();
         context.getOrLoadDialect<mlir::avial::AvialDialect>();
     }
 
@@ -61,8 +63,11 @@ public:
     {
 
         auto grty = mlir::avial::GraphType::get(builder.getContext());
+        auto ndty = mlir::avial::NodeType::get(builder.getContext());
 
-        auto funcTy = builder.getFunctionType({}, grty);
+        auto intType = builder.getIntegerType(64);
+
+        auto funcTy = builder.getFunctionType({grty}, intType);
         // auto funcTy = builder.getFunctionType({}, builder.getIntegerType(32));
         llvm::StringRef value = "g";
         llvm::ArrayRef<mlir::NamedAttribute> attrs;
@@ -73,14 +78,31 @@ public:
         llvm::SmallVector<mlir::DictionaryAttr, 4> arguments;
 
         auto funcBl = mlir::func::FuncOp::create(builder.getUnknownLoc(), function->getfuncNameIdentifier(), funcTy, attributes, arguments);
-        auto *entryBlock = funcBl.addEntryBlock();
-
-        auto getNodes = builder.create<mlir::avial::GetNodes>(builder.getUnknownLoc());
-
-        module.push_back(getNodes);
-
         module.push_back(funcBl);
+
+        auto *entryBlock = funcBl.addEntryBlock();
         builder.setInsertionPointToStart(entryBlock);
+
+
+        auto valueAttr = builder.getIntegerAttr(builder.getIntegerType(64), 0);
+        builder.create<mlir::arith::ConstantOp>(builder.getUnknownLoc(), builder.getIntegerType(64), valueAttr);
+        
+        auto garphvar = builder.create<mlir::avial::createCSRGraph>(builder.getUnknownLoc(), grty, builder.getStringAttr("Grapg"));
+        builder.create<mlir::avial::GetNodes>(builder.getUnknownLoc(), ndty, garphvar);
+
+
+        auto valueAttr2 = builder.getIntegerAttr(builder.getIntegerType(64), 0);
+
+
+        auto forallOp = builder.create<mlir::avial::forAll>(builder.getUnknownLoc(), valueAttr2);
+
+        mlir::Region &bodyRegion = forallOp.getBody();
+        bodyRegion.push_back(new mlir::Block);
+        mlir::Block &block = bodyRegion.back();
+
+        builder.setInsertionPointToStart(&block);
+
+        
     }
 
     virtual void visitParamlist(const Paramlist *paramlist) override
