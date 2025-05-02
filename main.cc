@@ -8,6 +8,7 @@
 
 #include "includes/avialDialect.h"
 #include "includes/avialOps.h"
+#include "includes/avialTypes.h"
 
 
 using namespace std;
@@ -21,7 +22,7 @@ int main()
 
     context.getOrLoadDialect<avial::AvialDialect>();
     
-    auto constOp = builder.create<avial::AvialConst>(builder.getUnknownLoc());
+    auto constOp = builder.create<avial::TaskOp>(builder.getUnknownLoc(), avial::TaskType::get(builder.getContext()));
 
     module->push_back(constOp);
     module->dump();
