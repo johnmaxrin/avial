@@ -4,6 +4,7 @@ include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/IR/OpBase.td"
 include "mlir/IR/BuiltinAttributes.td"
+include "mlir/IR/EnumAttr.td"
 
 include "mlir/Pass/PassBase.td"
 
@@ -15,13 +16,28 @@ def AvialDialect : Dialect {
 }
 
 // Types 
+
+
+
+
+
+
+
 class AvialDialectType<string name, string typeMnemonic, list<Trait> traits = []>
     : TypeDef<AvialDialect, name, traits> {
   let mnemonic = typeMnemonic;
 }
+
 def TaskType : AvialDialectType<"Task", "task"> {
   let summary = "Task type";
 }
+
+def TargetType : AvialDialectType<"Target", "target"> {
+  let summary = "Target type";
+  let parameters = (ins StringRefParameter<"the opaque type">:$value);
+  let assemblyFormat = " `arch` `:` $value `>` ";
+}
+
 // End of types
 
 
@@ -35,7 +51,7 @@ class AvialDialectOp<string mnemonic> : Op<AvialDialect, mnemonic>
 def TaskOp : Op<AvialDialect, "task", [SingleBlockImplicitTerminator<"YieldOp">]>
 {
   let summary = "Task Operation"; 
-  let results = (outs AnyType);
+  let arguments = (ins AnyType);
   let regions = (region SizedRegion<1>);
 
   let builders = [
@@ -45,6 +61,8 @@ def TaskOp : Op<AvialDialect, "task", [SingleBlockImplicitTerminator<"YieldOp">]
   ];
 
 }
+
+
 
 
 def YieldOp : Op<AvialDialect, "yield", [Terminator]>
