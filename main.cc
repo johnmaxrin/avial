@@ -22,7 +22,10 @@ int main()
 
     context.getOrLoadDialect<avial::AvialDialect>();
     
-    auto constOp = builder.create<avial::TaskOp>(builder.getUnknownLoc(), avial::TaskType::get(builder.getContext()));
+    auto constOp = builder.create<avial::TaskOp>(builder.getUnknownLoc(), [&](mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value, mlir::ValueRange args){
+
+        builder.create<avial::TaskGraphOp>(loc, avial::TargetType::get(builder.getContext(), "cuda"));
+    });
 
     module->push_back(constOp);
     module->dump();
