@@ -21,10 +21,13 @@ int main()
     OpBuilder builder(&context);
 
     context.getOrLoadDialect<avial::AvialDialect>();
-    
-    auto constOp = builder.create<avial::TaskOp>(builder.getUnknownLoc(), [&](mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value, mlir::ValueRange args){
 
-        builder.create<avial::TaskGraphOp>(loc, avial::TargetType::get(builder.getContext(), "cuda"));
+    auto gpu = builder.create<avial::TargetOp>(builder.getUnknownLoc(), avial::TargetRefType::get(builder.getContext(), "GPU"));
+    module->push_back(gpu);
+    
+    auto constOp = builder.create<avial::TaskOp>(builder.getUnknownLoc(),avial::TaskRefType::get(builder.getContext()), [&](mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value, mlir::ValueRange args){
+
+        builder.create<avial::TaskGraphOp>(loc, avial::TaskRefType::get(builder.getContext()));
     });
 
     module->push_back(constOp);

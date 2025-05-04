@@ -28,15 +28,17 @@ class AvialDialectType<string name, string typeMnemonic, list<Trait> traits = []
   let mnemonic = typeMnemonic;
 }
 
-def TaskType : AvialDialectType<"Task", "task"> {
-  let summary = "Task type";
+
+def TaskRef : AvialDialectType<"TaskRef", "taskref"> {
+  let summary = "Task Ref";
 }
 
-def TargetType : AvialDialectType<"Target", "target"> {
-  let summary = "Target type";
-  let parameters = (ins StringRefParameter<"the opaque type">:$value);
-  let assemblyFormat = " `arch` `:` $value `>` ";
+def TargetRef : AvialDialectType<"TargetRef", "targetref"> {
+  let summary = "Target Ref";
+  let parameters = (ins StringRefParameter<"arch">:$value);
+  let assemblyFormat = " `<` $value `>` ";
 }
+
 
 // End of types
 
@@ -52,16 +54,24 @@ def TaskOp : Op<AvialDialect, "task", [SingleBlockImplicitTerminator<"YieldOp">]
 {
   let summary = "Task Operation"; 
   let arguments = (ins AnyType);
+  let results = (outs AnyType : $result);
   let regions = (region SizedRegion<1>);
 
   let builders = [
-    OpBuilder<(ins 
+    OpBuilder<(ins "Type":$taskref, 
       CArg<"function_ref<void(OpBuilder &, Location, Value, ValueRange)>",
            "nullptr">)>
   ];
 
 }
 
+
+def TargetOp : Op<AvialDialect, "target">
+{
+  let summary = "Target Operation"; 
+  let results = (outs TargetRef : $targetref);
+  
+}
 
 
 
