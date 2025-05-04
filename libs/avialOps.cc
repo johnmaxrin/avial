@@ -3,9 +3,9 @@
 using namespace mlir;
 using namespace mlir::avial;
 
-void mlir::avial::TaskOp::build(OpBuilder &builder, OperationState &state,
+void mlir::avial::TaskOp::build(OpBuilder &builder, OperationState &state, Type resType,
                    function_ref<void(OpBuilder &, Location,  mlir::Value, mlir::ValueRange)> bodyBuilder) {
-  state.addTypes(builder.getNoneType());
+  state.addTypes(resType);
 
   Region *region = state.addRegion();
   Block *block = new Block();
