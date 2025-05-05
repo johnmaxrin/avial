@@ -11,6 +11,7 @@
 #include "includes/avialTypes.h"
 
 
+
 using namespace std;
 using namespace mlir;
 
@@ -22,14 +23,15 @@ int main()
 
     context.getOrLoadDialect<avial::AvialDialect>();
 
-    auto gpu = builder.create<avial::TargetOp>(builder.getUnknownLoc(), avial::TargetRefType::get(builder.getContext(), "GPU"));
+    auto gpu = builder.create<avial::TargetOp>(builder.getUnknownLoc(), avial::TargetRefType::get(builder.getContext(), "GPU"), "CPU", "0");
     module->push_back(gpu);
     
-    auto constOp = builder.create<avial::TaskOp>(builder.getUnknownLoc(),avial::TaskRefType::get(builder.getContext()), [&](mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value, mlir::ValueRange args){
+    auto constOp = builder.create<avial::TaskOp>(builder.getUnknownLoc(),avial::TaskRefType::get(builder.getContext()),"CPU" , [&](mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value, mlir::ValueRange args){
 
         builder.create<avial::TaskGraphOp>(loc, avial::TaskRefType::get(builder.getContext()));
     });
 
+    // auto constOp = builder.create<avial::TaskOp>(builder.getUnknownLoc(),avial::TaskRefType::get(builder.getContext()),avial::MyEnumAttr::get(builder.getContext(), mlir::avial::MyEnum::First));
     module->push_back(constOp);
     module->dump();
 
