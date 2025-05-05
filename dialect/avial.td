@@ -20,9 +20,6 @@ def AvialDialect : Dialect {
 
 
 
-
-
-
 class AvialDialectType<string name, string typeMnemonic, list<Trait> traits = []>
     : TypeDef<AvialDialect, name, traits> {
   let mnemonic = typeMnemonic;
@@ -53,12 +50,14 @@ class AvialDialectOp<string mnemonic> : Op<AvialDialect, mnemonic>
 def TaskOp : Op<AvialDialect, "task", [SingleBlockImplicitTerminator<"YieldOp">]>
 {
   let summary = "Task Operation"; 
-  let arguments = (ins AnyType);
-  let results = (outs AnyType : $result);
-  let regions = (region SizedRegion<1>);
+  let arguments = (ins AnyType: $input, 
+                   StrAttr:$arch);
+
+  let results = (outs TaskRef : $result);
+  let regions = (region SizedRegion<1> : $body);
 
   let builders = [
-    OpBuilder<(ins "Type":$taskref, 
+    OpBuilder<(ins "TaskRefType":$taskref, "StringRef":$arch,
       CArg<"function_ref<void(OpBuilder &, Location, Value, ValueRange)>",
            "nullptr">)>
   ];
@@ -69,8 +68,9 @@ def TaskOp : Op<AvialDialect, "task", [SingleBlockImplicitTerminator<"YieldOp">]
 def TargetOp : Op<AvialDialect, "target">
 {
   let summary = "Target Operation"; 
+  let arguments = (ins StrAttr:$arch, StrAttr:$deviceId);
   let results = (outs TargetRef : $targetref);
-  
+ 
 }
 
 

@@ -13,6 +13,8 @@
 #define GET_OP_CLASSES
 #include "dialect/Ops.cpp.inc"
 
+#include "dialect/Enums.cpp.inc"
+
 namespace mlir
 {
     namespace avial
