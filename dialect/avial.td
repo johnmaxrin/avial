@@ -47,17 +47,36 @@ class AvialDialectOp<string mnemonic> : Op<AvialDialect, mnemonic>
   let summary = "Operation Class";
 }
 
-def TaskOp : Op<AvialDialect, "task", [SingleBlockImplicitTerminator<"YieldOp">]>
+def TaskOp : Op<AvialDialect, "task", [AttrSizedOperandSegments, SingleBlockImplicitTerminator<"YieldOp">]>
 {
   let summary = "Task Operation"; 
-  let arguments = (ins AnyType: $input, 
-                   StrAttr:$arch);
+  let arguments = (ins TargetRef: $targetref,  
+                   StrAttr:$arch,
+                   Variadic<AnyType>: $inputs,
+                   Variadic<AnyType>: $outputs
+                   );
 
   let results = (outs TaskRef : $result);
   let regions = (region SizedRegion<1> : $body);
 
   let builders = [
-    OpBuilder<(ins "TaskRefType":$taskref, "StringRef":$arch,
+    OpBuilder<(ins "TaskRefType":$taskref, "Value":$targetRef, "ValueRange":$inputs, "ValueRange":$outputs, 
+      CArg<"function_ref<void(OpBuilder &, Location, Value, ValueRange)>",
+           "nullptr">)>
+  ];
+
+}
+
+
+def ScheduleOp : Op<AvialDialect, "schedule", [IsolatedFromAbove,SingleBlockImplicitTerminator<"YieldOp">]>
+{
+  let summary = "ScheduleOp"; 
+  let regions = (region SizedRegion<1> : $body); 
+
+  let arguments = (ins ArrayAttr:$inputs);
+
+  let builders = [
+    OpBuilder<(ins  "::mlir::ArrayAttr":$inputs,
       CArg<"function_ref<void(OpBuilder &, Location, Value, ValueRange)>",
            "nullptr">)>
   ];
@@ -86,11 +105,7 @@ def TaskGraphOp : AvialDialectOp<"taskGraph">
   let results = (outs AnyType);
 }
 
-def TaskScheduleOp : AvialDialectOp<"taskSchedule">
-{
-  let summary = "Task Operation"; 
-  let results = (outs AnyType);
-}
+
 
 // End of Ops
 
