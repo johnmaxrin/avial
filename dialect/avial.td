@@ -8,6 +8,8 @@ include "mlir/IR/EnumAttr.td"
 
 include "mlir/Pass/PassBase.td"
 
+include "passes.td"
+
 def AvialDialect : Dialect {
     let summary = "A sample dialect for understanding";
     let name = "avial";
@@ -51,7 +53,6 @@ def TaskOp : Op<AvialDialect, "task", [AttrSizedOperandSegments, SingleBlockImpl
 {
   let summary = "Task Operation"; 
   let arguments = (ins TargetRef: $targetref,  
-                   StrAttr:$arch,
                    Variadic<AnyType>: $inputs,
                    Variadic<AnyType>: $outputs
                    );
