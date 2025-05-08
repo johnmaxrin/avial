@@ -13,7 +13,13 @@ void mlir::avial::TaskOp::build(OpBuilder &builder, OperationState &state, TaskR
 
   Region *region = state.addRegion();
   Block *block = new Block();
-  block->addArgument(builder.getI32Type(), builder.getUnknownLoc());
+
+  for(auto arg: inputs)
+    block->addArgument(arg.getType(), builder.getUnknownLoc());
+  
+  for(auto arg: outputs)
+    block->addArgument(arg.getType(), builder.getUnknownLoc());
+  
   region->push_back(block);
 
   if (bodyBuilder) {
@@ -29,14 +35,24 @@ void mlir::avial::ScheduleOp::build(OpBuilder &builder, OperationState &state, :
                    function_ref<void(OpBuilder &, Location,  mlir::Value, mlir::ValueRange)> bodyBuilder) {
  
   state.getOrAddProperties<Properties>().inputs = inputs;
+  llvm::SmallVector<mlir::Type> inputTypes;
+  for (mlir::Attribute attr : inputs) {
+    auto dictAttr = mlir::cast<DictionaryAttr>(attr); 
+    auto typeAttr = mlir::cast<TypeAttr>(dictAttr.get("type"));
+    inputTypes.push_back(typeAttr.getValue());
+  }
+  
   Region *region = state.addRegion();
   Block *block = new Block();
-  block->addArgument(builder.getI32Type(), builder.getUnknownLoc());
+
+  for(auto arg: inputTypes)
+    block->addArgument(arg, builder.getUnknownLoc());
+  
   region->push_back(block);
 
   if (bodyBuilder) {
     OpBuilder::InsertionGuard guard(builder);
     builder.setInsertionPointToStart(block);
-    bodyBuilder(builder, state.location, Value(), ValueRange());
+    bodyBuilder(builder, state.location, Value(), block->getArguments());
   }
 }
