@@ -14,6 +14,8 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 
+#include "conversions/avialirtompi.h"
+
 using namespace std;
 using namespace mlir;
 
@@ -33,7 +35,7 @@ int main()
     // Generate a Sample Avial IR
 
     // Create inputs and Outputs.
-    Type memrefType = MemRefType::get({20}, builder.getF32Type());
+    Type memrefType = MemRefType::get({20}, builder.getI64Type());
 
     DictionaryAttr arg1 = builder.getDictionaryAttr({builder.getNamedAttr("name", builder.getStringAttr("inp1")),
                                                      builder.getNamedAttr("type", TypeAttr::get(memrefType))});
@@ -64,16 +66,32 @@ int main()
                             auto addVal = builder.create<arith::AddIOp>(nestedLoc, builder.getI64Type(), val1, val2);
                             
                             builder.create<memref::StoreOp>(nestedLoc, addVal.getResult(), iterArgs[2], mlir::ValueRange{indexIv}, builder.getBoolAttr(0));
+                            builder.create<mlir::scf::YieldOp>(loc, mlir::ValueRange{iterArgs}); 
                         });
-                    
+
+                    builder.create<mlir::avial::YieldOp>(loc);
                 });
+
+
+                builder.create<mlir::avial::YieldOp>(loc);
         });
     module->push_back(schOp);
     module->dump();
 
     // End of generating a Sample Avial IR
 
+
     // Lowerings.
+    PassManager pm(module->getContext());
+    pm.addPass(mlir::avial::createConvertAvialIRToMPIPass());
+
+    if (failed(pm.run(module->getOperation()))) {
+        llvm::errs() << "Failed to run passes\n";
+        return 1;
+    }
+
+    
+
 
 
     

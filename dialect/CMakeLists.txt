@@ -7,6 +7,7 @@ mlir_tablegen(Types.h.inc -gen-typedef-decls )
 mlir_tablegen(Types.cpp.inc -gen-typedef-defs )
 mlir_tablegen(Enums.h.inc -gen-enum-decls)
 mlir_tablegen(Enums.cpp.inc -gen-enum-defs)
+mlir_tablegen(Passes.h.inc -gen-pass-decls)
 
 add_public_tablegen_target(MLIRAvialDialectIncGen)
 
