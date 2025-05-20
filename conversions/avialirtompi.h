@@ -70,11 +70,11 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
 
         for (auto inputAttr : oldInps)
         {
-            auto dict = inputAttr.dyn_cast<mlir::DictionaryAttr>();
+            auto dict = llvm::cast<mlir::DictionaryAttr>(inputAttr); 
             if (!dict)
                 continue;
 
-            auto typeAttr = dict.get("type").dyn_cast<mlir::TypeAttr>();
+            auto typeAttr = llvm::cast< mlir::TypeAttr> (dict.get("type"));
             if (typeAttr)
                 inputTypes.push_back(typeAttr.getValue());
         }
