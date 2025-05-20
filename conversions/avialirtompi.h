@@ -13,7 +13,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "llvm/Support/Casting.h"
 
-#include "analysis/dataDeps.h"
+#include "analysis/depGraph.h"
 
 using namespace mlir;
 using namespace avial;
@@ -57,10 +57,10 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
     {
 
         // Do the dependence analysis. 
-        ScheduleAnalysis dataDep;
-        dataDep.run(op);
+        DependencyGraph dependencyGraph;
+        dependencyGraph.build(op);
 
-        llvm::outs() << "Size: " << dataDep.bufferUsage.size();
+        llvm::outs() << "Size: " << dependencyGraph.bufferUsage.size();
 
 
         llvm::SmallVector<mlir::Type> inputTypes;

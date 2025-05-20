@@ -74,7 +74,7 @@ int main()
 
 
             auto inp2 = builder.create<memref::AllocaOp>(loc,memrefType);
-            
+        
             auto t2 = builder.create<avial::TaskOp>(builder.getUnknownLoc(),avial::TaskRefType::get(builder.getContext()),cpu.getResult(), mlir::ValueRange{args[0], inp2.getResult() }, mlir::ValueRange{args[2]}, 
                 [&](mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value, mlir::ValueRange taskargs){
                     // Create a parallel for all from 0 to 20 and add everything.
@@ -100,7 +100,7 @@ int main()
                 builder.create<mlir::avial::YieldOp>(loc);
         });
     module->push_back(schOp);
-    module->dump();
+    //module->dump();
 
     // End of generating a Sample Avial IR
 
@@ -117,7 +117,7 @@ int main()
     
 
 
-    module->dump();
+    //module->dump();
 
     
     
