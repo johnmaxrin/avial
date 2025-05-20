@@ -82,7 +82,7 @@ int main()
 
 
     // Lowerings.
-    PassManager pm(module->getContext());
+    PassManager pm(&context);
     pm.addPass(mlir::avial::createConvertAvialIRToMPIPass());
 
     if (failed(pm.run(module->getOperation()))) {
@@ -93,6 +93,7 @@ int main()
     
 
 
+    module->dump();
 
     
     
