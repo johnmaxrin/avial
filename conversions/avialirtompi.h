@@ -60,7 +60,6 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         DependencyGraph dependencyGraph;
         dependencyGraph.build(op);
 
-        llvm::outs() << "Size: " << dependencyGraph.bufferUsage.size();
 
 
         llvm::SmallVector<mlir::Type> inputTypes;
