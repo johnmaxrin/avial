@@ -13,7 +13,7 @@ namespace mlir
             llvm::DenseMap<Value, int> bufferUsage;
           
             void run(avial::ScheduleOp schedule) {
-                llvm::outs() << "Hello.!!\n";
+                llvm::outs() << "-- Data Dependence Analysis\n";
 
               for (TaskOp task : schedule.getBody().getOps<TaskOp>()) {
                 for (Value v : task.getOperands())

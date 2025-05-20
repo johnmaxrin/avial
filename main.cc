@@ -35,7 +35,7 @@ int main()
     // Generate a Sample Avial IR
 
     // Create inputs and Outputs.
-    Type memrefType = MemRefType::get({20}, builder.getI64Type());
+    MemRefType memrefType = MemRefType::get({20}, builder.getI64Type());
 
     DictionaryAttr arg1 = builder.getDictionaryAttr({builder.getNamedAttr("name", builder.getStringAttr("inp1")),
                                                      builder.getNamedAttr("type", TypeAttr::get(memrefType))});
@@ -52,6 +52,30 @@ int main()
         {
             auto cpu = builder.create<avial::TargetOp>(builder.getUnknownLoc(), avial::TargetRefType::get(builder.getContext(), "CPU"), "CPU", "0");
             auto t1 = builder.create<avial::TaskOp>(builder.getUnknownLoc(),avial::TaskRefType::get(builder.getContext()),cpu.getResult(), mlir::ValueRange{args[0], args[1] }, mlir::ValueRange{args[2]}, 
+                [&](mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value, mlir::ValueRange taskargs){
+                    // Create a parallel for all from 0 to 20 and add everything.
+                    auto constZero = builder.create<arith::ConstantOp>(loc, builder.getI64Type(), builder.getI64IntegerAttr(0));
+                    auto upb = builder.create<arith::ConstantOp>(loc, builder.getI64Type(), builder.getI64IntegerAttr(20));
+                    auto step = builder.create<arith::ConstantOp>(loc, builder.getI64Type(), builder.getI64IntegerAttr(1));
+                    builder.create<scf::ForOp>(loc, constZero, upb, step, mlir::ValueRange{args},
+                        [&](mlir::OpBuilder &builder, mlir::Location nestedLoc, mlir::Value iv, mlir::ValueRange iterArgs){
+                            auto indexIv = builder.create<arith::IndexCastOp>(nestedLoc, builder.getIndexType(), iv);
+                            auto val1 = builder.create<memref::LoadOp>(nestedLoc, builder.getI64Type(), iterArgs[0], mlir::ValueRange{indexIv}, builder.getBoolAttr(0));
+                            auto val2 = builder.create<memref::LoadOp>(nestedLoc, builder.getI64Type(), iterArgs[1], mlir::ValueRange{indexIv}, builder.getBoolAttr(0));
+
+                            auto addVal = builder.create<arith::AddIOp>(nestedLoc, builder.getI64Type(), val1, val2);
+                            
+                            builder.create<memref::StoreOp>(nestedLoc, addVal.getResult(), iterArgs[2], mlir::ValueRange{indexIv}, builder.getBoolAttr(0));
+                            builder.create<mlir::scf::YieldOp>(loc, mlir::ValueRange{iterArgs}); 
+                        });
+
+                    builder.create<mlir::avial::YieldOp>(loc);
+                });
+
+
+            auto inp2 = builder.create<memref::AllocaOp>(loc,memrefType);
+            
+            auto t2 = builder.create<avial::TaskOp>(builder.getUnknownLoc(),avial::TaskRefType::get(builder.getContext()),cpu.getResult(), mlir::ValueRange{args[0], inp2.getResult() }, mlir::ValueRange{args[2]}, 
                 [&](mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value, mlir::ValueRange taskargs){
                     // Create a parallel for all from 0 to 20 and add everything.
                     auto constZero = builder.create<arith::ConstantOp>(loc, builder.getI64Type(), builder.getI64IntegerAttr(0));
