@@ -74,10 +74,13 @@ namespace mlir
         llvm::outs() << "digraph TaskGraph {\n";
         for (auto &task : tasks)
         {
-          auto name = task.op->getName().getStringRef().str();
+          auto nameAttr = task.op->getAttrOfType<mlir::StringAttr>("name");
+          std::string name = nameAttr ? nameAttr.getValue().str() : "unnamed";
+
           for (auto *dep : task.deps)
           {
-            auto depName = dep->op->getName().getStringRef().str();
+            auto nameAttr = dep->op->getAttrOfType<mlir::StringAttr>("name");
+            std::string depName = nameAttr ? nameAttr.getValue().str() : "unnamed";
             llvm::outs() << "  \"" << depName << "\" -> \"" << name << "\";\n";
           }
         }
