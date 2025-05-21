@@ -70,7 +70,10 @@ namespace mlir
             }
           }
         }
+      }
 
+      void printDiGraph()
+      {
         llvm::outs() << "digraph TaskGraph {\n";
         for (auto &task : tasks)
         {

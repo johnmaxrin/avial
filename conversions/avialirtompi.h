@@ -59,6 +59,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         // Do the dependence analysis. 
         DependencyGraph dependencyGraph;
         dependencyGraph.build(op);
+        dependencyGraph.printDiGraph();
 
 
 
