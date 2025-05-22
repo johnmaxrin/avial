@@ -75,7 +75,7 @@ int main()
             t1->setAttr("name", builder.getStringAttr("task1"));
             auto inp2 = builder.create<memref::AllocaOp>(loc,memrefType);
         
-            auto t2 = builder.create<avial::TaskOp>(builder.getUnknownLoc(),avial::TaskRefType::get(builder.getContext()),cpu.getResult(), mlir::ValueRange{args[0], args[1] }, mlir::ValueRange{inp2}, 
+            auto t2 = builder.create<avial::TaskOp>(builder.getUnknownLoc(),avial::TaskRefType::get(builder.getContext()),cpu.getResult(), mlir::ValueRange{args[0], args[2] }, mlir::ValueRange{inp2}, 
                 [&](mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value, mlir::ValueRange taskargs){
                     // Create a parallel for all from 0 to 20 and add everything.
                     auto constZero = builder.create<arith::ConstantOp>(loc, builder.getI64Type(), builder.getI64IntegerAttr(0));

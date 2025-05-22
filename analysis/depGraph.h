@@ -20,23 +20,24 @@ namespace mlir
     struct DependencyGraph
     {
       std::vector<TaskOpInfo> tasks;
+      std::vector<std::vector<TaskOpInfo *>> levelVector;
 
       void build(avial::ScheduleOp schedule)
       {
-        llvm::outs() << "-- Data Dependence Analysis\n";
+        llvm::outs() << "-- Building task dependency graph\n";
 
         for (TaskOp task : schedule.getBody().getOps<TaskOp>())
         {
 
           TaskOpInfo info;
-          info.op = task;
+          info.op = task.getOperation();
           for (auto in : task.getInputs())
             info.reads.push_back(in);
 
           for (auto out : task.getOutputs())
             info.writes.push_back(out);
 
-          tasks.push_back(info);
+          tasks.push_back(std::move(info));
         }
 
         // Build the dependency Graph.
@@ -88,6 +89,55 @@ namespace mlir
           }
         }
         llvm::outs() << "}\n";
+      }
+
+      void levelSchedule()
+      {
+        std::map<TaskOpInfo *, int> inDegree;
+        std::map<TaskOpInfo *, int> outDegree;
+        std::set<TaskOpInfo *> scheduled;
+
+        for (auto &task : tasks)
+        {
+          outDegree[&task] = 0;
+          inDegree[&task] = 0;
+
+          inDegree[&task] = task.deps.size();
+          for (auto &dep : task.deps)
+            outDegree[dep]++;
+        }
+
+        int cnt = 0;
+        while (true)
+        {
+          std::vector<TaskOpInfo *> currentLevel;
+
+          for (TaskOpInfo &task : tasks)
+          {
+            if (inDegree[&task] == 0)
+            {
+              currentLevel.push_back(&task);
+            }
+          }
+
+          if (scheduled.size() == tasks.size())
+            break;
+          
+          for (auto *t : currentLevel)
+          {
+            scheduled.insert(t);
+            for (auto &task : tasks)
+            {
+              if (std::find(task.deps.begin(), task.deps.end(), t) != task.deps.end())
+                inDegree[&task]--;
+            }
+          }
+
+        levelVector.push_back(currentLevel);
+
+          
+        }
+
       }
     };
 
