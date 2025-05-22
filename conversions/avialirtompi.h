@@ -60,9 +60,19 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         DependencyGraph dependencyGraph;
         dependencyGraph.build(op);
         dependencyGraph.printDiGraph();
-        dependencyGraph.levelSchedule();
+        dependencyGraph.schedule();
 
+        llvm::outs() << "Level Vector\n\n";
+        for(auto i: dependencyGraph.levelVector)
+        {   
 
+            llvm::outs() << "-- L --\n";
+            for(auto &j : i)
+                llvm::outs()<<j << "\n";
+            
+            llvm::outs() << "\n";
+
+        }
 
         llvm::SmallVector<mlir::Type> inputTypes;
         auto loc = op.getLoc();

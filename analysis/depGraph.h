@@ -91,7 +91,7 @@ namespace mlir
         llvm::outs() << "}\n";
       }
 
-      void levelSchedule()
+      void schedule()
       {
         std::map<TaskOpInfo *, int> inDegree;
         std::map<TaskOpInfo *, int> outDegree;
@@ -114,7 +114,7 @@ namespace mlir
 
           for (TaskOpInfo &task : tasks)
           {
-            if (inDegree[&task] == 0)
+            if (inDegree[&task] == 0 && !scheduled.count(&task))
             {
               currentLevel.push_back(&task);
             }
