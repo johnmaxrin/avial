@@ -62,17 +62,8 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         dependencyGraph.printDiGraph();
         dependencyGraph.schedule();
 
-        llvm::outs() << "Level Vector\n\n";
-        for(auto i: dependencyGraph.levelVector)
-        {   
+        // Now that we have the level vector. Let's generate code for it! 
 
-            llvm::outs() << "-- L --\n";
-            for(auto &j : i)
-                llvm::outs()<<j << "\n";
-            
-            llvm::outs() << "\n";
-
-        }
 
         llvm::SmallVector<mlir::Type> inputTypes;
         auto loc = op.getLoc();
@@ -92,12 +83,40 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
 
         auto funcType = mlir::FunctionType::get(rewriter.getContext(), inputTypes, {});
         auto func = rewriter.create<mlir::func::FuncOp>(loc, "main", funcType);
-        rewriter.inlineRegionBefore(op.getRegion(), func.getBody(), func.end());
+
+        Block *block = func.addEntryBlock();
+        rewriter.setInsertionPointToEnd(block);
+
+        for(auto op : dependencyGraph.allocs)
+            rewriter.clone(*op.getOperation());
+
+        rewriter.create<func::ReturnOp>(loc);
+
+        //block->getOperations().push_back(op3);
+
+        // for(mlir::memref::AllocaOp op : dependencyGraph.allocs)
+        // {
+        //     memref::AllocaOp *clonedAlloc = rewriter.clone(*op.getOperation());
+        //     block->getOperations().push_back(clonedAlloc);
+        // } 
+
+
+        //rewriter.inlineRegionBefore(op.getRegion(), func.getBody(), func.end());
+
+        //func.setVisibility(mlir::SymbolTable::Visibility::Private);
+
         rewriter.eraseOp(op);
 
         return success();
     }
 };
+
+
+
+void memAllocs()
+{
+
+}
 
 namespace mlir
 {

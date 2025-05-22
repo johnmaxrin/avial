@@ -2,6 +2,7 @@
 #include "mlir/Pass/PassManager.h"
 
 #include "includes/avialDialect.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "includes/avialOps.h"
 
 struct TaskOpInfo
@@ -20,11 +21,26 @@ namespace mlir
     struct DependencyGraph
     {
       std::vector<TaskOpInfo> tasks;
+      std::vector<TargetOp> targets;
+      std::vector<mlir::memref::AllocaOp> allocs;
+
       std::vector<std::vector<TaskOpInfo *>> levelVector;
 
       void build(avial::ScheduleOp schedule)
       {
         llvm::outs() << "-- Building task dependency graph\n";
+
+        for(TargetOp target: schedule.getBody().getOps<TargetOp>())
+          targets.push_back(target);
+
+        for(memref::AllocaOp alloc : schedule.getBody().getOps<memref::AllocaOp>())
+        {
+          if (alloc->getParentOp() == schedule) 
+            allocs.push_back(alloc);
+          
+        }
+
+
 
         for (TaskOp task : schedule.getBody().getOps<TaskOp>())
         {
