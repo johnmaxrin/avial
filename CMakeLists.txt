@@ -51,14 +51,17 @@ get_property(extension_libs GLOBAL PROPERTY MLIR_EXTENSION_LIBS)
 add_subdirectory(dialect)
 
 
+
 # Add executable and link it with the parser library
 add_llvm_executable(bin main.cc libs/avialDialect.cc libs/avialOps.cc DEPENDS MLIRAvialDialectIncGen)
 target_link_libraries(bin 
 
 PRIVATE
         ${dialect_libs}
+        MLIRMPIToLLVM
         MLIRAnalysis
         MLIRIR
         MLIRParser
         MLIRSupport
+        MLIRMPIDialect
     )
