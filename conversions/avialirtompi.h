@@ -6,14 +6,22 @@
 #include "includes/avialTypes.h"
 
 #include "mlir/Transforms/DialectConversion.h"
+#include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Conversion/Passes.h"
+#include "mlir/Conversion/MPIToLLVM/MPIToLLVM.h"
+
+
 
 #include "mlir/IR/PatternMatch.h"
 #include "llvm/Support/Casting.h"
 
 #include "analysis/depGraph.h"
+
+// Dialects
+#include "mlir/Dialect/MPI/IR/MPI.h"
 
 using namespace mlir;
 using namespace avial;
@@ -47,6 +55,42 @@ using namespace avial;
 //     }
 // };
 
+struct LowerMPIDialectToLLVMPass
+    : public PassWrapper<LowerMPIDialectToLLVMPass, OperationPass<ModuleOp>>
+{
+
+    void runOnOperation() override
+    {
+        ModuleOp module = getOperation();
+
+        // Step 1: Set up conversion target
+        MLIRContext *context = &getContext();
+        LLVMConversionTarget target(*context);
+        target.addLegalDialect<LLVM::LLVMDialect>();
+        target.addIllegalDialect<mpi::MPIDialect>();
+
+        // Step 2: Type converter
+        LLVMTypeConverter typeConverter(context);
+
+        // Step 3: Populate patterns
+        RewritePatternSet patterns(context);
+        mpi::populateMPIToLLVMConversionPatterns(typeConverter, patterns);
+        mlir::populateFinalizeMemRefToLLVMConversionPatterns(typeConverter, patterns);
+
+        // Step 4: Apply conversion
+        if (failed(applyPartialConversion(module, target, std::move(patterns))))
+        {
+            signalPassFailure();
+        }
+    }
+};
+
+std::unique_ptr<Pass> createLowerMPIPass()
+{
+  return std::make_unique<LowerMPIDialectToLLVMPass>();
+}
+
+
 struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
 {
     using OpConversionPattern::OpConversionPattern;
@@ -56,14 +100,13 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         ConversionPatternRewriter &rewriter) const override
     {
 
-        // Do the dependence analysis. 
+        // Do the dependence analysis.
         DependencyGraph dependencyGraph;
         dependencyGraph.build(op);
         dependencyGraph.printDiGraph();
         dependencyGraph.schedule();
 
-        // Now that we have the level vector. Let's generate code for it! 
-
+        // Now that we have the level vector. Let's generate code for it!
 
         llvm::SmallVector<mlir::Type> inputTypes;
         auto loc = op.getLoc();
@@ -72,11 +115,11 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
 
         for (auto inputAttr : oldInps)
         {
-            auto dict = llvm::cast<mlir::DictionaryAttr>(inputAttr); 
+            auto dict = llvm::cast<mlir::DictionaryAttr>(inputAttr);
             if (!dict)
                 continue;
 
-            auto typeAttr = llvm::cast< mlir::TypeAttr> (dict.get("type"));
+            auto typeAttr = llvm::cast<mlir::TypeAttr>(dict.get("type"));
             if (typeAttr)
                 inputTypes.push_back(typeAttr.getValue());
         }
@@ -87,36 +130,27 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         Block *block = func.addEntryBlock();
         rewriter.setInsertionPointToEnd(block);
 
-        for(auto op : dependencyGraph.allocs)
+        for (auto op : dependencyGraph.allocs)
             rewriter.clone(*op.getOperation());
 
+        // MPI Boilerplate
+
+        auto retVal = mlir::mpi::RetvalType::get(rewriter.getContext());
+        rewriter.create<mlir::mpi::InitOp>(loc, retVal);
+
+        auto comm = rewriter.create<mlir::mpi::CommWorldOp>(loc, mlir::mpi::CommType::get(rewriter.getContext()));
+        auto rank = rewriter.create<mpi::CommRankOp>(loc, rewriter.getI32Type(), comm->getResult(0));
+        auto getNodes = rewriter.create<mpi::CommSizeOp>(loc, mpi::RetvalType::get(rewriter.getContext()), rewriter.getI32Type(), comm->getResult(0));
+
+        // End of MPI Boilerplate
+
         rewriter.create<func::ReturnOp>(loc);
-
-        //block->getOperations().push_back(op3);
-
-        // for(mlir::memref::AllocaOp op : dependencyGraph.allocs)
-        // {
-        //     memref::AllocaOp *clonedAlloc = rewriter.clone(*op.getOperation());
-        //     block->getOperations().push_back(clonedAlloc);
-        // } 
-
-
-        //rewriter.inlineRegionBefore(op.getRegion(), func.getBody(), func.end());
-
-        //func.setVisibility(mlir::SymbolTable::Visibility::Private);
 
         rewriter.eraseOp(op);
 
         return success();
     }
 };
-
-
-
-void memAllocs()
-{
-
-}
 
 namespace mlir
 {
@@ -139,11 +173,15 @@ namespace mlir
                 target.addLegalDialect<mlir::arith::ArithDialect>();
                 target.addLegalDialect<mlir::LLVM::LLVMDialect>();
                 target.addLegalDialect<mlir::func::FuncDialect>();
+                target.addLegalDialect<mlir::mpi::MPIDialect>();
 
                 target.addIllegalOp<avial::ScheduleOp>();
 
+
                 RewritePatternSet patterns(context);
                 patterns.add<ConvertScheduleOp>(context);
+
+
 
                 if (failed(applyPartialConversion(module, target, std::move(patterns))))
                 {

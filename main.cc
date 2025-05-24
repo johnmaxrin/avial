@@ -4,6 +4,7 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
 
+
 #include <iostream>
 
 #include "includes/avialDialect.h"
@@ -15,6 +16,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 
 #include "conversions/avialirtompi.h"
+#include "mlir/Conversion/MPIToLLVM/MPIToLLVM.h"
 
 using namespace std;
 using namespace mlir;
@@ -104,7 +106,11 @@ int main()
     //module->dump();
 
     // End of generating a Sample Avial IR
-
+    DialectRegistry registry;
+    mpi::registerConvertMPIToLLVMInterface(registry);
+  
+    context.appendDialectRegistry(registry);
+    
 
     // Lowerings.
     PassManager pm(&context);
@@ -120,9 +126,16 @@ int main()
 
     module->dump();
 
+    // Lower MPI to LLVM
+    PassManager pm2(&context); 
+    pm2.addPass(createLowerMPIPass());  
+    if (failed(pm2.run(module->getOperation()))) {
+        llvm::errs() << "Failed to run 2 passes\n";
+        return 1;
+    }
     
     
-    
+    module->dump();
     
     
     return 0;
