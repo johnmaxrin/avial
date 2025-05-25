@@ -78,7 +78,7 @@ int main()
             auto inp2 = builder.create<memref::AllocaOp>(loc,memrefType);
             auto inp3 = builder.create<memref::AllocaOp>(loc,memrefType);
         
-            auto t2 = builder.create<avial::TaskOp>(builder.getUnknownLoc(),avial::TaskRefType::get(builder.getContext()),cpu.getResult(), mlir::ValueRange{args[0], args[1] }, mlir::ValueRange{inp2}, 
+            auto t2 = builder.create<avial::TaskOp>(builder.getUnknownLoc(),avial::TaskRefType::get(builder.getContext()),cpu.getResult(), mlir::ValueRange{args[0], inp3->getResult(0) }, mlir::ValueRange{inp2}, 
                 [&](mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value, mlir::ValueRange taskargs){
                     // Create a parallel for all from 0 to 20 and add everything.
                     auto constZero = builder.create<arith::ConstantOp>(loc, builder.getI64Type(), builder.getI64IntegerAttr(0));
@@ -103,7 +103,7 @@ int main()
                 builder.create<mlir::avial::YieldOp>(loc);
         });
     module->push_back(schOp);
-    //module->dump();
+    module->dump();
 
     // End of generating a Sample Avial IR
     DialectRegistry registry;
@@ -126,16 +126,16 @@ int main()
 
     module->dump();
 
-    // Lower MPI to LLVM
-    PassManager pm2(&context); 
-    pm2.addPass(createLowerMPIPass());  
-    if (failed(pm2.run(module->getOperation()))) {
-        llvm::errs() << "Failed to run 2 passes\n";
-        return 1;
-    }
+    // // Lower MPI to LLVM
+    // PassManager pm2(&context); 
+    // pm2.addPass(createLowerMPIPass());  
+    // if (failed(pm2.run(module->getOperation()))) {
+    //     llvm::errs() << "Failed to run 2 passes\n";
+    //     return 1;
+    // }
     
     
-    module->dump();
+    // module->dump();
     
     
     return 0;
