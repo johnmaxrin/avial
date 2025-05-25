@@ -9,11 +9,13 @@
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Conversion/Passes.h"
 #include "mlir/Conversion/MPIToLLVM/MPIToLLVM.h"
-
-
 
 #include "mlir/IR/PatternMatch.h"
 #include "llvm/Support/Casting.h"
@@ -87,9 +89,8 @@ struct LowerMPIDialectToLLVMPass
 
 std::unique_ptr<Pass> createLowerMPIPass()
 {
-  return std::make_unique<LowerMPIDialectToLLVMPass>();
+    return std::make_unique<LowerMPIDialectToLLVMPass>();
 }
-
 
 struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
 {
@@ -113,6 +114,9 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         auto module = op->getParentOfType<mlir::ModuleOp>();
         auto oldInps = op.getInputs();
 
+
+        mlir::IRMapping mapping;
+
         for (auto inputAttr : oldInps)
         {
             auto dict = llvm::cast<mlir::DictionaryAttr>(inputAttr);
@@ -128,24 +132,69 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         auto func = rewriter.create<mlir::func::FuncOp>(loc, "main", funcType);
 
         Block *block = func.addEntryBlock();
+
+        for (const auto& arg : llvm::enumerate(op.getRegion().getBlocks().front().getArguments())) {
+            mapping.map(arg.value(), block->getArgument(arg.index()));
+          }
+
         rewriter.setInsertionPointToEnd(block);
 
         for (auto op : dependencyGraph.allocs)
-            rewriter.clone(*op.getOperation());
+        {
+            auto newOp = rewriter.clone(*op.getOperation());
+            op.getResult().replaceAllUsesWith(newOp->getResult(0));
+        }
 
         // MPI Boilerplate
-
         auto retVal = mlir::mpi::RetvalType::get(rewriter.getContext());
         rewriter.create<mlir::mpi::InitOp>(loc, retVal);
-
         auto comm = rewriter.create<mlir::mpi::CommWorldOp>(loc, mlir::mpi::CommType::get(rewriter.getContext()));
         auto rank = rewriter.create<mpi::CommRankOp>(loc, rewriter.getI32Type(), comm->getResult(0));
         auto getNodes = rewriter.create<mpi::CommSizeOp>(loc, mpi::RetvalType::get(rewriter.getContext()), rewriter.getI32Type(), comm->getResult(0));
 
         // End of MPI Boilerplate
 
-        rewriter.create<func::ReturnOp>(loc);
+        // Lower the tasks
+        for (std::vector<TaskOpInfo *> level : dependencyGraph.levelVector)
+        {
+            int taskId = 0;
+            for (auto task : level)
+            {
+                // Lower Task
+                // Assigned Node
 
+                auto taskIDOp = rewriter.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(taskId));
+                auto taskIdModNodes = rewriter.create<mlir::arith::RemSIOp>(loc, taskIDOp->getResult(0), getNodes->getResult(1));
+                auto cond = rewriter.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), taskIdModNodes.getResult());
+                rewriter.create<mlir::scf::IfOp>(loc, cond, [&](OpBuilder &builder, Location loc)
+                                                 {
+                    // Add Task Args to IfOp Mappings
+
+                    
+                    Block &taskBlock = task->op->getRegion(0).front(); 
+                    Block *thenBlock = builder.getBlock();
+
+                    for (auto &op : taskBlock) {
+                        if (mlir::isa<mlir::avial::YieldOp>(op))
+                            continue;
+                    
+                        Operation *clonedOp = rewriter.clone(op, mapping);
+                    } 
+                    
+
+                    
+                    rewriter.create<mlir::scf::YieldOp>(loc); });
+
+                ++taskId;
+            }
+
+            rewriter.create<mpi::Barrier>(loc, retVal, comm->getResult(0));
+        }
+
+        // End of Lowering the tasks
+
+        llvm::outs() << "Hi ji\n";
+        rewriter.create<func::ReturnOp>(loc);
         rewriter.eraseOp(op);
 
         return success();
@@ -177,11 +226,8 @@ namespace mlir
 
                 target.addIllegalOp<avial::ScheduleOp>();
 
-
                 RewritePatternSet patterns(context);
                 patterns.add<ConvertScheduleOp>(context);
-
-
 
                 if (failed(applyPartialConversion(module, target, std::move(patterns))))
                 {
