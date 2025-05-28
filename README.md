@@ -26,6 +26,19 @@ Our dialect builds on top of the MPI dialect, But raises the level of abstractio
 
 > _This dialect bridges the gap between `device` and `cluster` level parallelism, making it an MLIR dialect that can target distributed heterogeneous systems._
 
-## The `Codedrop` Approach
+## The `CodeDrop` Approach
 In  high-performance computing environments, applications often contain a mix of compute regions. Some better suited for multicore CPUs, others for GPUs. Traditionally, orchestrating these different parts involves complex code: different frameworks (e.g., OpenMP, CUDA, MPI), manual device management, and tedious boilerplate. The CodeDrop approach introduces a task-oriented, declarative model that streamlines this process:
 > _Drop your computation. Declare the target. Let the dialect take care of the rest._
+
+Here's how it works in practice:
+- Wrap your compute region inside a TaskOp. This region can contain operations from any dialect whether it's affine loops, linalg ops, or custom dialects.
+- Attach a targetOp to specify where the task should execute. e.g., cpu or gpu.
+- Let the Dialect Handle the Rest
+  - Automatically schedules tasks to the right hardware
+  - Inserts necessary MPI coordination
+  - Lowers the task to the different backend (e.g., LLVM, CUDA, ROCm)
+  - Handles device setup and data movement
+
+Thanks to the `CodeDrop` approach, integrating the Avial dialect into existing compiler pipelines is both trivial and non-intrusive. The process begins by identifying performance-critical regions such as loops, compute kernels, or math-heavy operations regardless of which dialect they're written in. These regions are then wrapped in a TaskOp. That’s it. From there, Avial takes full control, automatically lowering tasks to the appropriate execution backends including MPI for distributed execution and ultimately to LLVM IR.
+
+This approach not only simplifies integration but also scales easily across heterogeneous and distributed environments. Whether running on a single multicore CPU or across a CPU-GPU cluster with MPI, Avial ensures consistent handling of task distribution and coordination.
