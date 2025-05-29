@@ -1,6 +1,5 @@
 # 🥗 Avial : An MLIR Dialect for Distributed Heterogeneous Computing
-Avial is a compiler infrastructure built using MLIR that enables efficient execution of programs across distributed and heterogeneous computing systems (CPU, GPU, cluster). Avial introduces a novel task-centric intermediate representation (IR) where tasks are first-class citizens, capturing their parallelism, device targets, and interdependencies. The infrastructure supports:
-
+Avial is a compiler infrastructure built using MLIR that enables efficient execution of programs across distributed and heterogeneous computing systems (CPU, GPU, cluster). Avial introduces a novel task-centric intermediate representation (IR) where tasks are first-class citizens, capturing their parallelism, device targets, and interdependencies. 
 ## 🚧 Project Status  
 ![Current Focus](https://img.shields.io/badge/Current_Focus-Topology_Aware_Optimizations-blue) <br>
 ![Next Release](https://img.shields.io/badge/Next_Release-Multicore_+_GPU_+_Topology_Aware_Scheduling-white) <br>
