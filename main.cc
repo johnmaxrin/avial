@@ -18,6 +18,18 @@
 #include "conversions/avialirtompi.h"
 #include "mlir/Conversion/MPIToLLVM/MPIToLLVM.h"
 
+
+#include "mlir/Conversion/LLVMCommon/TypeConverter.h"
+#include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
+#include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
+#include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
+#include "mlir/Conversion/SCFToOpenMP/SCFToOpenMP.h"
+#include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
+#include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
+#include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
+
+
+
 using namespace std;
 using namespace mlir;
 
@@ -126,16 +138,25 @@ int main()
 
     module->dump();
 
-    // // Lower MPI to LLVM
-    // PassManager pm2(&context); 
-    // pm2.addPass(createLowerMPIPass());  
-    // if (failed(pm2.run(module->getOperation()))) {
-    //     llvm::errs() << "Failed to run 2 passes\n";
-    //     return 1;
-    // }
+    // // Lower Everything to LLVM
+    PassManager pm2(&context);
+    
+    pm2.addPass(createConvertFuncToLLVMPass());
+    pm2.addPass(createArithToLLVMConversionPass());
+    pm2.addPass(createConvertSCFToOpenMPPass());
+    pm2.addPass(createSCFToControlFlowPass());
+    pm2.addPass(createConvertControlFlowToLLVMPass());
+    pm2.addPass(createConvertOpenMPToLLVMPass());
+    pm2.addPass(createLowerMPIPass());  
+    pm2.addPass(createFinalizeMemRefToLLVMConversionPass());
+
+    if (failed(pm2.run(module->getOperation()))) {
+        llvm::errs() << "Failed to run 2 passes\n";
+        return 1;
+    }
     
     
-    // module->dump();
+    module->dump();
     
     
     return 0;

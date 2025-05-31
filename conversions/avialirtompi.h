@@ -129,7 +129,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         }
 
         auto funcType = mlir::FunctionType::get(rewriter.getContext(), inputTypes, {});
-        auto func = rewriter.create<mlir::func::FuncOp>(loc, "main", funcType);
+        auto func = rewriter.create<mlir::func::FuncOp>(loc, "testFunc", funcType);
 
         Block *block = func.addEntryBlock();
 
@@ -193,7 +193,6 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
 
         // End of Lowering the tasks
 
-        llvm::outs() << "Hi ji\n";
         rewriter.create<func::ReturnOp>(loc);
         rewriter.eraseOp(op);
 
