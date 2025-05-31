@@ -50,6 +50,11 @@ get_property(extension_libs GLOBAL PROPERTY MLIR_EXTENSION_LIBS)
 
 add_subdirectory(dialect)
 
+set(NO_RTTI "-fno-rtti")
+add_definitions(${NO_RTTI})
+add_library(MPIToLLVMConversion
+  /home/r0b36t/llvm-project/mlir/lib/Conversion/MPIToLLVM/MPIToLLVM.cpp
+)
 
 
 # Add executable and link it with the parser library
@@ -58,10 +63,13 @@ target_link_libraries(bin
 
 PRIVATE
         ${dialect_libs}
-        MLIRMPIToLLVM
+        #MLIRMPIToLLVM
+        MPIToLLVMConversion
+        MLIRSCFToOpenMP
         MLIRAnalysis
         MLIRIR
         MLIRParser
         MLIRSupport
         MLIRMPIDialect
+        MLIROpenMPToLLVM
     )
