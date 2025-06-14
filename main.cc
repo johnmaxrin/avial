@@ -16,7 +16,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 
 #include "conversions/avialirtompi.h"
-#include "mlir/Conversion/MPIToLLVM/MPIToLLVM.h"
+// #include "mlir/Conversion/MPIToLLVM/MPIToLLVM.h"
 
 
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
@@ -119,7 +119,7 @@ int main()
 
     // End of generating a Sample Avial IR
     DialectRegistry registry;
-    mpi::registerConvertMPIToLLVMInterface(registry);
+    // mpi::registerConvertMPIToLLVMInterface(registry);
   
     context.appendDialectRegistry(registry);
     
@@ -147,7 +147,7 @@ int main()
     pm2.addPass(createSCFToControlFlowPass());
     pm2.addPass(createConvertControlFlowToLLVMPass());
     pm2.addPass(createConvertOpenMPToLLVMPass());
-    pm2.addPass(createLowerMPIPass());  
+    //pm2.addPass(createLowerMPIPass());  
     pm2.addPass(createFinalizeMemRefToLLVMConversionPass());
 
     if (failed(pm2.run(module->getOperation()))) {
