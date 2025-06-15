@@ -13,7 +13,6 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Conversion/Passes.h"
 #include "mlir/Conversion/MPIToLLVM/MPIToLLVM.h"
 

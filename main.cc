@@ -19,6 +19,8 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 
 #include "conversions/avialirtompi.h"
+#include "conversions/stdtoavial.h"
+
 // #include "mlir/Conversion/MPIToLLVM/MPIToLLVM.h"
 
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
@@ -66,10 +68,19 @@ int main(int argc, char *argv[])
     OwningOpRef<ModuleOp> module = mlir::parseSourceFile<mlir::ModuleOp>(sourceMgr, &context);
 
     if (!module) {
-    llvm::errs() << "Failed to parse the MLIR file.\n";
-    return 2;
-  }
-    
+        llvm::errs() << "Failed to parse the MLIR file.\n";
+        return 2;
+    }
+
+PassManager pm(&context);
+    pm.addPass(mlir::avial::createConvertStdToAvialPass());
+
+    if (failed(pm.run(module->getOperation()))) {
+        llvm::errs() << "Failed to run passes\n";
+        return 1;
+    }
+
+
 
     /*
     OpBuilder builder(&context);
