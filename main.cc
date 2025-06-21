@@ -17,6 +17,7 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/DLTI/DLTI.h"
 
 #include "conversions/avialirtompi.h"
 #include "conversions/stdtoavial.h"
@@ -42,6 +43,7 @@ int main(int argc, char *argv[])
     registry.insert<mlir::memref::MemRefDialect>();
     registry.insert<mlir::scf::SCFDialect>();
     registry.insert<mlir::arith::ArithDialect>();
+    registry.insert<mlir::DLTIDialect>();
 
     MLIRContext context;
     context.allowUnregisteredDialects();
@@ -65,7 +67,7 @@ int main(int argc, char *argv[])
 
     sourceMgr.AddNewSourceBuffer(std::move(mlirFile), llvm::SMLoc());
 
-    // OwningOpRef<ModuleOp> module = ModuleOp::create(UnknownLoc::get(&context));
+    // OwningOpRef<ModuleOp> module2 = ModuleOp::create(UnknownLoc::get(&context));
     OwningOpRef<ModuleOp> module = mlir::parseSourceFile<mlir::ModuleOp>(sourceMgr, &context);
 
     if (!module) {
@@ -204,7 +206,7 @@ PassManager pm(&context);
 
     */
 
-    //module->dump();
+    module->dump();
 
     return 0;
 }

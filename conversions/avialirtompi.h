@@ -21,6 +21,8 @@
 
 #include "analysis/depGraph.h"
 
+#include "mlir/Dialect/DLTI/DLTI.h"
+
 // Dialects
 #include "mlir/Dialect/MPI/IR/MPI.h"
 

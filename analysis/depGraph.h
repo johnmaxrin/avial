@@ -21,7 +21,7 @@ namespace mlir
     struct DependencyGraph
     {
       std::vector<TaskOpInfo> tasks;
-      std::vector<TargetOp> targets;
+      //std::vector<TargetOp> targets;
       std::vector<mlir::memref::AllocaOp> allocs;
 
       std::vector<std::vector<TaskOpInfo *>> levelVector;
@@ -30,8 +30,8 @@ namespace mlir
       {
         llvm::outs() << "-- Building task dependency graph\n";
 
-        for(TargetOp target: schedule.getBody().getOps<TargetOp>())
-          targets.push_back(target);
+        // for(TargetOp target: schedule.getBody().getOps<TargetOp>())
+        //   targets.push_back(target);
 
         for(memref::AllocaOp alloc : schedule.getBody().getOps<memref::AllocaOp>())
         {

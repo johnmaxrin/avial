@@ -52,7 +52,8 @@ class AvialDialectOp<string mnemonic> : Op<AvialDialect, mnemonic>
 def TaskOp : Op<AvialDialect, "task", [AttrSizedOperandSegments, SingleBlockImplicitTerminator<"YieldOp">]>
 {
   let summary = "Task Operation"; 
-  let arguments = (ins TargetRef: $targetref,  
+  let arguments = (
+                   ins AnyAttr : $target,  
                    Variadic<AnyType>: $inputs,
                    Variadic<AnyType>: $outputs
                    );
@@ -61,7 +62,7 @@ def TaskOp : Op<AvialDialect, "task", [AttrSizedOperandSegments, SingleBlockImpl
   let regions = (region SizedRegion<1> : $body);
 
   let builders = [
-    OpBuilder<(ins "TaskRefType":$taskref, "Value":$targetRef, "ValueRange":$inputs, "ValueRange":$outputs, 
+    OpBuilder<(ins "TaskRefType":$taskref, "mlir::Attribute":$target, "ValueRange":$inputs, "ValueRange":$outputs, 
       CArg<"function_ref<void(OpBuilder &, Location, Value, ValueRange)>",
            "nullptr">)>
   ];
@@ -83,16 +84,6 @@ def ScheduleOp : Op<AvialDialect, "schedule", [IsolatedFromAbove,SingleBlockImpl
   ];
 
 }
-
-
-def TargetOp : Op<AvialDialect, "target">
-{
-  let summary = "Target Operation"; 
-  let arguments = (ins StrAttr:$arch, StrAttr:$deviceId);
-  let results = (outs TargetRef : $targetref);
- 
-}
-
 
 
 def YieldOp : Op<AvialDialect, "yield", [Terminator]>
