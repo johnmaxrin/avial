@@ -13,6 +13,13 @@
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 
+#include "includes/avialDialect.h"
+#include "includes/avialOps.h"
+#include "includes/avialTypes.h"
+
+#include "mlir/Dialect/DLTI/DLTI.h"
+#include "mlir/IR/Builders.h"
+
 #include <string>
 
 using namespace mlir;
@@ -32,6 +39,7 @@ namespace mlir
             {
                 mlir::MLIRContext *context = &getContext();
                 auto *module = getOperation();
+                mlir::OpBuilder builder(context);
 
                 module->walk<mlir::WalkOrder::PreOrder>([&](mlir::Operation *op)
                 {
@@ -39,7 +47,23 @@ namespace mlir
                     {
 
                         auto funcOp = llvm::dyn_cast<mlir::func::FuncOp>(op);
+                        
+                        // auto archAttr = builder.getStringAttr("arch");
+                        // auto archVal = builder.getStringAttr("sm_90");
+                        // auto entry1 = mlir::DataLayoutEntryAttr::get(archAttr, archVal);
+                        // auto targetDlti = mlir::TargetDeviceSpecAttr::get(context, {entry1});
 
+                        // auto cpu = builder.create<avial::TargetOp>(builder.getUnknownLoc(), avial::TargetRefType::get(builder.getContext(), "CPU"), "CPU", "0", targetDlti);
+                        // mlir::TargetDeviceSpecAttr tar =  mlir::dyn_cast<mlir::TargetDeviceSpecAttr>(cpu->getAttr("dlti"));
+                        
+                        // auto mapAttr = tar.getSpecForIdentifier(builder.getStringAttr("arch"));
+                        // mapAttr.getValue().dump();
+                        
+
+                       
+                       
+
+                        
                         if (auto attr = funcOp->getAttrOfType<mlir::StringAttr>("sym_name"))
                         {
                             if(attr.getValue().str().find("cpu") != std::string::npos)
@@ -64,8 +88,11 @@ namespace mlir
                             // Check if we have CPU_ or GPU_
                             // If we don;t have, emit the same IR.
                             // If we have any functions like that, distribute it!
-                        }
-                    });
+                    }
+
+                   
+
+                });
                 
 
             

@@ -3,10 +3,10 @@
 using namespace mlir;
 using namespace mlir::avial;
 
-void mlir::avial::TaskOp::build(OpBuilder &builder, OperationState &state, TaskRefType resType, Value target,::mlir::ValueRange inputs, ::mlir::ValueRange outputs, 
+void mlir::avial::TaskOp::build(OpBuilder &builder, OperationState &state, TaskRefType resType, mlir::Attribute target,::mlir::ValueRange inputs, ::mlir::ValueRange outputs, 
                    function_ref<void(OpBuilder &, Location,  mlir::Value, mlir::ValueRange)> bodyBuilder) {
   state.addTypes(resType);
-  state.addOperands(target);
+  state.addAttribute("target",target);
   state.addOperands(inputs);
   state.addOperands(outputs);
   ::llvm::copy(::llvm::ArrayRef<int32_t>({1, static_cast<int32_t>(inputs.size()), static_cast<int32_t>(outputs.size())}), state.getOrAddProperties<Properties>().operandSegmentSizes.begin());
