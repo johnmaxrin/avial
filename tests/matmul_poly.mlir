@@ -16,7 +16,7 @@ module {
           memref.store %4, %arg2[%arg3, %arg4] : memref<?x300xf32>
         }
       }
-    } {target = "cpu"}
+    } {task="true"}
     return
   }
 }

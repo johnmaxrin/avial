@@ -9,7 +9,7 @@ void mlir::avial::TaskOp::build(OpBuilder &builder, OperationState &state, TaskR
   state.addAttribute("target",target);
   state.addOperands(inputs);
   state.addOperands(outputs);
-  ::llvm::copy(::llvm::ArrayRef<int32_t>({1, static_cast<int32_t>(inputs.size()), static_cast<int32_t>(outputs.size())}), state.getOrAddProperties<Properties>().operandSegmentSizes.begin());
+  ::llvm::copy(::llvm::ArrayRef<int32_t>({0, static_cast<int32_t>(inputs.size()), static_cast<int32_t>(outputs.size())}), state.getOrAddProperties<Properties>().operandSegmentSizes.begin());
 
   Region *region = state.addRegion();
   Block *block = new Block();
