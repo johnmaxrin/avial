@@ -136,7 +136,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
 
         for (const auto& arg : llvm::enumerate(op.getRegion().getBlocks().front().getArguments())) {
             mapping.map(arg.value(), block->getArgument(arg.index()));
-          }
+        }
 
         rewriter.setInsertionPointToEnd(block);
 
