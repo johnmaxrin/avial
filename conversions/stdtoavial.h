@@ -28,45 +28,88 @@
 using namespace mlir;
 using namespace avial;
 
-struct convertFunc : public RewritePattern
+struct ConvertToAvial : public OpConversionPattern<mlir::func::FuncOp>
 {
-    public:
-    convertFunc(MLIRContext *context) : RewritePattern(MatchAnyOpTypeTag{}, 1, context){}
+    using OpConversionPattern::OpConversionPattern;
 
     LogicalResult matchAndRewrite(
-        mlir::Operation *op,
-        PatternRewriter &rewriter) const override
+        mlir::func::FuncOp op, OpAdaptor adaptor,
+        ConversionPatternRewriter &rewriter) const override
     {
+        // Replace this with scheduleOp.
+        auto args = op.getArguments();
+        int idx = 0;
+        SmallVector<mlir::Attribute, 4> argsAttr;
 
-        if(!op->hasAttr("task"))
-            return failure();
+        mlir::Region &oldRegion = op.getBody();
+
+        mlir::IRMapping mapping;
         
-        auto taskAttr = op->getAttrOfType<StringAttr>("task");
-        if (!taskAttr)
-            return failure();
-        
+        for (auto arg : args)
+        {
+            std::string nameStr = "arg" + std::to_string(idx);
+            mlir::NamedAttribute nameAttr = rewriter.getNamedAttr("name", rewriter.getStringAttr(nameStr));
+            mlir::NamedAttribute typeAttr = rewriter.getNamedAttr("type", mlir::TypeAttr::get(arg.getType()));
+            mlir::DictionaryAttr dictAttr = rewriter.getDictionaryAttr({nameAttr, typeAttr});
+            argsAttr.push_back(dictAttr);
+
+            ++idx;
+        }
+        mlir::ArrayAttr insAttr = rewriter.getArrayAttr(argsAttr);
 
         rewriter.setInsertionPoint(op);
-        // Create the taskOp
-        auto archAttr = rewriter.getStringAttr("arch");
-        auto archVal = rewriter.getStringAttr("sm_90");
-        auto entry1 = mlir::DataLayoutEntryAttr::get(archAttr, archVal);
-        auto targetDlti = mlir::TargetDeviceSpecAttr::get(op->getContext(), {entry1});
-        auto taskOp = rewriter.create<avial::TaskOp>(op->getLoc(), avial::TaskRefType::get(rewriter.getContext()), targetDlti, mlir::ValueRange{}, mlir::ValueRange{});
+        auto schOp = rewriter.create<avial::ScheduleOp>(rewriter.getUnknownLoc(), insAttr);
+
+        for (const auto &arg : llvm::enumerate(op.getRegion().getBlocks().front().getArguments()))
+        {
+            mapping.map(arg.value(), schOp.getRegion().getBlocks().front().getArgument(arg.index()));
+        }
+
+        rewriter.setInsertionPointToStart(&schOp.getBodyRegion().getBlocks().front());
+
+        Block &funcBlock = op.getBody().front();
+        Block &schBlock = schOp.getBodyRegion().front();
+
+        for (Operation &innerop : funcBlock.getOperations())
+        {
+
+            if (mlir::isa<mlir::func::ReturnOp>(innerop))
+                continue;
+
+            if(innerop.hasAttr("task"))
+            {
+                // Create the taskOp
+                auto archAttr = rewriter.getStringAttr("arch");
+                auto archVal = rewriter.getStringAttr("sm_90");
+                auto entry1 = mlir::DataLayoutEntryAttr::get(archAttr, archVal);
+                auto targetDlti = mlir::TargetDeviceSpecAttr::get(innerop.getContext(), {entry1});
+                auto taskOp = rewriter.create<avial::TaskOp>(innerop.getLoc(), avial::TaskRefType::get(rewriter.getContext()), targetDlti, mlir::ValueRange{}, mlir::ValueRange{});
+
+                rewriter.setInsertionPointToStart(&taskOp.getBodyRegion().getBlocks().front());
+
+                innerop.removeAttr("task");
+                Operation *cloned = rewriter.clone(innerop, mapping);
+                rewriter.create<mlir::avial::YieldOp>(rewriter.getUnknownLoc());
+            }
+            else
+                Operation *cloned = rewriter.clone(innerop, mapping);
         
-        rewriter.setInsertionPointToStart(&taskOp.getBodyRegion().getBlocks().front());
-        
-        op->removeAttr("task");
-        op->moveBefore(&taskOp.getBodyRegion().front(), taskOp.getBodyRegion().front().begin());
- 
-        rewriter.create<avial::YieldOp>(op->getLoc());
+            rewriter.setInsertionPointToEnd(&schOp.getBodyRegion().getBlocks().front());
+        }
 
 
-//        taskOp.dump();
-    
+
+        rewriter.setInsertionPointToEnd(&schOp.getBodyRegion().getBlocks().front());
+        rewriter.create<mlir::avial::YieldOp>(rewriter.getUnknownLoc());
+
+        schOp.dump();
+
+        rewriter.eraseOp(op);
         return success();
     }
 };
+
+
 
 namespace mlir
 {
@@ -82,13 +125,17 @@ namespace mlir
             {
                 mlir::MLIRContext *context = &getContext();
                 auto *module = getOperation();
-                
+
                 ConversionTarget target(getContext());
+                target.addIllegalOp<func::FuncOp>();
 
                 target.addLegalDialect<avial::AvialDialect>();
+                target.markUnknownOpDynamicallyLegal([](Operation *op) { return true; });
+
+
                 RewritePatternSet patterns(context);
 
-                patterns.add<convertFunc>(context);
+                patterns.add<ConvertToAvial>(context);
 
                 if (failed(applyPartialConversion(module, target, std::move(patterns))))
                 {
@@ -101,7 +148,7 @@ namespace mlir
                 //     {
 
                 //         auto funcOp = llvm::dyn_cast<mlir::func::FuncOp>(op);
-                        
+
                 //         // auto archAttr = builder.getStringAttr("arch");
                 //         // auto archVal = builder.getStringAttr("sm_90");
                 //         // auto entry1 = mlir::DataLayoutEntryAttr::get(archAttr, archVal);
@@ -109,7 +156,7 @@ namespace mlir
 
                 //         // auto cpu = builder.create<avial::TargetOp>(builder.getUnknownLoc(), avial::TargetRefType::get(builder.getContext(), "CPU"), "CPU", "0", targetDlti);
                 //         // mlir::TargetDeviceSpecAttr tar =  mlir::dyn_cast<mlir::TargetDeviceSpecAttr>(cpu->getAttr("dlti"));
-                        
+
                 //         // auto mapAttr = tar.getSpecForIdentifier(builder.getStringAttr("arch"));
                 //         // mapAttr.getValue().dump();
 
@@ -117,7 +164,7 @@ namespace mlir
                 //         //                             builder.getNamedAttr("type", TypeAttr::get(memrefType))});
                 //         // ArrayAttr insAttr
                 //         // ***** Generate Schedule OP ***** //
-                        
+
                 //         auto args = funcOp.getArguments();
                 //         int idx = 0;
                 //         SmallVector<mlir::Attribute, 4> argsAttr;
@@ -137,15 +184,12 @@ namespace mlir
                 //         auto schOp = builder.create<avial::ScheduleOp>(builder.getUnknownLoc(),insAttr,
                 //             [&](mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value, mlir::ValueRange args)
                 //             {
-                                
-                //             });
-                        
-                //             schOp.dump();
-                //         // ***** Generate Schedule OP end * //                       
-                       
 
-                        
-                        
+                //             });
+
+                //             schOp.dump();
+                //         // ***** Generate Schedule OP end * //
+
                 //             // op->dumpPretty();
 
                 //             // Take Every Functions.
@@ -154,12 +198,9 @@ namespace mlir
                 //             // If we have any functions like that, distribute it!
                 //     }
 
-                   
-
                 // });
-                
             }
-            };
-        }
-
+        };
     }
+
+}

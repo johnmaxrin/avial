@@ -181,10 +181,11 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                     
                         Operation *clonedOp = rewriter.clone(op, mapping);
                     } 
-                    
+
 
                     
-                    rewriter.create<mlir::scf::YieldOp>(loc); });
+                    rewriter.create<mlir::scf::YieldOp>(loc); 
+                });
 
                 ++taskId;
             }
