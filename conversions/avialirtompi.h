@@ -115,6 +115,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         auto module = op->getParentOfType<mlir::ModuleOp>();
         auto oldInps = op.getInputs();
 
+        
 
         mlir::IRMapping mapping;
 
@@ -154,6 +155,17 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         auto getNodes = rewriter.create<mpi::CommSizeOp>(loc, mpi::RetvalType::get(rewriter.getContext()), rewriter.getI32Type(), comm->getResult(0));
 
         // End of MPI Boilerplate
+
+
+        // Clone all variables
+        for(auto &innerOp : op.getBodyRegion().front().getOperations())
+        {
+            if(mlir::isa<mlir::avial::TaskOp>(innerOp) || mlir::isa<mlir::avial::YieldOp>(innerOp))
+                continue;
+            
+            Operation *cloned = rewriter.clone(innerOp, mapping);
+        }
+
 
         // Lower the tasks
         for (std::vector<TaskOpInfo *> level : dependencyGraph.levelVector)
@@ -197,6 +209,8 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
 
         rewriter.create<func::ReturnOp>(loc);
         rewriter.eraseOp(op);
+
+        func.dump();
 
         return success();
     }
