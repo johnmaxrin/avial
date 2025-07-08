@@ -13,3 +13,12 @@ def ConvertStdToAvialPass : Pass<"std-to-avialir">{
   "::mlir::scf::SCFDialect", "::mlir::memref::MemRefDialect", "mlir::arith::ArithDialect", "mlir::LLVM::LLVMDialect", "mlir::func::FuncDialect", "mlir::mpi::MPIDialect", "mlir::DLTIDialect"];
 
 }
+
+
+def ConvertAffineToAvialPass : Pass<"affine-to-avialir">{
+  let summary = "Affine Dialects to Avial IR";
+
+  let dependentDialects = ["mlir::avial::AvialDialect", 
+  "mlir::affine::AffineDialect", "mlir::DLTIDialect"];
+
+}
