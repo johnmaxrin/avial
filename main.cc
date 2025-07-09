@@ -79,8 +79,8 @@ int main(int argc, char *argv[])
     }
 
 PassManager pm(&context);
-    pm.addPass(mlir::avial::createConvertStdToAvialPass());
     pm.addPass(mlir::avial::createConvertAffineToAvialPass());
+    pm.addPass(mlir::avial::createConvertStdToAvialPass());
 
     pm.addPass(mlir::avial::createConvertAvialIRToMPIPass());
 

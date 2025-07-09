@@ -26,6 +26,7 @@
 
 #include "analysis/polyHedralAnalysis.h"
 
+
 #include <string>
 
 using namespace mlir;
@@ -51,10 +52,46 @@ namespace mlir
             {
                 mlir::MLIRContext *context = &getContext();
                 auto *module = getOperation();
-               
-                // Do the analysis on ForLoop and if there isn't any dependence, a particular nest, Wrap it with avial.replicate 
+                module->walk<mlir::WalkOrder::PreOrder>([](mlir::Operation *op)
+                {
+
+
+                    if(mlir::isa<func::FuncOp>(op))
+                    {
+
+                        // Do the analysis on ForLoop and if there isn't any dependence, a particular nest, Wrap it with avial.replicate 
+                        auto funcOp = mlir::dyn_cast<func::FuncOp>(op);
+
+                        Block &blck = funcOp.getBody().front();
+
+                        for(auto &op : blck.getOperations())
+                        {
+
+                            if(mlir::isa<affine::AffineForOp>(op))
+                            {
+                                mlir::affine::AffineForOp forOp = mlir::dyn_cast<mlir::affine::AffineForOp>(op);
+                                if(checkLoopDependence(forOp))
+                                {
+                                    // Wrap the for-loop with Tas
+                        
+                                    llvm::outs() << "Dependece is there\n";
+
+                                }
+
+                                else
+                                {
+                                    // No Dependence
+                                    // Wrap the forloop with replicate.
+                                }
+                            }
+                        }
+
+                        
+                    }
+                    
+                });
+
                 
-                llvm::outs() << "Hello from Affine to Avial\n";
 
             }
         };
