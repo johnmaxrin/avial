@@ -52,7 +52,12 @@ namespace mlir
             {
                 mlir::MLIRContext *context = &getContext();
                 auto *module = getOperation();
-                module->walk<mlir::WalkOrder::PreOrder>([](mlir::Operation *op)
+                mlir::OpBuilder builder(context);
+
+                llvm::SmallVector<mlir::Operation *, 4>toReplicateVector;
+                llvm::SmallVector<mlir::Operation *, 4>toTaskVector;
+
+                module->walk<mlir::WalkOrder::PreOrder>([&](mlir::Operation *op)
                 {
 
 
@@ -70,11 +75,12 @@ namespace mlir
                             if(mlir::isa<affine::AffineForOp>(op))
                             {
                                 mlir::affine::AffineForOp forOp = mlir::dyn_cast<mlir::affine::AffineForOp>(op);
-                                if(checkLoopDependence(forOp))
+                                if(checkLoopDependence(forOp)) // Dependecne free in the outer loop. 
                                 {
                                     // Wrap the for-loop with Tas
                         
                                     llvm::outs() << "Dependece is there\n";
+                                    toTaskVector.push_back(forOp);
 
                                 }
 
@@ -82,6 +88,11 @@ namespace mlir
                                 {
                                     // No Dependence
                                     // Wrap the forloop with replicate.
+                                    toReplicateVector.push_back(forOp);
+                                    llvm::outs() << "Dependence free\n";
+                                    
+
+
                                 }
                             }
                         }
@@ -90,6 +101,20 @@ namespace mlir
                     }
                     
                 });
+
+                for(auto op : toReplicateVector)
+                {
+                    affine::AffineForOp forOp = mlir::dyn_cast<affine::AffineForOp>(op);
+                    builder.setInsertionPoint(forOp);
+                    auto replicateOp = builder.create<mlir::avial::ReplicateOp>(forOp.getLoc());
+                    mlir::Region &replicateRegion = replicateOp.getBodyRegion();
+                    mlir::Block *newBlock = builder.createBlock(&replicateRegion);
+
+                    forOp->moveBefore(newBlock, newBlock->end());
+                    builder.create<mlir::avial::YieldOp>(builder.getUnknownLoc());                 
+                    replicateOp.dump();
+
+                }
 
                 
 

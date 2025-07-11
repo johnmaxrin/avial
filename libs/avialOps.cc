@@ -56,3 +56,4 @@ void mlir::avial::ScheduleOp::build(OpBuilder &builder, OperationState &state, :
     bodyBuilder(builder, state.location, Value(), block->getArguments());
   }
 }
+
