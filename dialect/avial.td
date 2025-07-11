@@ -85,6 +85,16 @@ def ScheduleOp : Op<AvialDialect, "schedule", [IsolatedFromAbove,SingleBlockImpl
 
 }
 
+def ReplicateOp : Op<AvialDialect, "replicate", [SingleBlockImplicitTerminator<"YieldOp">]>
+{
+  let summary = "ReplicateOp"; 
+  let regions = (region SizedRegion<1> : $body); 
+
+
+  
+
+}
+
 
 def YieldOp : Op<AvialDialect, "yield", [Terminator]>
 {
