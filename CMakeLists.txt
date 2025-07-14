@@ -58,7 +58,7 @@ add_definitions(${NO_RTTI})
 
 
 # Add executable and link it with the parser library
-add_llvm_executable(bin main.cc libs/avialDialect.cc libs/avialOps.cc DEPENDS MLIRAvialDialectIncGen)
+add_llvm_executable(bin main.cc libs/avialDialect.cc libs/avialOps.cc libs/utils.cc DEPENDS MLIRAvialDialectIncGen)
 target_link_libraries(bin 
 
 PRIVATE

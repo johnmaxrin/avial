@@ -18,6 +18,8 @@
 #include "includes/avialOps.h"
 #include "includes/avialTypes.h"
 
+#include "includes/utils.h"
+
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/IR/Builders.h"
 
@@ -125,6 +127,10 @@ namespace mlir
             {
                 mlir::MLIRContext *context = &getContext();
                 auto *module = getOperation();
+
+                attachDLTISpec(llvm::dyn_cast<mlir::ModuleOp>(module),context);
+                module->dump();  // Should show dlti.dl_spec
+                extractTargetDeviceSpecs(llvm::dyn_cast<mlir::ModuleOp>(module)); 
 
                 ConversionTarget target(getContext());
                 target.addIllegalOp<func::FuncOp>();
