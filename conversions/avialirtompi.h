@@ -4,6 +4,7 @@
 
 #include "includes/avialDialect.h"
 #include "includes/avialTypes.h"
+#include "includes/utils.h"
 
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
@@ -28,35 +29,6 @@
 
 using namespace mlir;
 using namespace avial;
-
-// class AvialtoMPITypeConverter : public TypeConverter
-// {
-// public:
-//     AvialtoMPITypeConverter(MLIRContext *ctx)
-//     {
-
-//         addConversion([ctx](Type type)
-//                    { return type; });
-
-//         addConversion([ctx](){return ;});
-
-//         // addConversion([ctx](mlir::avial::TaskRef) -> Type
-//         //               { return 0; });
-
-//         // addTargetMaterialization(
-//         //     [ctx](OpBuilder &builder, Type type, ValueRange inputs, Location loc) -> std::optional<Value>
-//         //     {
-//         //         if (type.isa<mlir::avial::taskref>() &&
-//         //             inputs.size() == 1 &&
-//         //             inputs[0].getType().isa<MemRefType>())
-//         //         {
-//         //             return inputs[0]; // just forward the memref
-//         //         }
-//         //         return std::nullopt;
-//         //     });
-
-//     }
-// };
 
 struct LowerMPIDialectToLLVMPass
     : public PassWrapper<LowerMPIDialectToLLVMPass, OperationPass<ModuleOp>>
@@ -93,6 +65,40 @@ std::unique_ptr<Pass> createLowerMPIPass()
     return std::make_unique<LowerMPIDialectToLLVMPass>();
 }
 
+struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
+{
+    using OpConversionPattern::OpConversionPattern;
+
+    LogicalResult matchAndRewrite(
+        mlir::avial::ReplicateOp op, OpAdaptor adaptor,
+        ConversionPatternRewriter &rewriter) const override
+    {
+        mlir::IRMapping mapping;
+
+        auto archAttr = rewriter.getStringAttr("arch");
+        auto archVal = rewriter.getStringAttr("sm_90");
+        auto entry1 = mlir::DataLayoutEntryAttr::get(archAttr, archVal);
+        auto targetDlti = mlir::TargetDeviceSpecAttr::get(op.getContext(), {entry1});
+
+        
+        auto parentOp = op->getParentOp();
+
+
+        rewriter.setInsertionPointAfter(op); 
+
+        rewriter.create<mlir::arith::ConstantOp>(rewriter.getUnknownLoc(), rewriter.getI32Type(), rewriter.getI32IntegerAttr(33));
+
+        rewriter.eraseOp(op);
+        llvm::errs() << "***************\n";
+        parentOp->dump();
+        llvm::errs() << "***************\n";
+    
+
+
+        return success();
+    }
+};
+
 struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
 {
     using OpConversionPattern::OpConversionPattern;
@@ -101,6 +107,9 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         mlir::avial::ScheduleOp op, OpAdaptor adaptor,
         ConversionPatternRewriter &rewriter) const override
     {
+
+        
+
 
         // Do the dependence analysis.
         DependencyGraph dependencyGraph;
@@ -232,6 +241,7 @@ namespace mlir
                 auto *module = getOperation();
 
                 ConversionTarget target(getContext());
+                ConversionTarget targetReplicateOp(getContext());
                 target.addLegalDialect<mlir::scf::SCFDialect>();
                 target.addLegalDialect<mlir::memref::MemRefDialect>();
                 target.addLegalDialect<mlir::arith::ArithDialect>();
@@ -241,9 +251,24 @@ namespace mlir
 
                 target.addIllegalOp<avial::ScheduleOp>();
 
+                targetReplicateOp.addLegalDialect<mlir::arith::ArithDialect>();
+                targetReplicateOp.addLegalDialect<mlir::avial::AvialDialect>(); // Now this will work!! Idiot!! 
+                targetReplicateOp.addIllegalOp<avial::ReplicateOp>();
+
+                RewritePatternSet avialpatterns(context);
+                avialpatterns.add<ConvertReplicateOp>(context);
+
+                if (failed(applyPartialConversion(module, targetReplicateOp, std::move(avialpatterns))))
+                {
+                    signalPassFailure();
+                }
+
+                module->dump();
+
                 RewritePatternSet patterns(context);
                 patterns.add<ConvertScheduleOp>(context);
-
+                patterns.add<ConvertReplicateOp>(context);
+               
                 if (failed(applyPartialConversion(module, target, std::move(patterns))))
                 {
                     signalPassFailure();
