@@ -8,7 +8,7 @@ func.func @matmul(%A: memref<?x?xf32>, %B: memref<?x?xf32>, %C: memref<?x?xf32>)
 
   // Sequential implementation
   affine.for %i = 0 to 5  step 1 {
-    affine.for %j = 0 to 6 {
+    affine.for %j = 0 to %i {
       affine.for %k = 0 to 7 {
         %a = affine.load %A[%i, %k] : memref<?x?xf32>
         %b = affine.load %B[%k, %j] : memref<?x?xf32>

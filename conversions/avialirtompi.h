@@ -86,12 +86,31 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
 
         rewriter.setInsertionPointAfter(op); 
 
-        rewriter.create<mlir::arith::ConstantOp>(rewriter.getUnknownLoc(), rewriter.getI32Type(), rewriter.getI32IntegerAttr(33));
+        auto taskOp = rewriter.create<avial::TaskOp>(op.getLoc(), avial::TaskRefType::get(rewriter.getContext()), targetDlti, mlir::ValueRange{}, mlir::ValueRange{});
+        
+        auto &taskBlk = taskOp.getBody().front();
+        rewriter.setInsertionPointToStart(&taskBlk);
 
+        //rewriter.inlineRegionBefore(op.getBodyRegion(), taskOp.getBodyRegion(), taskOp.getBodyRegion().begin());
+ 
+        //rewriter.create<mlir::arith::ConstantOp>(rewriter.getUnknownLoc(), rewriter.getI32Type(), rewriter.getI32IntegerAttr(33)); // This is working
+
+        // Clone everything from replicate's block to task's block. 
+
+        auto &repBlk = op.getBody().front();
+        rewriter.moveBlockBefore(&repBlk, &taskBlk);
+        // for(auto &repOp : repBlk.without_terminator())
+        // {
+        //     llvm::errs() << "Op: ";
+        //     repOp.dump();
+        //     //rewriter.insert(&repOp);
+        //     rewriter.clone(repOp, mapping);
+        // }
+        
         rewriter.eraseOp(op);
-        llvm::errs() << "***************\n";
+        llvm::errs() << "********-----********\n"; 
         parentOp->dump();
-        llvm::errs() << "***************\n";
+        llvm::errs() << "********-----********\n"; 
     
 
 
@@ -182,7 +201,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
             int taskId = 0;
             for (auto task : level)
             {
-                // Lower Task
+                // Lower 
                 // Assigned Node
 
                 auto taskIDOp = rewriter.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(taskId));
@@ -248,11 +267,12 @@ namespace mlir
                 target.addLegalDialect<mlir::LLVM::LLVMDialect>();
                 target.addLegalDialect<mlir::func::FuncDialect>();
                 target.addLegalDialect<mlir::mpi::MPIDialect>();
+                target.addLegalDialect<mlir::affine::AffineDialect>();
 
                 target.addIllegalOp<avial::ScheduleOp>();
 
                 targetReplicateOp.addLegalDialect<mlir::arith::ArithDialect>();
-                targetReplicateOp.addLegalDialect<mlir::avial::AvialDialect>(); // Now this will work!! Idiot!! 
+                targetReplicateOp.addLegalDialect<mlir::avial::AvialDialect>(); 
                 targetReplicateOp.addIllegalOp<avial::ReplicateOp>();
 
                 RewritePatternSet avialpatterns(context);
@@ -267,7 +287,6 @@ namespace mlir
 
                 RewritePatternSet patterns(context);
                 patterns.add<ConvertScheduleOp>(context);
-                patterns.add<ConvertReplicateOp>(context);
                
                 if (failed(applyPartialConversion(module, target, std::move(patterns))))
                 {
