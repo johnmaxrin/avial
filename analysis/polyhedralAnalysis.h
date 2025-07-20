@@ -1,4 +1,6 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
+
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -30,6 +32,10 @@ namespace mlir
                 forLoopOpVector.push_back(op);
             });
 
+           
+
+
+
             op.walk<mlir::WalkOrder::PreOrder>([&](mlir::affine::AffineLoadOp op){
                 memOpVector.push_back(op);
             });
@@ -44,8 +50,9 @@ namespace mlir
             affine::getIndexSet(forLoopOpVector, &constraints);
             constraints.dump();
 
-            mlir::affine::MemRefAccess src(memOpVector[2]); // src
-            mlir::affine::MemRefAccess dst(memOpVector[3]); // src
+            mlir::affine::MemRefAccess src(memOpVector[0]); // src
+            mlir::affine::MemRefAccess dst(memOpVector[0]); // src
+
 
             mlir::presburger::PresburgerSpace space = mlir::presburger::PresburgerSpace::getRelationSpace();
             mlir::presburger::IntegerRelation srcRel(space), dstRel(space);
