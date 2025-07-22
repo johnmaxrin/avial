@@ -25,62 +25,86 @@ namespace mlir
        {
             // Check for dependence in this loop nest. 
             llvm::SmallVector<mlir::Operation *, 4> forLoopOpVector;
+            llvm::SmallDenseSet<mlir::Value> loadVector;
+            llvm::SmallDenseSet<mlir::Value> storeVector;
             llvm::SmallVector<mlir::Operation *, 4> memOpVector;
+
 
 
             op.walk<mlir::WalkOrder::PreOrder>([&](mlir::affine::AffineForOp op){
                 forLoopOpVector.push_back(op);
             });
 
-           
-
-
-
             op.walk<mlir::WalkOrder::PreOrder>([&](mlir::affine::AffineLoadOp op){
                 memOpVector.push_back(op);
+                loadVector.insert(op.getMemRef());
             });
 
             op.walk<mlir::WalkOrder::PreOrder>([&](mlir::affine::AffineStoreOp op){
                 memOpVector.push_back(op);
+                storeVector.insert(op.getMemRef());
             });
 
+            
+            llvm::SmallVector<Operation *> filteredMemOps;
+            for (Operation *op : memOpVector) {
+                if (auto load = llvm::dyn_cast<mlir::affine::AffineLoadOp>(op)) {
+                    if (storeVector.contains(load.getMemRef()))
+                        filteredMemOps.push_back(op);
+                } 
+                else if (auto store = llvm::dyn_cast<mlir::affine::AffineStoreOp>(op)) {
+                    if (loadVector.contains(store.getMemRef()))
+                            filteredMemOps.push_back(op);
+                }
+            }
+
+            for(auto op : filteredMemOps)
+                op->dump();
+
             affine::FlatAffineValueConstraints constraints; 
-            affine::FlatAffineValueConstraints memconstraints; 
+
+            
 
             affine::getIndexSet(forLoopOpVector, &constraints);
             constraints.dump();
 
-            mlir::affine::MemRefAccess src(memOpVector[0]); // src
-            mlir::affine::MemRefAccess dst(memOpVector[0]); // src
+            for(int i=0; i<memOpVector.size(); ++i)
+            {
+                for(int j=0; j<memOpVector.size(); ++j)
+                {
+                    if(i==j)
+                        continue;
+                    mlir::affine::MemRefAccess src(memOpVector[i]); // src
+                    mlir::affine::MemRefAccess dst(memOpVector[j]); // src
 
-
-            mlir::presburger::PresburgerSpace space = mlir::presburger::PresburgerSpace::getRelationSpace();
-            mlir::presburger::IntegerRelation srcRel(space), dstRel(space);
+                    mlir::presburger::PresburgerSpace space = mlir::presburger::PresburgerSpace::getRelationSpace();
+                    mlir::presburger::IntegerRelation srcRel(space), dstRel(space);
             
-            if (failed(src.getAccessRelation(srcRel)))
-                return mlir::affine::DependenceResult::Failure;
+                    if (failed(src.getAccessRelation(srcRel)))
+                        return mlir::affine::DependenceResult::Failure;
             
-                if (failed(dst.getAccessRelation(dstRel)))
-                return mlir::affine::DependenceResult::Failure;
+                    if (failed(dst.getAccessRelation(dstRel)))
+                        return mlir::affine::DependenceResult::Failure;
+                    
+                    affine::FlatAffineValueConstraints srcDomain(srcRel.getDomainSet());
+                    affine::FlatAffineValueConstraints dstDomain(dstRel.getDomainSet());
 
-            affine::FlatAffineValueConstraints srcDomain(srcRel.getDomainSet());
-            affine::FlatAffineValueConstraints dstDomain(dstRel.getDomainSet());
+                    llvm::outs() << "Source:\n";                   
+                    srcDomain.dump();
 
+                    llvm::outs() << "Destination:\n";                   
+                    dstDomain.dump();
 
-            srcDomain.dump();
-            dstDomain.dump();
-
-  
-            mlir::affine::DependenceResult res =  mlir::affine::checkMemrefAccessDependence(src, dst,1, &constraints, nullptr);
+                    mlir::affine::DependenceResult res =  mlir::affine::checkMemrefAccessDependence(src, dst,1, &constraints, nullptr);
     
-            if(res.value == mlir::affine::DependenceResult::HasDependence)
-                return 1;
-            else if(res.value == mlir::affine::DependenceResult::Failure)
-                return 2;
-            else
-                return 0;
-
-            return 2;
+                    if(res.value == mlir::affine::DependenceResult::HasDependence)
+                        return 1;
+                    else if(res.value == mlir::affine::DependenceResult::Failure)
+                        return 2;
+                    
+                }
+            }
+        return 0;
        } 
     }
 }

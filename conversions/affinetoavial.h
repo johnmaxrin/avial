@@ -104,6 +104,8 @@ namespace mlir
 
                 for(auto op : toReplicateVector)
                 {
+
+                    // Get the total number of devices available.
                     affine::AffineForOp forOp = mlir::dyn_cast<affine::AffineForOp>(op);
                     builder.setInsertionPoint(forOp);
                     auto replicateOp = builder.create<mlir::avial::ReplicateOp>(forOp.getLoc());
