@@ -1,17 +1,20 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Dialect.h"
+#include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/Support/FileUtilities.h"
 #include "llvm/Support/SourceMgr.h"
 #include "mlir/Parser/Parser.h"
+#include "mlir/Dialect/DLTI/DLTI.h"
 
 #include <iostream>
 
 #include "includes/avialDialect.h"
 #include "includes/avialOps.h"
 #include "includes/avialTypes.h"
+#include "includes/utils.h"
 
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -54,6 +57,7 @@ int main(int argc, char *argv[])
     context.allowUnregisteredDialects();
 
     context.appendDialectRegistry(registry);
+      context.getOrLoadDialect<mlir::DLTIDialect>();
 
 
     llvm::cl::opt<std::string> inpFileName(llvm::cl::Positional, llvm::cl::desc("<MLIR INP File>"), llvm::cl::Required);
@@ -75,6 +79,9 @@ int main(int argc, char *argv[])
     // OwningOpRef<ModuleOp> module2 = ModuleOp::create(UnknownLoc::get(&context));
     OwningOpRef<ModuleOp> module = mlir::parseSourceFile<mlir::ModuleOp>(sourceMgr, &context);
 
+    // Add Information about the devices available. 
+    attachDLTISpec(llvm::dyn_cast<mlir::ModuleOp>(module->getOperation()),&context);
+    extractTargetDeviceSpecs(llvm::dyn_cast<mlir::ModuleOp>(module->getOperation())); 
 
     if (!module) {
         llvm::errs() << "Failed to parse the MLIR file.\n";
