@@ -19,24 +19,25 @@ void attachDLTISpec(mlir::ModuleOp module, mlir::MLIRContext *context /* Receive
             SmallVector<Attribute> devices = {node1target, node2target};
             module->setAttr(
                 "avial.target_devices",  // Expected attribute name in DLTIR
-        builder.getArrayAttr(devices)  // Store as an array
-);
+                builder.getArrayAttr(devices)  // Store as an array
+            );
           
 }
 
 
-void extractTargetDeviceSpecs(ModuleOp module) {
+llvm::SmallVector<mlir::TargetDeviceSpecAttr> extractTargetDeviceSpecs(ModuleOp module) {
+  llvm::SmallVector<mlir::TargetDeviceSpecAttr> targetSpecVec;
   auto attr = module->getAttr("avial.target_devices");
 
   if (!attr) {
     llvm::errs() << "No avial.target_devices attribute found!\n";
-    return;
+    exit(0);
   }
 
   auto arrayAttr = mlir::dyn_cast<mlir::ArrayAttr>(attr);
   if (!arrayAttr) {
     llvm::errs() << "avial.target_devices is not an ArrayAttr!\n";
-    return;
+    exit(0);
   }
 
   for (Attribute deviceAttr : arrayAttr) {
@@ -46,16 +47,21 @@ void extractTargetDeviceSpecs(ModuleOp module) {
       continue;
     }
 
-    llvm::outs() << "Found target device:\n";
-    for (auto entry : deviceSpec.getEntries()) {
-      auto dle = mlir::dyn_cast<mlir::DataLayoutEntryAttr>(entry);
-      if (!dle) continue;
 
-      auto key = dle.getKey().dyn_cast<StringAttr>();
-      auto val = mlir::dyn_cast<StringAttr>(dle.getValue());
-      if (key && val)
-        llvm::outs() << "  " << key.getValue() << " = " << val.getValue() << "\n";
-    }
+    targetSpecVec.push_back(deviceSpec);
+
+    // for (auto entry : deviceSpec.getEntries()) {
+    //   auto dle = mlir::dyn_cast<mlir::DataLayoutEntryAttr>(entry);
+    //   if (!dle) continue;
+
+    //   auto key = dle.getKey().dyn_cast<StringAttr>();
+    //   auto val = mlir::dyn_cast<StringAttr>(dle.getValue());
+    //   if (key && val)
+    //     llvm::outs() << "  " << key.getValue() << " = " << val.getValue() << "\n";
+    // }
   }
+
+  return targetSpecVec;
+  
 }
 

@@ -11,4 +11,4 @@
 
 
 void attachDLTISpec(mlir::ModuleOp module, mlir::MLIRContext *context /* Receive Info as Params */);
-void extractTargetDeviceSpecs(mlir::ModuleOp module);
+llvm::SmallVector<mlir::TargetDeviceSpecAttr> extractTargetDeviceSpecs(mlir::ModuleOp module);

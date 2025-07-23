@@ -18,11 +18,13 @@
 #include "includes/avialDialect.h"
 #include "includes/avialOps.h"
 #include "includes/avialTypes.h"
+#include "includes/utils.h"
 
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/IR/Builders.h"
 
 #include "mlir/Conversion/Passes.h"
+
 
 #include "analysis/polyHedralAnalysis.h"
 
@@ -56,7 +58,6 @@ namespace mlir
 
                 llvm::SmallVector<mlir::Operation *, 4>toReplicateVector;
                 llvm::SmallVector<mlir::Operation *, 4>toTaskVector;
-
                 module->walk<mlir::WalkOrder::PreOrder>([&](mlir::Operation *op)
                 {
 
@@ -105,7 +106,6 @@ namespace mlir
                 for(auto op : toReplicateVector)
                 {
 
-                    // Get the total number of devices available.
                     affine::AffineForOp forOp = mlir::dyn_cast<affine::AffineForOp>(op);
                     builder.setInsertionPoint(forOp);
                     auto replicateOp = builder.create<mlir::avial::ReplicateOp>(forOp.getLoc());

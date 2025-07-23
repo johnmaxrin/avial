@@ -1,6 +1,7 @@
 #include "mlir/Conversion/Passes.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/Verifier.h"
 
 #include "includes/avialDialect.h"
 #include "includes/avialTypes.h"
@@ -73,50 +74,69 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
         mlir::avial::ReplicateOp op, OpAdaptor adaptor,
         ConversionPatternRewriter &rewriter) const override
     {
+
         mlir::IRMapping mapping;
 
+        auto &replicateRegion = op.getRegion();
+        auto &replicateBody = replicateRegion.front();
+        
         auto archAttr = rewriter.getStringAttr("arch");
         auto archVal = rewriter.getStringAttr("sm_90");
         auto entry1 = mlir::DataLayoutEntryAttr::get(archAttr, archVal);
         auto targetDlti = mlir::TargetDeviceSpecAttr::get(op.getContext(), {entry1});
 
         
+        mlir::Operation *module = op;
+        while (module && !mlir::isa<mlir::ModuleOp>(module)) {
+            module = module->getParentOp();
+        }
+
+        auto deviceVec = extractTargetDeviceSpecs(llvm::dyn_cast<mlir::ModuleOp>(module));
+
+
+        
         auto parentOp = op->getParentOp();
 
-
+        
         rewriter.setInsertionPointAfter(op); 
 
-        auto taskOp = rewriter.create<avial::TaskOp>(op.getLoc(), avial::TaskRefType::get(rewriter.getContext()), targetDlti, mlir::ValueRange{}, mlir::ValueRange{});
+
         
-        auto &taskBlk = taskOp.getBody().front();
-        rewriter.setInsertionPointToStart(&taskBlk);
-
-        //rewriter.inlineRegionBefore(op.getBodyRegion(), taskOp.getBodyRegion(), taskOp.getBodyRegion().begin());
- 
-        //rewriter.create<mlir::arith::ConstantOp>(rewriter.getUnknownLoc(), rewriter.getI32Type(), rewriter.getI32IntegerAttr(33)); // This is working
-
-        // Clone everything from replicate's block to task's block. 
-
-        auto &repBlk = op.getBody().front();
-        rewriter.moveBlockBefore(&repBlk, &taskBlk);
-        // for(auto &repOp : repBlk.without_terminator())
-        // {
-        //     llvm::errs() << "Op: ";
-        //     repOp.dump();
-        //     //rewriter.insert(&repOp);
-        //     rewriter.clone(repOp, mapping);
-        // }
+            
+            auto taskOp = rewriter.create<avial::TaskOp>(op.getLoc(), avial::TaskRefType::get(rewriter.getContext()), targetDlti, mlir::ValueRange{}, mlir::ValueRange{});
         
+            auto &taskRegion = taskOp.getRegion();
+            auto &taskBlock = taskRegion.front();
+
+            for (auto [oldArg, type] : llvm::zip(replicateBody.getArguments(), replicateBody.getArgumentTypes())) {
+                Value newArg = taskBlock.addArgument(type, op.getLoc());
+                mapping.map(oldArg, newArg);
+            }
+
+
+
+            for (Operation &innerOp : replicateBody.without_terminator()) {
+                auto cloned = innerOp.clone();
+                //Operation *cloned = rewritter.clone(innerOp, mapper);
+                taskBlock.push_back(cloned);
+            }
+
+            
+
+            
+
+            
+            
+
+
         rewriter.eraseOp(op);
-        llvm::errs() << "********-----********\n"; 
-        parentOp->dump();
-        llvm::errs() << "********-----********\n"; 
-    
-
 
         return success();
     }
 };
+
+
+
 
 struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
 {
@@ -272,7 +292,7 @@ namespace mlir
                 target.addIllegalOp<avial::ScheduleOp>();
 
                 targetReplicateOp.addLegalDialect<mlir::arith::ArithDialect>();
-                targetReplicateOp.addLegalDialect<mlir::avial::AvialDialect>(); 
+                targetReplicateOp.addLegalOp<mlir::avial::TaskOp>();
                 targetReplicateOp.addIllegalOp<avial::ReplicateOp>();
 
                 RewritePatternSet avialpatterns(context);
