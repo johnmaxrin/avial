@@ -57,8 +57,9 @@ int main(int argc, char *argv[])
     context.allowUnregisteredDialects();
 
     context.appendDialectRegistry(registry);
-      context.getOrLoadDialect<mlir::DLTIDialect>();
+    context.getOrLoadDialect<mlir::DLTIDialect>();
 
+    context.printOpOnDiagnostic(true);
 
     llvm::cl::opt<std::string> inpFileName(llvm::cl::Positional, llvm::cl::desc("<MLIR INP File>"), llvm::cl::Required);
     llvm::cl::ParseCommandLineOptions(argc, argv, "CL Parser\n");
@@ -81,7 +82,7 @@ int main(int argc, char *argv[])
 
     // Add Information about the devices available. 
     attachDLTISpec(llvm::dyn_cast<mlir::ModuleOp>(module->getOperation()),&context);
-    extractTargetDeviceSpecs(llvm::dyn_cast<mlir::ModuleOp>(module->getOperation())); 
+    auto vec = extractTargetDeviceSpecs(llvm::dyn_cast<mlir::ModuleOp>(module->getOperation())); 
 
     if (!module) {
         llvm::errs() << "Failed to parse the MLIR file.\n";
