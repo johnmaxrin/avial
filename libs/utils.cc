@@ -8,11 +8,14 @@ void attachDLTISpec(mlir::ModuleOp module, mlir::MLIRContext *context /* Receive
 
             auto typeEntry = DataLayoutEntryAttr::get(builder.getStringAttr("type"), builder.getStringAttr("node"));
             auto archEntry = DataLayoutEntryAttr::get(builder.getStringAttr("arch"), builder.getStringAttr("x86"));
+            auto costEntry = DataLayoutEntryAttr::get(builder.getStringAttr("cost"), builder.getF32FloatAttr(0.2));
            
             auto node1target =  TargetDeviceSpecAttr::get(context, {typeEntry, archEntry});
           
             auto typeEntry2 = DataLayoutEntryAttr::get(builder.getStringAttr("type"), builder.getStringAttr("node"));
             auto archEntry2 = DataLayoutEntryAttr::get(builder.getStringAttr("arch"), builder.getStringAttr("x86"));
+            auto costEntry2 = DataLayoutEntryAttr::get(builder.getStringAttr("cost"), builder.getF32FloatAttr(0.8));
+           
            
             auto node2target =  TargetDeviceSpecAttr::get(context, {typeEntry2, archEntry2});
 
