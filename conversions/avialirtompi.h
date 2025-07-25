@@ -85,6 +85,8 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
         auto entry1 = mlir::DataLayoutEntryAttr::get(archAttr, archVal);
         auto targetDlti = mlir::TargetDeviceSpecAttr::get(op.getContext(), {entry1});
 
+        int64_t constupperBound = 0;
+
         
         mlir::Operation *module = op;
         while (module && !mlir::isa<mlir::ModuleOp>(module)) {
@@ -93,6 +95,23 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
 
         auto deviceVec = extractTargetDeviceSpecs(llvm::dyn_cast<mlir::ModuleOp>(module));
 
+        // Extract the outer loop bound. 
+        for(auto &innerOp : op.getBody().front().getOperations())
+        {
+            if(mlir::isa<mlir::affine::AffineForOp>(innerOp))
+            {   
+
+                
+                constupperBound = (mlir::dyn_cast<mlir::affine::AffineForOp>(innerOp)).getConstantUpperBound();
+                if(!constupperBound)
+                {
+                    llvm::errs() << "Error: Not a Contant Upper Bound";
+                    exit(0);
+                }
+            }
+        }
+        
+
 
         
         auto parentOp = op->getParentOp();
@@ -100,9 +119,34 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
         
         rewriter.setInsertionPointAfter(op); 
 
+        int64_t ub = constupperBound;
+        int64_t num_devices =  deviceVec.size();
+        
+
+        int64_t total_iters = ub;
+        int64_t base_chunk = total_iters / num_devices;
+        int64_t remainder = total_iters % num_devices;
+
+        // Chunk Calculation
+        llvm::SmallVector<std::pair<int64_t, int64_t>> ranges; 
+        int64_t current = 0;
+        for (int i = 0; i < num_devices; ++i) {
+            int64_t chunk = base_chunk + (i < remainder ? 1 : 0); // distribute remainder
+            int64_t start = current;
+            int64_t end = start + chunk;
+            ranges.emplace_back(start, end);
+            current = end;
+        }
 
         
-            
+        // Represent the number of devices - Done
+        // Compute the chunk size - Done
+        // compute start and end - Done
+        // repalce the loop bounds. - Done 
+
+        for(int i=0 ;i<deviceVec.size(); ++i)
+        {
+
             auto taskOp = rewriter.create<avial::TaskOp>(op.getLoc(), avial::TaskRefType::get(rewriter.getContext()), targetDlti, mlir::ValueRange{}, mlir::ValueRange{});
         
             auto &taskRegion = taskOp.getRegion();
@@ -115,20 +159,23 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
 
 
 
+            
             for (Operation &innerOp : replicateBody.without_terminator()) {
                 auto cloned = innerOp.clone();
-                //Operation *cloned = rewritter.clone(innerOp, mapper);
+                
+                if(mlir::isa<mlir::affine::AffineForOp>(cloned))
+                {
+                    mlir::affine::AffineForOp forOp = mlir::dyn_cast<mlir::affine::AffineForOp>(cloned);
+                    forOp.setConstantLowerBound(ranges[i].first);
+                    forOp.setConstantUpperBound(ranges[i].second);
+                }
+
                 taskBlock.push_back(cloned);
+                
             }
 
-            
 
-            
-
-            
-            
-
-
+        } 
         rewriter.eraseOp(op);
 
         return success();

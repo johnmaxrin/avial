@@ -60,7 +60,6 @@ int main(int argc, char *argv[])
     context.getOrLoadDialect<mlir::DLTIDialect>();
 
     context.printOpOnDiagnostic(true);
-
     llvm::cl::opt<std::string> inpFileName(llvm::cl::Positional, llvm::cl::desc("<MLIR INP File>"), llvm::cl::Required);
     llvm::cl::ParseCommandLineOptions(argc, argv, "CL Parser\n");
 
