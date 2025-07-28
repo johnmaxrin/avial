@@ -23,6 +23,7 @@
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 
 #include "conversions/avialirtompi.h"
 #include "conversions/stdtoavial.h"
@@ -52,6 +53,7 @@ int main(int argc, char *argv[])
     registry.insert<mlir::DLTIDialect>();
     registry.insert<mlir::affine::AffineDialect>();
     registry.insert<mlir::math::MathDialect>();
+    registry.insert<mlir::omp::OpenMPDialect>();
 
     MLIRContext context;
     context.allowUnregisteredDialects();

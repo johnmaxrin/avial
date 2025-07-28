@@ -14,6 +14,7 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 
 #include "mlir/Conversion/Passes.h"
 #include "mlir/Conversion/MPIToLLVM/MPIToLLVM.h"
@@ -27,6 +28,12 @@
 
 // Dialects
 #include "mlir/Dialect/MPI/IR/MPI.h"
+
+
+#include "llvm/ADT/STLExtras.h" // for llvm::to_vector
+
+mlir::Value materializeOpFoldResult(mlir::OpFoldResult ofr, mlir::ConversionPatternRewriter &rewriter);
+
 
 using namespace mlir;
 using namespace avial;
@@ -65,6 +72,95 @@ std::unique_ptr<Pass> createLowerMPIPass()
 {
     return std::make_unique<LowerMPIDialectToLLVMPass>();
 }
+
+
+struct ConvertTaskOp : public OpConversionPattern<mlir::avial::TaskOp>
+{
+    using OpConversionPattern::OpConversionPattern;
+    LogicalResult matchAndRewrite(
+        mlir::avial::TaskOp op, OpAdaptor adaptor,
+        ConversionPatternRewriter &rewriter) const override
+    {
+        //Rewrite Pattern for Converting Task's outermost forloop based on dlti info
+        // 1. Get Task block. 
+        // 2. Convert the outermost affine.for to omp/gpu
+
+        // Get the outermost affine for. 
+        mlir::affine::AffineForOp affineForOp = nullptr;
+
+        for(auto &innerOp : op.getBody().front().getOperations())
+        {
+            if(mlir::isa<mlir::affine::AffineForOp>(innerOp))
+                affineForOp = mlir::dyn_cast<mlir::affine::AffineForOp>(innerOp);
+        }
+
+        mlir::SmallVector<mlir::Value> outForLowerBound;
+        mlir::SmallVector<mlir::Value> outForUpperBound;
+        mlir::SmallVector<mlir::Value> steps;
+
+
+       std::optional<llvm::SmallVector<OpFoldResult>> maybeLowerBounds = affineForOp.getLoopLowerBounds();
+       std::optional<llvm::SmallVector<OpFoldResult>> maybeUpperBounds = affineForOp.getLoopLowerBounds();
+       std::optional<llvm::SmallVector<OpFoldResult>> maybeSteps = affineForOp.getLoopSteps();
+       
+       llvm::outs() << "CheckL\n";
+       for(auto [lb, ub, step] : llvm::zip_equal(*maybeLowerBounds, *maybeUpperBounds, *maybeSteps))
+       {
+                //llvm::errs() << step.
+                outForLowerBound.push_back(materializeOpFoldResult(lb, rewriter));
+                outForUpperBound.push_back(materializeOpFoldResult(ub, rewriter));
+                steps.push_back(materializeOpFoldResult(step, rewriter));
+
+       }
+
+        
+
+        if(affineForOp == nullptr)
+        {
+            llvm::errs() << "Affine Loop Cannot be empty!\n";
+            exit(0);
+        }
+
+        
+        rewriter.setInsertionPointToStart(&op.getBody().front());
+
+        auto parallelOp = rewriter.create<mlir::omp::ParallelOp>(rewriter.getUnknownLoc());
+
+        mlir::Block *parallelBlock = rewriter.createBlock(&parallelOp.getRegion());
+        rewriter.setInsertionPointToStart(parallelBlock);
+
+        auto wsLoopOp = rewriter.create<mlir::omp::WsloopOp>(rewriter.getUnknownLoc());
+        mlir::Block *wsLoopBlock = rewriter.createBlock(&wsLoopOp.getRegion());
+        rewriter.setInsertionPointToStart(wsLoopBlock);
+
+        mlir::omp::LoopNestOperands loopNestOperands;
+        loopNestOperands.loopLowerBounds = outForLowerBound;
+        loopNestOperands.loopUpperBounds = outForUpperBound;
+
+        
+
+        //loopNestOperands.loopLowerBounds = rewrtier.create<mlir::scf::>
+        auto parallelLoopOp = rewriter.create<mlir::omp::LoopNestOp>(rewriter.getUnknownLoc(), loopNestOperands);
+        
+        op.dump(); 
+        //rewriter.eraseOp(op);
+    }
+
+};
+
+
+mlir::Value materializeOpFoldResult(OpFoldResult ofr, ConversionPatternRewriter &rewriter) {
+    if (auto val = ofr.dyn_cast<mlir::Value>())
+        return val;
+    if (auto attr = mlir::dyn_cast<mlir::Attribute>(ofr))
+    {
+        mlir::IntegerAttr intAttr =  mlir::dyn_cast<mlir::IntegerAttr>(ofr.get<Attribute>());
+        return rewriter.create<arith::ConstantIndexOp>(rewriter.getUnknownLoc(), intAttr.getValue().getSExtValue()); 
+    }
+    
+    llvm_unreachable("Unsupported OpFoldResult kind");
+}
+
 
 struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
 {
@@ -156,9 +252,6 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
                 Value newArg = taskBlock.addArgument(type, op.getLoc());
                 mapping.map(oldArg, newArg);
             }
-
-
-
             
             for (Operation &innerOp : replicateBody.without_terminator()) {
                 auto cloned = innerOp.clone();
@@ -169,12 +262,8 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
                     forOp.setConstantLowerBound(ranges[i].first);
                     forOp.setConstantUpperBound(ranges[i].second);
                 }
-
                 taskBlock.push_back(cloned);
-                
             }
-
-
         } 
         rewriter.eraseOp(op);
 
@@ -328,6 +417,7 @@ namespace mlir
 
                 ConversionTarget target(getContext());
                 ConversionTarget targetReplicateOp(getContext());
+                ConversionTarget targetTaskOp(getContext());
                 target.addLegalDialect<mlir::scf::SCFDialect>();
                 target.addLegalDialect<mlir::memref::MemRefDialect>();
                 target.addLegalDialect<mlir::arith::ArithDialect>();
@@ -342,6 +432,9 @@ namespace mlir
                 targetReplicateOp.addLegalOp<mlir::avial::TaskOp>();
                 targetReplicateOp.addIllegalOp<avial::ReplicateOp>();
 
+                targetTaskOp.addLegalDialect<mlir::omp::OpenMPDialect>();
+
+
                 RewritePatternSet avialpatterns(context);
                 avialpatterns.add<ConvertReplicateOp>(context);
 
@@ -351,6 +444,18 @@ namespace mlir
                 }
 
                 module->dump();
+
+                RewritePatternSet taskPattern(context);
+                taskPattern.add<ConvertTaskOp>(context);
+
+                if (failed(applyPartialConversion(module, targetTaskOp, std::move(taskPattern))))
+                {
+                    signalPassFailure();
+                }
+
+                module->dump();
+
+
 
                 RewritePatternSet patterns(context);
                 patterns.add<ConvertScheduleOp>(context);
