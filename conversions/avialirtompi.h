@@ -171,7 +171,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
         ConversionPatternRewriter &rewriter) const override
     {
 
-        mlir::IRMapping mapping;
+
 
         auto &replicateRegion = op.getRegion();
         auto &replicateBody = replicateRegion.front();
@@ -202,7 +202,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
                 if(!constupperBound)
                 {
                     llvm::errs() << "Error: Not a Contant Upper Bound";
-                    exit(0);
+                    return mlir::failure();
                 }
             }
         }
@@ -213,7 +213,8 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
         auto parentOp = op->getParentOp();
 
         
-        rewriter.setInsertionPointAfter(op); 
+        rewriter.setInsertionPoint(op);
+        
 
         int64_t ub = constupperBound;
         int64_t num_devices =  deviceVec.size();
@@ -235,36 +236,41 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
         }
 
         
-        // Represent the number of devices - Done
-        // Compute the chunk size - Done
-        // compute start and end - Done
-        // repalce the loop bounds. - Done 
+    
 
-        for(int i=0 ;i<deviceVec.size(); ++i)
-        {
+        // for(int i=0 ;i< 1; /*deviceVec.size();*/ ++i)
+        // {
+        mlir::IRMapping mapping;
+
 
             auto taskOp = rewriter.create<avial::TaskOp>(op.getLoc(), avial::TaskRefType::get(rewriter.getContext()), targetDlti, mlir::ValueRange{}, mlir::ValueRange{});
         
             auto &taskRegion = taskOp.getRegion();
             auto &taskBlock = taskRegion.front();
-
-            for (auto [oldArg, type] : llvm::zip(replicateBody.getArguments(), replicateBody.getArgumentTypes())) {
-                Value newArg = taskBlock.addArgument(type, op.getLoc());
-                mapping.map(oldArg, newArg);
-            }
             
-            for (Operation &innerOp : replicateBody.without_terminator()) {
-                auto cloned = innerOp.clone();
+            rewriter.setInsertionPointToStart(&taskBlock); 
+
+        //     // for (Operation &innerOp : replicateBody.without_terminator()) {
+        //     //     auto cloned = rewriter.clone(innerOp,mapping);
+
+        //     //     if(mlir::isa<mlir::affine::AffineForOp>(cloned))
+        //     //     {
+        //     //         mlir::affine::AffineForOp forOp = mlir::dyn_cast<mlir::affine::AffineForOp>(cloned);
+        //     //         forOp.setConstantLowerBound(ranges[i].first);
+        //     //         forOp.setConstantUpperBound(ranges[i].second);
+        //     //     }
                 
-                if(mlir::isa<mlir::affine::AffineForOp>(cloned))
-                {
-                    mlir::affine::AffineForOp forOp = mlir::dyn_cast<mlir::affine::AffineForOp>(cloned);
-                    forOp.setConstantLowerBound(ranges[i].first);
-                    forOp.setConstantUpperBound(ranges[i].second);
-                }
-                taskBlock.push_back(cloned);
-            }
-        } 
+        //     // }
+        //     // rewriter.setInsertionPointToEnd(&taskBlock);
+            rewriter.create<mlir::avial::YieldOp>(rewriter.getUnknownLoc());
+        //     rewriter.setInsertionPointAfter(op); 
+
+            verify(taskOp);
+
+
+        // }
+
+
         rewriter.eraseOp(op);
 
         return success();
@@ -394,7 +400,6 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         rewriter.create<func::ReturnOp>(loc);
         rewriter.eraseOp(op);
 
-        func.dump();
 
         return success();
     }
@@ -429,8 +434,12 @@ namespace mlir
                 target.addIllegalOp<avial::ScheduleOp>();
 
                 targetReplicateOp.addLegalDialect<mlir::arith::ArithDialect>();
+                targetReplicateOp.addLegalDialect<mlir::affine::AffineDialect>();
                 targetReplicateOp.addLegalOp<mlir::avial::TaskOp>();
                 targetReplicateOp.addIllegalOp<avial::ReplicateOp>();
+                targetReplicateOp.addLegalOp<mlir::avial::YieldOp>();
+                targetReplicateOp.addLegalDialect<mlir::memref::MemRefDialect>();
+
 
                 targetTaskOp.addLegalDialect<mlir::omp::OpenMPDialect>();
 
@@ -443,27 +452,26 @@ namespace mlir
                     signalPassFailure();
                 }
 
-                module->dump();
 
-                RewritePatternSet taskPattern(context);
-                taskPattern.add<ConvertTaskOp>(context);
+                // RewritePatternSet taskPattern(context);
+                // taskPattern.add<ConvertTaskOp>(context);
 
-                if (failed(applyPartialConversion(module, targetTaskOp, std::move(taskPattern))))
-                {
-                    signalPassFailure();
-                }
+                // if (failed(applyPartialConversion(module, targetTaskOp, std::move(taskPattern))))
+                // {
+                //     signalPassFailure();
+                // }
 
-                module->dump();
-
+                // module->dump();
 
 
-                RewritePatternSet patterns(context);
-                patterns.add<ConvertScheduleOp>(context);
+
+                // RewritePatternSet patterns(context);
+                // patterns.add<ConvertScheduleOp>(context);
                
-                if (failed(applyPartialConversion(module, target, std::move(patterns))))
-                {
-                    signalPassFailure();
-                }
+                // if (failed(applyPartialConversion(module, target, std::move(patterns))))
+                // {
+                //     signalPassFailure();
+                // }
             }
         };
 
