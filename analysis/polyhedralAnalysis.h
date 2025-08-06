@@ -58,15 +58,13 @@ namespace mlir
                 }
             }
 
-            for(auto op : filteredMemOps)
-                op->dump();
+            
 
             affine::FlatAffineValueConstraints constraints; 
 
             
 
             affine::getIndexSet(forLoopOpVector, &constraints);
-            constraints.dump();
 
             for(int i=0; i<memOpVector.size(); ++i)
             {
@@ -89,11 +87,7 @@ namespace mlir
                     affine::FlatAffineValueConstraints srcDomain(srcRel.getDomainSet());
                     affine::FlatAffineValueConstraints dstDomain(dstRel.getDomainSet());
 
-                    llvm::outs() << "Source:\n";                   
-                    srcDomain.dump();
-
-                    llvm::outs() << "Destination:\n";                   
-                    dstDomain.dump();
+                    
 
                     mlir::affine::DependenceResult res =  mlir::affine::checkMemrefAccessDependence(src, dst,1, &constraints, nullptr);
     

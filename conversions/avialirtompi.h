@@ -8,6 +8,8 @@
 #include "includes/utils.h"
 
 #include "mlir/Transforms/DialectConversion.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -18,6 +20,7 @@
 
 #include "mlir/Conversion/Passes.h"
 #include "mlir/Conversion/MPIToLLVM/MPIToLLVM.h"
+#include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 
 #include "mlir/IR/PatternMatch.h"
 #include "llvm/Support/Casting.h"
@@ -33,6 +36,7 @@
 #include "llvm/ADT/STLExtras.h" // for llvm::to_vector
 
 mlir::Value materializeOpFoldResult(mlir::OpFoldResult ofr, mlir::ConversionPatternRewriter &rewriter);
+static mlir::SmallVector<mlir::Value> materializeOpFoldResults(mlir::PatternRewriter &rewriter, mlir::ArrayRef<mlir::OpFoldResult> ofrs);
 
 
 using namespace mlir;
@@ -142,14 +146,13 @@ struct ConvertTaskOp : public OpConversionPattern<mlir::avial::TaskOp>
         //loopNestOperands.loopLowerBounds = rewrtier.create<mlir::scf::>
         auto parallelLoopOp = rewriter.create<mlir::omp::LoopNestOp>(rewriter.getUnknownLoc(), loopNestOperands);
         
-        op.dump(); 
         //rewriter.eraseOp(op);
     }
 
 };
 
 
-mlir::Value materializeOpFoldResult(OpFoldResult ofr, ConversionPatternRewriter &rewriter) {
+mlir::Value materializeOpFoldResult(OpFoldResult ofr, PatternRewriter &rewriter) {
     if (auto val = ofr.dyn_cast<mlir::Value>())
         return val;
     if (auto attr = mlir::dyn_cast<mlir::Attribute>(ofr))
@@ -160,6 +163,105 @@ mlir::Value materializeOpFoldResult(OpFoldResult ofr, ConversionPatternRewriter 
     
     llvm_unreachable("Unsupported OpFoldResult kind");
 }
+
+static SmallVector<Value> materializeOpFoldResults(PatternRewriter &rewriter, ArrayRef<OpFoldResult> ofrs) {
+    SmallVector<Value> values;
+    values.reserve(ofrs.size());
+    for (OpFoldResult ofr : ofrs)
+        values.push_back(materializeOpFoldResult(ofr, rewriter));
+    return values;
+}
+
+
+struct ConvertOuterForOp : public OpConversionPattern<mlir::scf::ForOp>
+{
+    using OpConversionPattern::OpConversionPattern;
+
+    LogicalResult matchAndRewrite(
+        mlir::scf::ForOp op, OpAdaptor adaptor,
+        ConversionPatternRewriter &rewriter) const override
+    {
+        IRMapping mapping;
+        if(mlir::isa<mlir::avial::TaskOp>(op->getParentOp()))
+        {
+            PatternRewriter::InsertionGuard guard(rewriter);
+            rewriter.setInsertionPointAfter(op);
+            auto &outerForRegion = op.getRegion();
+            
+            
+            auto parallelOp = rewriter.create<mlir::omp::ParallelOp>(rewriter.getUnknownLoc()); 
+            auto &parallelRegion = parallelOp.getRegion();
+            if(parallelRegion.empty())
+                parallelRegion.emplaceBlock();
+            auto &parallelBlock = parallelRegion.front(); 
+            
+            rewriter.setInsertionPointToStart(&parallelBlock);
+            
+            auto wsloopOp = rewriter.create<mlir::omp::WsloopOp>(rewriter.getUnknownLoc());
+            auto &wsloopRegion = wsloopOp.getRegion();
+            if(wsloopRegion.empty())
+                wsloopRegion.emplaceBlock();
+            auto &wsloopBlock = wsloopRegion.front();
+
+            rewriter.setInsertionPointToStart(&wsloopBlock);
+            {
+                auto lbs = materializeOpFoldResults(rewriter, *op.getLoopLowerBounds());
+                auto ubs = materializeOpFoldResults(rewriter, *op.getLoopUpperBounds());
+                auto steps = materializeOpFoldResults(rewriter, *op.getLoopSteps());
+
+                omp::LoopNestOperands loopNestOperands;
+                loopNestOperands.loopLowerBounds = lbs;
+                loopNestOperands.loopUpperBounds = ubs;
+                loopNestOperands.loopSteps = steps;
+                auto loopNestOp = rewriter.create<mlir::omp::LoopNestOp>(rewriter.getUnknownLoc(), loopNestOperands);
+                auto &loopNestRegion = loopNestOp.getRegion();
+                if(loopNestRegion.empty())
+                    loopNestRegion.emplaceBlock();
+                auto &loopNestBlock = loopNestRegion.front();
+
+                llvm::errs() << "Segfault\n";
+                Value newIV = loopNestBlock.addArgument(rewriter.getIndexType(), rewriter.getUnknownLoc());
+                mapping.map(op.getInductionVar(), newIV);
+
+                
+                rewriter.setInsertionPointToStart(&loopNestBlock);
+                {
+                    {
+
+                        auto dummyIdx = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), 0);
+                        mapping.map(op.getInductionVar(), dummyIdx);
+
+                        for(auto &innerOps : op.getRegion().front().without_terminator())
+                        {
+                            auto clonedOp = rewriter.clone(innerOps, mapping);
+                            llvm::errs() << "Op: ";
+                            clonedOp->dump();
+                            llvm::errs()  << "\n";
+                        }
+
+                        rewriter.create<mlir::omp::YieldOp>(rewriter.getUnknownLoc());
+                    }
+                }
+                
+                // rewriter.setInsertionPointToEnd(&wsloopBlock);
+                // rewriter.create<omp::TerminatorOp>(rewriter.getUnknownLoc()); 
+            }
+            rewriter.setInsertionPointToEnd(&parallelBlock);
+            rewriter.create<omp::TerminatorOp>(rewriter.getUnknownLoc()); 
+
+            rewriter.eraseOp(op);
+            parallelOp.dump();
+            verify(parallelOp);
+            return success();
+        }
+
+        return failure();
+
+
+
+    
+    }
+};
 
 
 struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
@@ -172,7 +274,11 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
     {
 
 
-
+          mlir::Operation *module = op;
+        while (module && !mlir::isa<mlir::ModuleOp>(module)) {
+            module = module->getParentOp();
+        }
+        auto deviceVec = extractTargetDeviceSpecs(llvm::dyn_cast<mlir::ModuleOp>(module));
         auto &replicateRegion = op.getRegion();
         auto &replicateBody = replicateRegion.front();
         
@@ -181,40 +287,35 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
         auto entry1 = mlir::DataLayoutEntryAttr::get(archAttr, archVal);
         auto targetDlti = mlir::TargetDeviceSpecAttr::get(op.getContext(), {entry1});
 
-        int64_t constupperBound = 0;
-
         
-        mlir::Operation *module = op;
-        while (module && !mlir::isa<mlir::ModuleOp>(module)) {
-            module = module->getParentOp();
-        }
+        int64_t constupperBound=0;
+        mlir::scf::ForOp outerFor = nullptr;
 
-        auto deviceVec = extractTargetDeviceSpecs(llvm::dyn_cast<mlir::ModuleOp>(module));
-
-        // Extract the outer loop bound. 
         for(auto &innerOp : op.getBody().front().getOperations())
         {
-            if(mlir::isa<mlir::affine::AffineForOp>(innerOp))
-            {   
-
-                
-                constupperBound = (mlir::dyn_cast<mlir::affine::AffineForOp>(innerOp)).getConstantUpperBound();
-                if(!constupperBound)
+            if(mlir::isa<mlir::scf::ForOp>(innerOp))
+            {
+                outerFor = mlir::dyn_cast<mlir::scf::ForOp>(innerOp);
+                if(mlir::isa<mlir::arith::ConstantIndexOp>(outerFor.getUpperBound().getDefiningOp()))
                 {
-                    llvm::errs() << "Error: Not a Contant Upper Bound";
-                    return mlir::failure();
+                    auto constUB = mlir::dyn_cast<mlir::arith::ConstantIndexOp>(outerFor.getUpperBound().getDefiningOp());
+                    llvm::errs() << "UB: "<<constUB.value();
+                    constupperBound = constUB.value();
+                }
+                else
+                {
+                    llvm::errs() << "Error: Not a constant upper bound!\n";
+                    return failure();
                 }
             }
         }
-        
 
+        if(!constupperBound)
+        {
+            llvm::errs() << "Error: Upper Bound cannot be Zero. UB: "<<constupperBound <<"\n";
 
-        
-        auto parentOp = op->getParentOp();
-
-        
-        rewriter.setInsertionPoint(op);
-        
+            return failure();
+        }
 
         int64_t ub = constupperBound;
         int64_t num_devices =  deviceVec.size();
@@ -224,54 +325,54 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
         int64_t base_chunk = total_iters / num_devices;
         int64_t remainder = total_iters % num_devices;
 
-        // Chunk Calculation
-        llvm::SmallVector<std::pair<int64_t, int64_t>> ranges; 
         int64_t current = 0;
         for (int i = 0; i < num_devices; ++i) {
             int64_t chunk = base_chunk + (i < remainder ? 1 : 0); // distribute remainder
             int64_t start = current;
             int64_t end = start + chunk;
-            ranges.emplace_back(start, end);
             current = end;
+
+            IRMapping mapping;
+            PatternRewriter::InsertionGuard guard(rewriter);
+            rewriter.setInsertionPointAfter(op);
+
+            auto taskOp = rewriter.create<avial::TaskOp>(
+            op.getLoc(),
+            avial::TaskRefType::get(rewriter.getContext()),
+            targetDlti,
+            ValueRange{}, ValueRange{});
+
+            if (taskOp.getRegion().empty())
+                rewriter.createBlock(&taskOp.getRegion());
+
+            // Change insertion point to the start of the new block
+            rewriter.setInsertionPointToStart(&taskOp.getRegion().front());
+
+            // Create some ops in the task region
+            for(auto &innerOp : op.getRegion().front().without_terminator())
+            {
+                auto cloned = rewriter.clone(innerOp, mapping);
+                if(mlir::isa<mlir::scf::ForOp>(cloned))
+                {
+                    mlir:scf::ForOp outerFor = mlir::dyn_cast<mlir::scf::ForOp>(cloned);
+                    auto ub = outerFor.getUpperBound().getDefiningOp();
+                    auto lb = outerFor.getLowerBound().getDefiningOp();
+                    if(mlir::isa<mlir::arith::ConstantIndexOp>(ub))
+                    {
+                        mlir::arith::ConstantIndexOp constUBIdx = mlir::dyn_cast<mlir::arith::ConstantIndexOp>(ub);
+                        mlir::arith::ConstantIndexOp constLBIdx = mlir::dyn_cast<mlir::arith::ConstantIndexOp>(lb);
+                        
+                        constUBIdx.setValueAttr(rewriter.getIndexAttr(end));
+                        constLBIdx.setValueAttr(rewriter.getIndexAttr(start));
+                    }
+                }
+            }
+            
+            rewriter.create<avial::YieldOp>(rewriter.getUnknownLoc());
         }
 
-        
-    
 
-        // for(int i=0 ;i< 1; /*deviceVec.size();*/ ++i)
-        // {
-        mlir::IRMapping mapping;
-
-
-            auto taskOp = rewriter.create<avial::TaskOp>(op.getLoc(), avial::TaskRefType::get(rewriter.getContext()), targetDlti, mlir::ValueRange{}, mlir::ValueRange{});
-        
-            auto &taskRegion = taskOp.getRegion();
-            auto &taskBlock = taskRegion.front();
-            
-            rewriter.setInsertionPointToStart(&taskBlock); 
-
-        //     // for (Operation &innerOp : replicateBody.without_terminator()) {
-        //     //     auto cloned = rewriter.clone(innerOp,mapping);
-
-        //     //     if(mlir::isa<mlir::affine::AffineForOp>(cloned))
-        //     //     {
-        //     //         mlir::affine::AffineForOp forOp = mlir::dyn_cast<mlir::affine::AffineForOp>(cloned);
-        //     //         forOp.setConstantLowerBound(ranges[i].first);
-        //     //         forOp.setConstantUpperBound(ranges[i].second);
-        //     //     }
-                
-        //     // }
-        //     // rewriter.setInsertionPointToEnd(&taskBlock);
-            rewriter.create<mlir::avial::YieldOp>(rewriter.getUnknownLoc());
-        //     rewriter.setInsertionPointAfter(op); 
-
-            verify(taskOp);
-
-
-        // }
-
-
-        rewriter.eraseOp(op);
+        rewriter.eraseOp(op); // Erase the old op safely
 
         return success();
     }
@@ -288,9 +389,6 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         mlir::avial::ScheduleOp op, OpAdaptor adaptor,
         ConversionPatternRewriter &rewriter) const override
     {
-
-        
-
 
         // Do the dependence analysis.
         DependencyGraph dependencyGraph;
@@ -430,11 +528,13 @@ namespace mlir
                 target.addLegalDialect<mlir::func::FuncDialect>();
                 target.addLegalDialect<mlir::mpi::MPIDialect>();
                 target.addLegalDialect<mlir::affine::AffineDialect>();
+                target.addLegalDialect<mlir::omp::OpenMPDialect>();
 
                 target.addIllegalOp<avial::ScheduleOp>();
 
                 targetReplicateOp.addLegalDialect<mlir::arith::ArithDialect>();
-                targetReplicateOp.addLegalDialect<mlir::affine::AffineDialect>();
+                targetReplicateOp.addLegalDialect<mlir::scf::SCFDialect>();
+
                 targetReplicateOp.addLegalOp<mlir::avial::TaskOp>();
                 targetReplicateOp.addIllegalOp<avial::ReplicateOp>();
                 targetReplicateOp.addLegalOp<mlir::avial::YieldOp>();
@@ -442,6 +542,12 @@ namespace mlir
 
 
                 targetTaskOp.addLegalDialect<mlir::omp::OpenMPDialect>();
+            //    targetTaskOp.addIllegalDialect<mlir::scf::SCFDialect>();
+                targetTaskOp.addIllegalOp<mlir::scf::ForOp>();
+                targetTaskOp.addLegalOp<mlir::omp::ParallelOp>();
+                targetTaskOp.markOpRecursivelyLegal<mlir::omp::ParallelOp>();
+                targetTaskOp.addLegalDialect<mlir::avial::AvialDialect>();
+                targetTaskOp.addLegalDialect<mlir::arith::ArithDialect>();
 
 
                 RewritePatternSet avialpatterns(context);
@@ -451,27 +557,29 @@ namespace mlir
                 {
                     signalPassFailure();
                 }
+                
+                llvm::errs() << "After Converting Replicate Op\n";
+
+                RewritePatternSet taskPattern(context);
+                taskPattern.add<ConvertOuterForOp>(context);
+
+                if (failed(applyPartialConversion(module, targetTaskOp, std::move(taskPattern))))
+                {
+                    signalPassFailure();
+                }
 
 
-                // RewritePatternSet taskPattern(context);
-                // taskPattern.add<ConvertTaskOp>(context);
-
-                // if (failed(applyPartialConversion(module, targetTaskOp, std::move(taskPattern))))
-                // {
-                //     signalPassFailure();
-                // }
-
+                // llvm::errs() << "After Converting Outermost ForLoop\n";
                 // module->dump();
 
 
-
-                // RewritePatternSet patterns(context);
-                // patterns.add<ConvertScheduleOp>(context);
+                RewritePatternSet patterns(context);
+                patterns.add<ConvertScheduleOp>(context);
                
-                // if (failed(applyPartialConversion(module, target, std::move(patterns))))
-                // {
-                //     signalPassFailure();
-                // }
+                if (failed(applyPartialConversion(module, target, std::move(patterns))))
+                {
+                    signalPassFailure();
+                }
             }
         };
 

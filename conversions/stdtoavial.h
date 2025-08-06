@@ -105,7 +105,6 @@ struct ConvertToAvial : public OpConversionPattern<mlir::func::FuncOp>
         rewriter.setInsertionPointToEnd(&schOp.getBodyRegion().getBlocks().front());
         rewriter.create<mlir::avial::YieldOp>(rewriter.getUnknownLoc());
 
-        schOp.dump();
 
         rewriter.eraseOp(op);
         return success();
