@@ -90,16 +90,16 @@ int main(int argc, char *argv[])
         return 2;
     }
 
-PassManager pm(&context);
-    context.disableMultithreading();
+    PassManager pm(&context);
+    //context.disableMultithreading();
+
+    
     pm.addPass(mlir::avial::createConvertAffineToAvialPass());
+    pm.addPass(mlir::createLowerAffinePass());
+
     pm.addPass(mlir::avial::createConvertStdToAvialPass());
     pm.addPass(mlir::avial::createConvertAvialIRToMPIPass());
 
-    pm.enableCrashReproducerGeneration("error.txt", true);
-    pm.enableVerifier();
-    pm.enableIRPrinting();
-    
 
     if (failed(pm.run(module->getOperation()))) {
         llvm::errs() << "Failed to run passes\n";
@@ -107,6 +107,8 @@ PassManager pm(&context);
     }
 
 
+
+    module->dump();
 
 
     return 0;

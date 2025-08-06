@@ -80,7 +80,6 @@ namespace mlir
                                 {
                                     // Wrap the for-loop with Tas
                         
-                                    llvm::outs() << "Dependece is there\n";
                                     toTaskVector.push_back(forOp);
 
                                 }
@@ -90,7 +89,6 @@ namespace mlir
                                     // No Dependence
                                     // Wrap the forloop with replicate.
                                     toReplicateVector.push_back(forOp);
-                                    llvm::outs() << "Dependence free\n";
                                     
 
 
@@ -114,7 +112,6 @@ namespace mlir
 
                     forOp->moveBefore(newBlock, newBlock->end());
                     builder.create<mlir::avial::YieldOp>(builder.getUnknownLoc());                 
-                    replicateOp.dump();
 
                 }
 
