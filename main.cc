@@ -39,9 +39,14 @@
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
 #include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
+#include "mlir/Conversion/MPIToLLVM/MPIToLLVM.h"
+
 
 using namespace std;
 using namespace mlir;
+
+
+
 
 int main(int argc, char *argv[])
 {
@@ -91,15 +96,31 @@ int main(int argc, char *argv[])
     }
 
     PassManager pm(&context);
-    //context.disableMultithreading();
+    context.disableMultithreading();
+    //pm.enableIRPrinting();
 
     
     pm.addPass(mlir::avial::createConvertAffineToAvialPass());
     pm.addPass(mlir::createLowerAffinePass());
 
+
     pm.addPass(mlir::avial::createConvertStdToAvialPass());
     pm.addPass(mlir::avial::createConvertAvialIRToMPIPass());
 
+    pm.addPass(mlir::createSCFToControlFlowPass());
+    pm.addPass(mlir::createConvertControlFlowToLLVMPass());
+
+    pm.addPass(mlir::createFinalizeMemRefToLLVMConversionPass());
+    
+    pm.addPass(mlir::createConvertIndexToLLVMPass());
+    pm.addPass(mlir::createArithToLLVMConversionPass());
+
+    pm.addPass(mlir::createConvertOpenMPToLLVMPass());
+
+    pm.addPass(mlir::createReconcileUnrealizedCastsPass());
+
+    
+    pm.addPass(createConvertMPItoLLVM());
 
     if (failed(pm.run(module->getOperation()))) {
         llvm::errs() << "Failed to run passes\n";

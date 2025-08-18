@@ -49,6 +49,7 @@ struct LowerMPIDialectToLLVMPass
     void runOnOperation() override
     {
         ModuleOp module = getOperation();
+        module.dump();
 
         // Step 1: Set up conversion target
         MLIRContext *context = &getContext();
@@ -72,7 +73,7 @@ struct LowerMPIDialectToLLVMPass
     }
 };
 
-std::unique_ptr<Pass> createLowerMPIPass()
+std::unique_ptr<Pass> createConvertMPItoLLVM()
 {
     return std::make_unique<LowerMPIDialectToLLVMPass>();
 }
@@ -219,7 +220,6 @@ struct ConvertOuterForOp : public OpConversionPattern<mlir::scf::ForOp>
                     loopNestRegion.emplaceBlock();
                 auto &loopNestBlock = loopNestRegion.front();
 
-                llvm::errs() << "Segfault\n";
                 Value newIV = loopNestBlock.addArgument(rewriter.getIndexType(), rewriter.getUnknownLoc());
                 mapping.map(op.getInductionVar(), newIV);
 
@@ -234,9 +234,6 @@ struct ConvertOuterForOp : public OpConversionPattern<mlir::scf::ForOp>
                         for(auto &innerOps : op.getRegion().front().without_terminator())
                         {
                             auto clonedOp = rewriter.clone(innerOps, mapping);
-                            llvm::errs() << "Op: ";
-                            clonedOp->dump();
-                            llvm::errs()  << "\n";
                         }
 
                         rewriter.create<mlir::omp::YieldOp>(rewriter.getUnknownLoc());
@@ -250,7 +247,6 @@ struct ConvertOuterForOp : public OpConversionPattern<mlir::scf::ForOp>
             rewriter.create<omp::TerminatorOp>(rewriter.getUnknownLoc()); 
 
             rewriter.eraseOp(op);
-            parallelOp.dump();
             verify(parallelOp);
             return success();
         }
@@ -278,6 +274,9 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
         while (module && !mlir::isa<mlir::ModuleOp>(module)) {
             module = module->getParentOp();
         }
+
+
+
         auto deviceVec = extractTargetDeviceSpecs(llvm::dyn_cast<mlir::ModuleOp>(module));
         auto &replicateRegion = op.getRegion();
         auto &replicateBody = replicateRegion.front();
@@ -299,7 +298,6 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
                 if(mlir::isa<mlir::arith::ConstantIndexOp>(outerFor.getUpperBound().getDefiningOp()))
                 {
                     auto constUB = mlir::dyn_cast<mlir::arith::ConstantIndexOp>(outerFor.getUpperBound().getDefiningOp());
-                    llvm::errs() << "UB: "<<constUB.value();
                     constupperBound = constUB.value();
                 }
                 else
@@ -373,6 +371,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
 
 
         rewriter.eraseOp(op); // Erase the old op safely
+
 
         return success();
     }
@@ -558,7 +557,6 @@ namespace mlir
                     signalPassFailure();
                 }
                 
-                llvm::errs() << "After Converting Replicate Op\n";
 
                 RewritePatternSet taskPattern(context);
                 taskPattern.add<ConvertOuterForOp>(context);
@@ -570,7 +568,7 @@ namespace mlir
 
 
                 // llvm::errs() << "After Converting Outermost ForLoop\n";
-                // module->dump();
+                //module->dump();
 
 
                 RewritePatternSet patterns(context);
