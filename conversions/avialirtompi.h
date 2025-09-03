@@ -302,7 +302,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
                 }
                 else
                 {
-                    llvm::errs() << "Error: Not a constant upper bound!\n";
+                    llvm::errs() << "Error: Not a constant upper bound bro!\n";
                     return failure();
                 }
             }

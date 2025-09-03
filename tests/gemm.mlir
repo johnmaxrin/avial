@@ -4,10 +4,10 @@ module  {
     %0 = arith.index_cast %arg0 : i32 to index
     %1 = arith.index_cast %arg1 : i32 to index
     %2 = arith.index_cast %arg2 : i32 to index
-    affine.for %arg6 = 0 to 30 {
-      affine.for %arg7 = 0 to 20 {
+    affine.for %arg6 = 0 to 1000 {
+      affine.for %arg7 = 0 to 1000 {
         affine.store %cst, %arg5[%arg6, %arg7] : memref<?x128xf32>
-        affine.for %arg8 = 0 to 10 {
+        affine.for %arg8 = 0 to 1000 {
           %3 = affine.load %arg3[%arg6, %arg8] : memref<?x128xf32>
           %4 = affine.load %arg4[%arg8, %arg7] : memref<?x128xf32>
           %5 = arith.mulf %3, %4 : f32

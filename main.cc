@@ -7,6 +7,7 @@
 #include "mlir/Support/FileUtilities.h"
 #include "llvm/Support/SourceMgr.h"
 #include "mlir/Parser/Parser.h"
+#include "mlir/IR/Verifier.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 
 #include <iostream>
@@ -61,8 +62,10 @@ int main(int argc, char *argv[])
     registry.insert<mlir::omp::OpenMPDialect>();
 
     MLIRContext context;
-    context.allowUnregisteredDialects();
 
+
+
+    context.allowUnregisteredDialects();
     context.appendDialectRegistry(registry);
     context.getOrLoadDialect<mlir::DLTIDialect>();
 
@@ -97,7 +100,7 @@ int main(int argc, char *argv[])
 
     PassManager pm(&context);
     context.disableMultithreading();
-    //pm.enableIRPrinting();
+    pm.enableIRPrinting();
 
     
     pm.addPass(mlir::avial::createConvertAffineToAvialPass());
@@ -127,9 +130,8 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    mlir::verify(module->getOperation());
 
-
-    module->dump();
 
 
     return 0;
