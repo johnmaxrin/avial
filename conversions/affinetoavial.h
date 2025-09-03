@@ -79,6 +79,8 @@ namespace mlir
                                 if(checkLoopDependence(forOp)) // Dependecne free in the outer loop. 
                                 {
                                     // Wrap the for-loop with Tas
+
+                                    llvm::outs() << "Dependence is there!!\n";
                         
                                     toTaskVector.push_back(forOp);
 
