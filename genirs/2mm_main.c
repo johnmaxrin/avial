@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <mpi.h>
+// #include <mpi.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,7 +36,7 @@ int main(int argc, char **argv) {
     MPI_Init(NULL, NULL);
 
     int rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    //MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     int32_t M = 1000, K = 1000, N = 1000;
     int32_t extra = 0;
@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
     for (size_t i=0; i<(size_t)K*N; i++) B[i] = 1.0f;
     for (size_t i=0; i<(size_t)M*N; i++) C[i] = 0.0f;
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    //MPI_Barrier(MPI_COMM_WORLD);
     // double start = MPI_Wtime();
     // printf("Hello\n");
     testFunc(
@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
         E, E, 0, 1, 1, 1, 1
     );
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    //MPI_Barrier(MPI_COMM_WORLD);
     // double end = MPI_Wtime();
 
     // if (rank == 0) {
