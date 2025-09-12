@@ -36,7 +36,7 @@
 #include "llvm/ADT/STLExtras.h" // for llvm::to_vector
 
 mlir::Value materializeOpFoldResult(mlir::OpFoldResult ofr, mlir::ConversionPatternRewriter &rewriter);
-static mlir::SmallVector<mlir::Value> materializeOpFoldResults(mlir::PatternRewriter &rewriter, mlir::ArrayRef<mlir::OpFoldResult> ofrs);
+static mlir::SmallVector<mlir::Value> materializeOpFoldResults(mlir::ConversionPatternRewriter &rewriter, mlir::ArrayRef<mlir::OpFoldResult> ofrs);
 
 
 using namespace mlir;
@@ -91,7 +91,10 @@ struct ConvertTaskOp : public OpConversionPattern<mlir::avial::TaskOp>
         // 2. Convert the outermost affine.for to omp/gpu
 
         // Get the outermost affine for. 
+
+        llvm::errs() << "Hello Guys!!\n";
         mlir::affine::AffineForOp affineForOp = nullptr;
+
 
         for(auto &innerOp : op.getBody().front().getOperations())
         {
@@ -118,7 +121,7 @@ struct ConvertTaskOp : public OpConversionPattern<mlir::avial::TaskOp>
 
        }
 
-        
+        llvm::errs() << "I am here\n"; 
 
         if(affineForOp == nullptr)
         {
@@ -153,7 +156,7 @@ struct ConvertTaskOp : public OpConversionPattern<mlir::avial::TaskOp>
 };
 
 
-mlir::Value materializeOpFoldResult(OpFoldResult ofr, PatternRewriter &rewriter) {
+mlir::Value materializeOpFoldResult(OpFoldResult ofr, ConversionPatternRewriter &rewriter) {
     if (auto val = ofr.dyn_cast<mlir::Value>())
         return val;
     if (auto attr = mlir::dyn_cast<mlir::Attribute>(ofr))
@@ -165,7 +168,7 @@ mlir::Value materializeOpFoldResult(OpFoldResult ofr, PatternRewriter &rewriter)
     llvm_unreachable("Unsupported OpFoldResult kind");
 }
 
-static SmallVector<Value> materializeOpFoldResults(PatternRewriter &rewriter, ArrayRef<OpFoldResult> ofrs) {
+static SmallVector<Value> materializeOpFoldResults(ConversionPatternRewriter &rewriter, ArrayRef<OpFoldResult> ofrs) {
     SmallVector<Value> values;
     values.reserve(ofrs.size());
     for (OpFoldResult ofr : ofrs)
@@ -221,15 +224,15 @@ struct ConvertOuterForOp : public OpConversionPattern<mlir::scf::ForOp>
                 auto &loopNestBlock = loopNestRegion.front();
 
                 Value newIV = loopNestBlock.addArgument(rewriter.getIndexType(), rewriter.getUnknownLoc());
-                mapping.map(op.getInductionVar(), newIV);
+                mapping.map(op.getInductionVar(), loopNestOp.getIVs()[0]);
 
                 
                 rewriter.setInsertionPointToStart(&loopNestBlock);
                 {
                     {
 
-                        auto dummyIdx = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), 0);
-                        mapping.map(op.getInductionVar(), dummyIdx);
+                        // auto dummyIdx = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), 0);
+                        mapping.map(op.getInductionVar(), loopNestOp.getIVs()[0]);
 
                         for(auto &innerOps : op.getRegion().front().without_terminator())
                         {
@@ -240,8 +243,6 @@ struct ConvertOuterForOp : public OpConversionPattern<mlir::scf::ForOp>
                     }
                 }
                 
-                // rewriter.setInsertionPointToEnd(&wsloopBlock);
-                // rewriter.create<omp::TerminatorOp>(rewriter.getUnknownLoc()); 
             }
             rewriter.setInsertionPointToEnd(&parallelBlock);
             rewriter.create<omp::TerminatorOp>(rewriter.getUnknownLoc()); 
@@ -252,9 +253,6 @@ struct ConvertOuterForOp : public OpConversionPattern<mlir::scf::ForOp>
         }
 
         return failure();
-
-
-
     
     }
 };
@@ -372,6 +370,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
 
         rewriter.eraseOp(op); // Erase the old op safely
 
+        module->dumpPretty();
 
         return success();
     }
@@ -559,7 +558,7 @@ namespace mlir
                 
 
                 RewritePatternSet taskPattern(context);
-                taskPattern.add<ConvertOuterForOp>(context);
+                taskPattern.add<ConvertTaskOp>(context);
 
                 if (failed(applyPartialConversion(module, targetTaskOp, std::move(taskPattern))))
                 {
