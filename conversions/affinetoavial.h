@@ -26,7 +26,7 @@
 #include "mlir/Conversion/Passes.h"
 
 
-#include "analysis/polyHedralAnalysis.h"
+#include "analysis/polyhedralAnalysis.h"
 
 
 #include <string>

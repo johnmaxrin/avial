@@ -52,9 +52,29 @@ add_subdirectory(dialect)
 
 set(NO_RTTI "-fno-rtti")
 add_definitions(${NO_RTTI})
-add_library(MPIToLLVMConversion
+
+
+add_mlir_conversion_library(MPIToLLVMConversion
   conversions/MPIToLLVM.cc
+
+  ADDITIONAL_HEADER_DIRS
+    ${MLIR_MAIN_INCLUDE_DIR}/mlir/Conversion/MPIToLLVM
+
+
+  LINK_LIBS PUBLIC
+    MLIRDLTIDialect
+    MLIRLLVMCommonConversion
+    MLIRLLVMDialect
+    MLIRMPIDialect
 )
+
+target_include_directories(MPIToLLVMConversion
+  PRIVATE
+    ${LLVM_BUILD_MAIN_INCLUDE_DIR}
+    ${MLIR_MAIN_INCLUDE_DIR}                         # MLIR source includes
+    ${LLVM_BUILD_DIR}/tools/mlir/include             # generated MLIR headers
+)
+
 
 
 # Add executable and link it with the parser library
