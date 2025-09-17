@@ -29,6 +29,7 @@
 #include "conversions/avialirtompi.h"
 #include "conversions/stdtoavial.h"
 #include "conversions/affinetoavial.h"
+#include "conversions/lowerReplicateOp.h"
 
 // #include "mlir/Conversion/MPIToLLVM/MPIToLLVM.h"
 
@@ -108,6 +109,7 @@ int main(int argc, char *argv[])
 
 
     pm.addPass(mlir::avial::createConvertStdToAvialPass());
+    pm.addPass(mlir::avial::createLowerReplicateOpPass());
     pm.addPass(mlir::avial::createConvertAvialIRToMPIPass());
 
     pm.addPass(mlir::createSCFToControlFlowPass());
