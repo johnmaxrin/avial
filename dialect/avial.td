@@ -75,10 +75,10 @@ def ScheduleOp : Op<AvialDialect, "schedule", [IsolatedFromAbove,SingleBlockImpl
   let summary = "ScheduleOp"; 
   let regions = (region SizedRegion<1> : $body); 
 
-  let arguments = (ins ArrayAttr:$inputs);
+  let arguments = (ins ArrayAttr:$inputs, StrAttr:$schName);
 
   let builders = [
-    OpBuilder<(ins  "::mlir::ArrayAttr":$inputs,
+    OpBuilder<(ins  "::mlir::ArrayAttr":$inputs,"::mlir::StringAttr":$schName, 
       CArg<"function_ref<void(OpBuilder &, Location, Value, ValueRange)>",
            "nullptr">)>
   ];

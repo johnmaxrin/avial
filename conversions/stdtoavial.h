@@ -48,6 +48,8 @@ struct ConvertToAvial : public OpConversionPattern<mlir::func::FuncOp>
 
         mlir::IRMapping mapping;
         
+        mlir::StringAttr schName = rewriter.getStringAttr(op.getName());
+
         for (auto arg : args)
         {
             std::string nameStr = "arg" + std::to_string(idx);
@@ -61,8 +63,9 @@ struct ConvertToAvial : public OpConversionPattern<mlir::func::FuncOp>
         mlir::ArrayAttr insAttr = rewriter.getArrayAttr(argsAttr);
 
         rewriter.setInsertionPoint(op);
-        auto schOp = rewriter.create<avial::ScheduleOp>(rewriter.getUnknownLoc(), insAttr);
+        auto schOp = rewriter.create<avial::ScheduleOp>(rewriter.getUnknownLoc(), insAttr, rewriter.getStringAttr(op.getName()));
 
+        llvm::outs() << "Came here!!\n";
         for (const auto &arg : llvm::enumerate(op.getRegion().getBlocks().front().getArguments()))
         {
             mapping.map(arg.value(), schOp.getRegion().getBlocks().front().getArgument(arg.index()));
@@ -99,6 +102,7 @@ struct ConvertToAvial : public OpConversionPattern<mlir::func::FuncOp>
         
             rewriter.setInsertionPointToEnd(&schOp.getBodyRegion().getBlocks().front());
         }
+
 
 
 

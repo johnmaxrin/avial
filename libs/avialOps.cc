@@ -31,9 +31,10 @@ void mlir::avial::TaskOp::build(OpBuilder &builder, OperationState &state, TaskR
 
 
 
-void mlir::avial::ScheduleOp::build(OpBuilder &builder, OperationState &state, ::mlir::ArrayAttr inputs ,
+void mlir::avial::ScheduleOp::build(OpBuilder &builder, OperationState &state, ::mlir::ArrayAttr inputs, ::mlir::StringAttr schName,
                    function_ref<void(OpBuilder &, Location,  mlir::Value, mlir::ValueRange)> bodyBuilder) {
- 
+
+  state.addAttribute("schName", schName); 
   state.getOrAddProperties<Properties>().inputs = inputs;
   llvm::SmallVector<mlir::Type> inputTypes;
   for (mlir::Attribute attr : inputs) {

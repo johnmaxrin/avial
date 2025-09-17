@@ -22,3 +22,9 @@ def ConvertAffineToAvialPass : Pass<"affine-to-avialir">{
   "mlir::affine::AffineDialect", "mlir::DLTIDialect"];
 
 }
+
+def LowerReplicateOpPass : Pass<"lower-replicate-op">
+{
+  let summary = "Lower Avial Dialects to Avial";
+  let dependentDialects = ["mlir::avial::AvialDialect"];
+}
