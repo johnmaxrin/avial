@@ -12,6 +12,8 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 
+#include "analysis/insoutAnalysis.h"
+
 using namespace mlir;
 
 // Right Now we just have Replicate Op to be lowered to another dhir op.
@@ -29,9 +31,21 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
 
         mlir::Operation *module = op;
         while (module && !mlir::isa<mlir::ModuleOp>(module))
-        {
             module = module->getParentOp();
-        }
+
+        mlir::Operation *schOp = op;
+        while(schOp && !mlir::isa<mlir::avial::ScheduleOp>(schOp))
+            schOp = schOp->getParentOp();
+        
+        /*
+            InsOutsAnalysis
+            Add Desc
+        */
+
+        InsOutsAnalysis insoutAnalysis(schOp);
+
+
+        // End of InsOutAnalysis
 
         auto deviceVec = extractTargetDeviceSpecs(llvm::dyn_cast<mlir::ModuleOp>(module));
         auto &replicateRegion = op.getRegion();
@@ -93,7 +107,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
                 op.getLoc(),
                 avial::TaskRefType::get(rewriter.getContext()),
                 targetDlti,
-                ValueRange{}, ValueRange{});
+                ValueRange{insoutAnalysis.ins}, ValueRange{insoutAnalysis.outs});
 
             if (taskOp.getRegion().empty())
                 rewriter.createBlock(&taskOp.getRegion());
