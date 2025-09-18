@@ -65,7 +65,6 @@ struct ConvertToAvial : public OpConversionPattern<mlir::func::FuncOp>
         rewriter.setInsertionPoint(op);
         auto schOp = rewriter.create<avial::ScheduleOp>(rewriter.getUnknownLoc(), insAttr, rewriter.getStringAttr(op.getName()));
 
-        llvm::outs() << "Came here!!\n";
         for (const auto &arg : llvm::enumerate(op.getRegion().getBlocks().front().getArguments()))
         {
             mapping.map(arg.value(), schOp.getRegion().getBlocks().front().getArgument(arg.index()));
