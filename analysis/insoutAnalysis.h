@@ -14,8 +14,8 @@
 
 struct InsOutsAnalysis
 {
-    llvm::SmallVector<mlir::Value> ins;
-    llvm::SmallVector<mlir::Value> outs;
+    llvm::SmallDenseSet<mlir::Value> ins;
+    llvm::SmallDenseSet<mlir::Value> outs;
 
     InsOutsAnalysis(mlir::Operation *op)
     {
@@ -39,14 +39,14 @@ struct InsOutsAnalysis
             llvm::errs() << "Use InsOuts Analysis with ScheduleOp!\n";
     }
 
-    void collect(mlir::Operation *op, llvm::ArrayRef<mlir::Value> schArgs, llvm::SmallVector<mlir::Value> &vec)
+    void collect(mlir::Operation *op, llvm::ArrayRef<mlir::Value> schArgs, llvm::SmallDenseSet<mlir::Value> &vec)
     {
         for (auto operand : op->getOperands())
         {
             for (auto arg : schArgs)
             {
                 if (operand == arg)
-                    vec.push_back(arg);
+                    vec.insert(arg);
             }
         }
     }

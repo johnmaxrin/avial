@@ -21,7 +21,7 @@ namespace mlir
     struct DependencyGraph
     {
       std::vector<TaskOpInfo> tasks;
-      //std::vector<TargetOp> targets;
+      // std::vector<TargetOp> targets;
       std::vector<mlir::memref::AllocaOp> allocs;
 
       std::vector<std::vector<TaskOpInfo *>> levelVector;
@@ -33,14 +33,11 @@ namespace mlir
         // for(TargetOp target: schedule.getBody().getOps<TargetOp>())
         //   targets.push_back(target);
 
-        for(memref::AllocaOp alloc : schedule.getBody().getOps<memref::AllocaOp>())
+        for (memref::AllocaOp alloc : schedule.getBody().getOps<memref::AllocaOp>())
         {
-          if (alloc->getParentOp() == schedule) 
+          if (alloc->getParentOp() == schedule)
             allocs.push_back(alloc);
-          
         }
-
-
 
         for (TaskOp task : schedule.getBody().getOps<TaskOp>())
         {
@@ -62,14 +59,20 @@ namespace mlir
           for (size_t j = i + 1; j < tasks.size(); ++j)
           {
             bool depends = false;
+            auto repIdI = tasks[i].op->getAttrOfType<mlir::IntegerAttr>("repId");
+            auto repIdJ = tasks[j].op->getAttrOfType<mlir::IntegerAttr>("repId");
             for (auto outi : tasks[i].writes)
             {
               for (auto inj : tasks[j].reads)
               {
                 if (outi == inj)
                 {
-                  depends = true;
-                  break;
+                  if (repIdI.getInt() != repIdJ.getInt())
+                  {
+                    llvm::outs() << "They are not equal\n";
+                    depends = true;
+                    break;
+                  }
                 }
               }
 
@@ -77,11 +80,21 @@ namespace mlir
               {
                 if (outi == outj)
                 {
-                  depends = true;
-                  break;
+                  if (repIdI.getInt() != repIdJ.getInt())
+                  {
+
+                    llvm::outs() << "They are not equal\n";
+                    depends = true;
+                    break;
+                  }
                 }
               }
 
+              llvm::errs() << "Task J\n";
+              llvm::errs() << tasks[j].op->getAttr("repId") << "\n";
+
+              llvm::errs() << "Task I\n";
+              llvm::errs() << tasks[i].op->getAttr("repId") << "\n";
               if (depends)
                 tasks[j].deps.push_back(&tasks[i]);
             }
@@ -138,7 +151,7 @@ namespace mlir
 
           if (scheduled.size() == tasks.size())
             break;
-          
+
           for (auto *t : currentLevel)
           {
             scheduled.insert(t);
@@ -149,11 +162,8 @@ namespace mlir
             }
           }
 
-        levelVector.push_back(currentLevel);
-
-          
+          levelVector.push_back(currentLevel);
         }
-
       }
     };
 

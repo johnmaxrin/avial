@@ -1,47 +1,14 @@
-%4 = "avial.task"() <{operandSegmentSizes = array<i32: 0, 0>, target = #dlti.target_device_spec<"arch" = "sm_90">}> ({
-      "affine.for"() <{lowerBoundMap = affine_map<() -> (0)>, operandSegmentSizes = array<i32: 0, 0, 0>, step = 1 : index, upperBoundMap = affine_map<() -> (30)>}> ({
-      ^bb0(%arg6: index):
-        "affine.for"() <{lowerBoundMap = affine_map<() -> (0)>, operandSegmentSizes = array<i32: 0, 0, 0>, step = 1 : index, upperBoundMap = affine_map<() -> (20)>}> ({
-        ^bb0(%arg7: index):
-          "affine.store"(%0, %arg5, %arg6, %arg7) <{map = affine_map<(d0, d1) -> (d0, d1)>}> : (f32, memref<?x128xf32>, index, index) -> ()
-          "affine.for"() <{lowerBoundMap = affine_map<() -> (0)>, operandSegmentSizes = array<i32: 0, 0, 0>, step = 1 : index, upperBoundMap = affine_map<() -> (10)>}> ({
-          ^bb0(%arg8: index):
-            %5 = "affine.load"(%arg3, %arg6, %arg8) <{map = affine_map<(d0, d1) -> (d0, d1)>}> : (memref<?x128xf32>, index, index) -> f32
-            %6 = "affine.load"(%arg4, %arg8, %arg7) <{map = affine_map<(d0, d1) -> (d0, d1)>}> : (memref<?x128xf32>, index, index) -> f32
-            %7 = "arith.mulf"(%5, %6) <{fastmath = #arith.fastmath<none>}> : (f32, f32) -> f32
-            %8 = "affine.load"(%arg5, %arg6, %arg7) <{map = affine_map<(d0, d1) -> (d0, d1)>}> : (memref<?x128xf32>, index, index) -> f32
-            %9 = "arith.addf"(%8, %7) <{fastmath = #arith.fastmath<none>}> : (f32, f32) -> f32
-            "affine.store"(%9, %arg5, %arg6, %arg7) <{map = affine_map<(d0, d1) -> (d0, d1)>}> : (f32, memref<?x128xf32>, index, index) -> ()
-            "affine.yield"() : () -> ()
-          }) : () -> ()
-          "affine.yield"() : () -> ()
-        }) : () -> ()
-        "affine.yield"() : () -> ()
-      }) : () -> ()
-      "avial.yield"() : () -> ()
-    ^bb1:  // no predecessors
-    }) : () -> !avial.taskref
+## Things to add in Ops
+- TaskOp
+  - Name
+  - RepId (Default 0)
+
+- ReplicateOp
+  - ReplicateID (Starts from 1) 
 
 
 
-    %4 = "avial.task"() <{operandSegmentSizes = array<i32: 0, 0>, target = #dlti.target_device_spec<"arch" = "sm_90">}> ({
-    "affine.for"() <{lowerBoundMap = affine_map<() -> (0)>, operandSegmentSizes = array<i32: 0, 0, 0>, step = 1 : index, upperBoundMap = affine_map<() -> (30)>}> ({
-    ^bb0(%arg6: index):
-      "affine.for"() <{lowerBoundMap = affine_map<() -> (0)>, operandSegmentSizes = array<i32: 0, 0, 0>, step = 1 : index, upperBoundMap = affine_map<() -> (20)>}> ({
-      ^bb0(%arg7: index):
-        "affine.store"(%0, %arg5, %arg6, %arg7) <{map = affine_map<(d0, d1) -> (d0, d1)>}> : (f32, memref<?x128xf32>, index, index) -> ()
-        "affine.for"() <{lowerBoundMap = affine_map<() -> (0)>, operandSegmentSizes = array<i32: 0, 0, 0>, step = 1 : index, upperBoundMap = affine_map<() -> (10)>}> ({
-        ^bb0(%arg8: index):
-          %5 = "affine.load"(%arg3, %arg6, %arg8) <{map = affine_map<(d0, d1) -> (d0, d1)>}> : (memref<?x128xf32>, index, index) -> f32
-          %6 = "affine.load"(%arg4, %arg8, %arg7) <{map = affine_map<(d0, d1) -> (d0, d1)>}> : (memref<?x128xf32>, index, index) -> f32
-          %7 = "arith.mulf"(%5, %6) <{fastmath = #arith.fastmath<none>}> : (f32, f32) -> f32
-          %8 = "affine.load"(%arg5, %arg6, %arg7) <{map = affine_map<(d0, d1) -> (d0, d1)>}> : (memref<?x128xf32>, index, index) -> f32
-          %9 = "arith.addf"(%8, %7) <{fastmath = #arith.fastmath<none>}> : (f32, f32) -> f32
-          "affine.store"(%9, %arg5, %arg6, %arg7) <{map = affine_map<(d0, d1) -> (d0, d1)>}> : (f32, memref<?x128xf32>, index, index) -> ()
-          "affine.yield"() : () -> ()
-        }) : () -> ()
-        "affine.yield"() : () -> ()
-      }) : () -> ()
-      "affine.yield"() : () -> ()
-    }) : () -> ()
-  }) : () -> !avial.taskref
+
+### TODO
+- We have created tasks in such a way that we can now uniquely identify it, whether two tasks are dependent or not. Now we need to 
+- make sure the communicaton is done between such tasks! 

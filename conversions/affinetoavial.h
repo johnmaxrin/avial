@@ -103,17 +103,22 @@ namespace mlir
                     
                 });
 
+                int repId = 1; // For uniquely identifying each replicateOp.
+
                 for(auto op : toReplicateVector)
                 {
 
                     affine::AffineForOp forOp = mlir::dyn_cast<affine::AffineForOp>(op);
                     builder.setInsertionPoint(forOp);
                     auto replicateOp = builder.create<mlir::avial::ReplicateOp>(forOp.getLoc());
+                    replicateOp->setAttr("replicateID", builder.getI64IntegerAttr(repId));
+
                     mlir::Region &replicateRegion = replicateOp.getBodyRegion();
                     mlir::Block *newBlock = builder.createBlock(&replicateRegion);
 
                     forOp->moveBefore(newBlock, newBlock->end());
                     builder.create<mlir::avial::YieldOp>(builder.getUnknownLoc());                 
+                    ++repId;
 
                 }
 
