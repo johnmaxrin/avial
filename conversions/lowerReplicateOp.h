@@ -34,16 +34,16 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
             module = module->getParentOp();
 
         mlir::Operation *schOp = op;
-        while(schOp && !mlir::isa<mlir::avial::ScheduleOp>(schOp))
+        while (schOp && !mlir::isa<mlir::avial::ScheduleOp>(schOp))
             schOp = schOp->getParentOp();
-        
+
         /*
             InsOutsAnalysis
             Add Desc
         */
 
         InsOutsAnalysis insoutAnalysis(schOp);
-
+        insoutAnalysis.print(llvm::errs());
 
         // End of InsOutAnalysis
 
@@ -91,6 +91,11 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
         int64_t base_chunk = total_iters / num_devices;
         int64_t remainder = total_iters % num_devices;
 
+        llvm::SmallVector<mlir::Value> insVec(insoutAnalysis.ins.begin(),
+                                              insoutAnalysis.ins.end());
+        llvm::SmallVector<mlir::Value> outsVec(insoutAnalysis.outs.begin(),
+                                               insoutAnalysis.outs.end());
+
         int64_t current = 0;
         for (int i = 0; i < num_devices; ++i)
         {
@@ -107,7 +112,17 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
                 op.getLoc(),
                 avial::TaskRefType::get(rewriter.getContext()),
                 targetDlti,
-                ValueRange{insoutAnalysis.ins}, ValueRange{insoutAnalysis.outs});
+                ValueRange(insVec), ValueRange(outsVec));
+            taskOp->setAttr("name", rewriter.getStringAttr(std::to_string(i)));
+
+            mlir::IntegerAttr repIdAttr;
+            if (auto attr = op->getAttrOfType<mlir::IntegerAttr>("replicateID"))
+                repIdAttr = attr;
+            else
+                repIdAttr = rewriter.getI32IntegerAttr(0);
+
+            taskOp->setAttr("repId", repIdAttr);
+
 
             if (taskOp.getRegion().empty())
                 rewriter.createBlock(&taskOp.getRegion());
@@ -147,14 +162,12 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
     }
 };
 
-
-
 namespace mlir
 {
     namespace avial
     {
-        #define GEN_PASS_DEF_LOWERREPLICATEOPPASS
-        #include "dialect/Passes.h.inc"
+#define GEN_PASS_DEF_LOWERREPLICATEOPPASS
+#include "dialect/Passes.h.inc"
         struct LowerReplicateOpPass
             : public mlir::avial::impl::LowerReplicateOpPassBase<LowerReplicateOpPass>
         {
@@ -166,7 +179,7 @@ namespace mlir
                 mlir::MLIRContext *context = &getContext();
                 auto *module = getOperation();
                 ConversionTarget targetReplicateOp(getContext());
-                
+
                 targetReplicateOp.addLegalDialect<mlir::arith::ArithDialect>();
                 targetReplicateOp.addLegalDialect<mlir::scf::SCFDialect>();
                 targetReplicateOp.addLegalOp<mlir::avial::TaskOp>();
@@ -181,8 +194,6 @@ namespace mlir
                 {
                     signalPassFailure();
                 }
-
-        
             }
         };
 
