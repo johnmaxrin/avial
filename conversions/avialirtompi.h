@@ -375,6 +375,11 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
             rewriter.create<mpi::Barrier>(loc, retVal, comm->getResult(0));
 
             // Send data to rank 0
+            // if not rank zero send to rank 0
+
+            // You can get the out set and share all outsets! 
+            
+            // else receive from all ranks
             
         }
 
