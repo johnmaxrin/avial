@@ -2,6 +2,8 @@
 - TaskOp
   - Name
   - RepId (Default 0)
+  - range of shared variables as parameters. // make it 2d!
+  - 
 
 - ReplicateOp
   - ReplicateID (Starts from 1) 

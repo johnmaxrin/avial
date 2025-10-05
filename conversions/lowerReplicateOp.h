@@ -108,11 +108,12 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
             PatternRewriter::InsertionGuard guard(rewriter);
             rewriter.setInsertionPointAfter(op);
 
+            mlir::DenseI64ArrayAttr outRanges = rewriter.getDenseI64ArrayAttr({1,3});
             auto taskOp = rewriter.create<avial::TaskOp>(
                 op.getLoc(),
                 avial::TaskRefType::get(rewriter.getContext()),
                 targetDlti,
-                ValueRange(insVec), ValueRange(outsVec));
+                ValueRange(insVec),rewriter.getDenseI64ArrayAttr({0,0}), ValueRange(outsVec), outRanges);
             taskOp->setAttr("name", rewriter.getStringAttr(std::to_string(i)));
 
             mlir::IntegerAttr repIdAttr;
