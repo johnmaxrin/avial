@@ -364,6 +364,9 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                         Operation *clonedOp = rewriter.clone(op, mapping);
                     } 
 
+                    // Check if the task is a part of the replicate model or standalone task. if it is replicate model then
+                    // check the attributes for range of shared varialbe, if not, just communicate the value to root. 
+                    
 
                     
                     rewriter.create<mlir::scf::YieldOp>(loc); 

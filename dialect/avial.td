@@ -55,14 +55,16 @@ def TaskOp : Op<AvialDialect, "task", [AttrSizedOperandSegments, SingleBlockImpl
   let arguments = (
                    ins AnyAttr : $target,  
                    Variadic<AnyType>: $inputs,
-                   Variadic<AnyType>: $outputs
+                   DenseI64ArrayAttr:$inpRanges,
+                   Variadic<AnyType>: $outputs,
+                   DenseI64ArrayAttr:$outRanges
                    );
 
   let results = (outs TaskRef : $result);
   let regions = (region SizedRegion<1> : $body);
 
   let builders = [
-    OpBuilder<(ins "TaskRefType":$taskref, "mlir::Attribute":$target, "ValueRange":$inputs, "ValueRange":$outputs, 
+    OpBuilder<(ins "TaskRefType":$taskref, "mlir::Attribute":$target, "ValueRange":$inputs, "mlir::DenseI64ArrayAttr":$inpRanges, "ValueRange":$outputs, "mlir::DenseI64ArrayAttr":$outRanges,
       CArg<"function_ref<void(OpBuilder &, Location, Value, ValueRange)>",
            "nullptr">)>
   ];

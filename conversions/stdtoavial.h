@@ -88,7 +88,7 @@ struct ConvertToAvial : public OpConversionPattern<mlir::func::FuncOp>
                 auto archVal = rewriter.getStringAttr("sm_90");
                 auto entry1 = mlir::DataLayoutEntryAttr::get(archAttr, archVal);
                 auto targetDlti = mlir::TargetDeviceSpecAttr::get(innerop.getContext(), {entry1});
-                auto taskOp = rewriter.create<avial::TaskOp>(innerop.getLoc(), avial::TaskRefType::get(rewriter.getContext()), targetDlti, mlir::ValueRange{}, mlir::ValueRange{});
+                auto taskOp = rewriter.create<avial::TaskOp>(innerop.getLoc(), avial::TaskRefType::get(rewriter.getContext()), targetDlti, mlir::ValueRange{},mlir::DenseI64ArrayAttr{}, mlir::ValueRange{}, mlir::DenseI64ArrayAttr{});
 
                 rewriter.setInsertionPointToStart(&taskOp.getBodyRegion().getBlocks().front());
 
