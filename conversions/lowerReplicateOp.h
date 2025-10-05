@@ -108,7 +108,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
             PatternRewriter::InsertionGuard guard(rewriter);
             rewriter.setInsertionPointAfter(op);
 
-            mlir::DenseI64ArrayAttr outRanges = rewriter.getDenseI64ArrayAttr({1,3});
+            mlir::DenseI64ArrayAttr outRanges = rewriter.getDenseI64ArrayAttr({start,end});
             auto taskOp = rewriter.create<avial::TaskOp>(
                 op.getLoc(),
                 avial::TaskRefType::get(rewriter.getContext()),
