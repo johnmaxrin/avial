@@ -14,6 +14,6 @@
 #include "system_config.h"
 
 
-void attachDLTISpec(mlir::ModuleOp module, mlir::MLIRContext *context /* Receive Info as Params */);
+void attachDLTISpec(mlir::ModuleOp module, mlir::MLIRContext *context, SystemTopology);
 llvm::SmallVector<mlir::TargetDeviceSpecAttr> extractTargetDeviceSpecs(mlir::ModuleOp module);
 SystemTopology parseSystemConfig();
