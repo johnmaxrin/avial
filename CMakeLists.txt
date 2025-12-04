@@ -78,8 +78,8 @@ target_include_directories(MPIToLLVMConversion
 
 
 # Add executable and link it with the parser library
-add_llvm_executable(bin main.cc libs/avialDialect.cc libs/avialOps.cc libs/utils.cc DEPENDS MLIRAvialDialectIncGen)
-target_link_libraries(bin 
+add_llvm_executable(dhir-opt main.cc libs/avialDialect.cc libs/avialOps.cc libs/utils.cc DEPENDS MLIRAvialDialectIncGen)
+target_link_libraries(dhir-opt 
 
 PRIVATE
         ${dialect_libs}

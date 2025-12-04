@@ -133,7 +133,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         }
 
         auto funcType = mlir::FunctionType::get(rewriter.getContext(), inputTypes, {});
-        auto func = rewriter.create<mlir::func::FuncOp>(loc, op.getSchName(), funcType);
+        auto func = rewriter.create<mlir::func::FuncOp>(loc, op.getScheduleName(), funcType);
 
         Block *block = func.addEntryBlock();
 
@@ -228,11 +228,11 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
 
                     // Then Region (Rank == 0)
                     // Receive.
-                    {
-                        mlir::OpBuilder thenBuilder = ifOp.getThenBodyBuilder();
-                        thenBuilder.create<mlir::mpi::RecvOp>(loc,);
-                        // Load the range
-                    }
+                    // {
+                    //     mlir::OpBuilder thenBuilder = ifOp.getThenBodyBuilder();
+                    //     thenBuilder.create<mlir::mpi::RecvOp>(loc,);
+                    //     // Load the range
+                    // }
 
                     // Else Region
 

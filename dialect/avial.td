@@ -77,10 +77,10 @@ def ScheduleOp : Op<AvialDialect, "schedule", [IsolatedFromAbove,SingleBlockImpl
   let summary = "ScheduleOp"; 
   let regions = (region SizedRegion<1> : $body); 
 
-  let arguments = (ins ArrayAttr:$inputs, StrAttr:$schName);
+  let arguments = (ins ArrayAttr:$inputs, StrAttr:$scheduleName);
 
   let builders = [
-    OpBuilder<(ins  "::mlir::ArrayAttr":$inputs,"::mlir::StringAttr":$schName, 
+    OpBuilder<(ins  "::mlir::ArrayAttr":$inputs,"::mlir::StringAttr":$scheduleName, 
       CArg<"function_ref<void(OpBuilder &, Location, Value, ValueRange)>",
            "nullptr">)>
   ];
@@ -91,10 +91,6 @@ def ReplicateOp : Op<AvialDialect, "replicate", [SingleBlockImplicitTerminator<"
 {
   let summary = "ReplicateOp"; 
   let regions = (region SizedRegion<1> : $body); 
-
-
-  
-
 }
 
 

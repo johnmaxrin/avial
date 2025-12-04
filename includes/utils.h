@@ -8,7 +8,12 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/IR/IRMapping.h"
+#include <fstream>
+
+#include "json.hpp"
+#include "system_config.h"
 
 
 void attachDLTISpec(mlir::ModuleOp module, mlir::MLIRContext *context /* Receive Info as Params */);
 llvm::SmallVector<mlir::TargetDeviceSpecAttr> extractTargetDeviceSpecs(mlir::ModuleOp module);
+SystemTopology parseSystemConfig();

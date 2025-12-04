@@ -1,0 +1,26 @@
+{
+  "cluster": {
+    "world_size": 3,
+    "node_ids": ["node0", "node1", "node2"]
+  },
+
+  "nodes": {
+    "node0": {
+      "cpu_arch": "x86_64",
+      "gpus": [
+        { "id": 0, "arch": "nvidia-sm_80", "model": "A100" },
+        { "id": 1, "arch": "nvidia-sm_80", "model": "A100" }
+      ]
+    },
+    "node1": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node2": {
+      "cpu_arch": "x86_64",
+      "gpus": [
+        { "id": 0, "arch": "nvidia-sm_90", "model": "H100" }
+      ]
+    }
+  }
+}
