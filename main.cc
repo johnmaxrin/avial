@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    parseSystemConfig();
+    SystemTopology sys_topo = parseSystemConfig();
     
     llvm::SourceMgr sourceMgr;
     sourceMgr.AddNewSourceBuffer(std::move(mlirFile), llvm::SMLoc());
@@ -116,7 +116,7 @@ int main(int argc, char *argv[])
     }
 
     // Add DLTI specifications
-    attachDLTISpec(llvm::dyn_cast<mlir::ModuleOp>(module->getOperation()), &context);
+    attachDLTISpec(llvm::dyn_cast<mlir::ModuleOp>(module->getOperation()), &context, sys_topo);
     auto vec = extractTargetDeviceSpecs(llvm::dyn_cast<mlir::ModuleOp>(module->getOperation()));
 
     // Set up pass manager

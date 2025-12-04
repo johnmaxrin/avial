@@ -2,27 +2,61 @@
 
 using namespace mlir;
 
-void attachDLTISpec(mlir::ModuleOp module, mlir::MLIRContext *context /* Receive Info as Params */)
+void attachDLTISpec(mlir::ModuleOp module, mlir::MLIRContext *context, SystemTopology systemTopo)
 {
-  OpBuilder builder(context);
+  mlir::OpBuilder builder(context);
 
-  auto typeEntry = DataLayoutEntryAttr::get(builder.getStringAttr("type"), builder.getStringAttr("node"));
-  auto archEntry = DataLayoutEntryAttr::get(builder.getStringAttr("arch"), builder.getStringAttr("x86"));
-  auto costEntry = DataLayoutEntryAttr::get(builder.getStringAttr("cost"), builder.getF32FloatAttr(0.2));
+  SmallVector<mlir::Attribute> deviceAttrs;
 
-  auto node1target = TargetDeviceSpecAttr::get(context, {typeEntry, archEntry});
+  // Iterate through the nodes in the topology
+  for (const std::string &nodeID : systemTopo.cluster.node_ids)
+  {
 
-  auto typeEntry2 = DataLayoutEntryAttr::get(builder.getStringAttr("type"), builder.getStringAttr("node"));
-  auto archEntry2 = DataLayoutEntryAttr::get(builder.getStringAttr("arch"), builder.getStringAttr("x86"));
-  auto costEntry2 = DataLayoutEntryAttr::get(builder.getStringAttr("cost"), builder.getF32FloatAttr(0.8));
+    const NodeInfo &node = systemTopo.nodes.at(nodeID);
 
-  auto node2target = TargetDeviceSpecAttr::get(context, {typeEntry2, archEntry2});
+    // --- Basic entries for each node ---
+    auto typeEntry = mlir::DataLayoutEntryAttr::get(
+        builder.getStringAttr("type"),
+        builder.getStringAttr("node"));
 
-  SmallVector<Attribute> devices = {node1target, node2target};
+    auto archEntry = mlir::DataLayoutEntryAttr::get(
+        builder.getStringAttr("arch"),
+        builder.getStringAttr(node.cpu_arch));
+
+    // Optional: cost based on number of GPUs or something else
+    float cost = node.gpus.empty() ? 1.0f : 0.5f;
+    auto costEntry = mlir::DataLayoutEntryAttr::get(
+        builder.getStringAttr("cost"),
+        builder.getF32FloatAttr(cost));
+
+    // Node ID entry
+    auto nodeIDEntry = mlir::DataLayoutEntryAttr::get(
+        builder.getStringAttr("node_id"),
+        builder.getStringAttr(nodeID));
+
+    // GPU count entry
+    auto gpuCountEntry = mlir::DataLayoutEntryAttr::get(
+        builder.getStringAttr("gpu_count"),
+        builder.getI32IntegerAttr(node.gpus.size()));
+
+    // You can add more, e.g., gpu_arch_list, etc.
+
+    // Assemble this node's TargetDeviceSpecAttr
+    auto nodeAttr = mlir::TargetDeviceSpecAttr::get(
+        context,
+        {typeEntry,
+         archEntry,
+         costEntry,
+         nodeIDEntry,
+         gpuCountEntry});
+
+    deviceAttrs.push_back(nodeAttr);
+  }
+
+  // Attach to module
   module->setAttr(
-      "avial.target_devices",       // Expected attribute name in DLTIR
-      builder.getArrayAttr(devices) // Store as an array
-  );
+      "avial.target_devices",
+      builder.getArrayAttr(deviceAttrs));
 }
 
 llvm::SmallVector<mlir::TargetDeviceSpecAttr> extractTargetDeviceSpecs(ModuleOp module)
