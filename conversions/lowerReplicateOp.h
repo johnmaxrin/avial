@@ -35,7 +35,15 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
 
         mlir::Operation *schOp = op;
         while (schOp && !mlir::isa<mlir::avial::ScheduleOp>(schOp))
+        {
+            if (mlir::isa<mlir::ModuleOp>(schOp))
+            {
+                llvm::errs() << "Lowering Replicate Op too early! Replicate Op needs schedule op to get lowered correctly.\n";
+                exit(0);
+            }
+
             schOp = schOp->getParentOp();
+        }
 
         /*
             InsOutsAnalysis
@@ -108,12 +116,12 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
             PatternRewriter::InsertionGuard guard(rewriter);
             rewriter.setInsertionPointAfter(op);
 
-            mlir::DenseI64ArrayAttr outRanges = rewriter.getDenseI64ArrayAttr({start,end});
+            mlir::DenseI64ArrayAttr outRanges = rewriter.getDenseI64ArrayAttr({start, end});
             auto taskOp = rewriter.create<avial::TaskOp>(
                 op.getLoc(),
                 avial::TaskRefType::get(rewriter.getContext()),
                 targetDlti,
-                ValueRange(insVec),rewriter.getDenseI64ArrayAttr({0,0}), ValueRange(outsVec), outRanges);
+                ValueRange(insVec), rewriter.getDenseI64ArrayAttr({0, 0}), ValueRange(outsVec), outRanges);
             taskOp->setAttr("name", rewriter.getStringAttr(std::to_string(i)));
 
             mlir::IntegerAttr repIdAttr;
@@ -123,7 +131,6 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
                 repIdAttr = rewriter.getI32IntegerAttr(0);
 
             taskOp->setAttr("repId", repIdAttr);
-
 
             if (taskOp.getRegion().empty())
                 rewriter.createBlock(&taskOp.getRegion());
@@ -157,7 +164,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
 
         rewriter.eraseOp(op); // Erase the old op safely
 
-        module->dumpPretty();
+        // module->dumpPretty();
 
         return success();
     }

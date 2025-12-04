@@ -27,11 +27,9 @@
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 
 #include "conversions/avialirtompi.h"
-#include "conversions/stdtoavial.h"
-#include "conversions/affinetoavial.h"
 #include "conversions/lowerReplicateOp.h"
-
-// #include "mlir/Conversion/MPIToLLVM/MPIToLLVM.h"
+#include "conversions/affinetoavial.h"
+#include "conversions/stdtoavial.h"
 
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
@@ -43,15 +41,40 @@
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
 #include "mlir/Conversion/MPIToLLVM/MPIToLLVM.h"
 
-
 using namespace std;
 using namespace mlir;
 
+// Command-line options
+static llvm::cl::opt<std::string> inpFileName(
+    llvm::cl::Positional,
+    llvm::cl::desc("<MLIR Input File>"),
+    llvm::cl::Required);
 
+static llvm::cl::opt<bool> dhirToMPI(
+    "dhir-to-mpi",
+    llvm::cl::desc("Enable DHIR to MPI conversion"),
+    llvm::cl::init(false));
 
+static llvm::cl::opt<bool> lowerReplicate(
+    "lower-replicate",
+    llvm::cl::desc("Enable replicate operation lowering"),
+    llvm::cl::init(false));
+
+static llvm::cl::opt<bool> affineTodhir(
+    "affine-to-dhir",
+    llvm::cl::desc("Enable Affine to DHIR conversion"),
+    llvm::cl::init(false));
+
+static llvm::cl::opt<bool> stdTodhir(
+    "std-to-dhir",
+    llvm::cl::desc("Enable Std Dialects to DHIR conversion"),
+    llvm::cl::init(false));
 
 int main(int argc, char *argv[])
 {
+    // Parse command-line options
+    llvm::cl::ParseCommandLineOptions(argc, argv, "DHIR OPT Tool\n");
+
     mlir::DialectRegistry registry;
     registry.insert<mlir::func::FuncDialect>();
     registry.insert<mlir::memref::MemRefDialect>();
@@ -63,17 +86,12 @@ int main(int argc, char *argv[])
     registry.insert<mlir::omp::OpenMPDialect>();
 
     MLIRContext context;
-
-
-
     context.allowUnregisteredDialects();
     context.appendDialectRegistry(registry);
     context.getOrLoadDialect<mlir::DLTIDialect>();
-
     context.printOpOnDiagnostic(true);
-    llvm::cl::opt<std::string> inpFileName(llvm::cl::Positional, llvm::cl::desc("<MLIR INP File>"), llvm::cl::Required);
-    llvm::cl::ParseCommandLineOptions(argc, argv, "CL Parser\n");
 
+    // Open input file
     std::string errorMsg;
     auto mlirFile = mlir::openInputFile(inpFileName, &errorMsg);
 
@@ -83,58 +101,58 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    parseSystemConfig();
+    
     llvm::SourceMgr sourceMgr;
-
     sourceMgr.AddNewSourceBuffer(std::move(mlirFile), llvm::SMLoc());
 
-    // OwningOpRef<ModuleOp> module2 = ModuleOp::create(UnknownLoc::get(&context));
+    // Parse MLIR module
     OwningOpRef<ModuleOp> module = mlir::parseSourceFile<mlir::ModuleOp>(sourceMgr, &context);
 
-    // Add Information about the devices available. 
-    attachDLTISpec(llvm::dyn_cast<mlir::ModuleOp>(module->getOperation()),&context);
-    auto vec = extractTargetDeviceSpecs(llvm::dyn_cast<mlir::ModuleOp>(module->getOperation())); 
-
-    if (!module) {
+    if (!module)
+    {
         llvm::errs() << "Failed to parse the MLIR file.\n";
         return 2;
     }
 
+    // Add DLTI specifications
+    attachDLTISpec(llvm::dyn_cast<mlir::ModuleOp>(module->getOperation()), &context);
+    auto vec = extractTargetDeviceSpecs(llvm::dyn_cast<mlir::ModuleOp>(module->getOperation()));
+
+    // Set up pass manager
     PassManager pm(&context);
-    context.disableMultithreading();
-    pm.enableIRPrinting();
 
-    
-    pm.addPass(mlir::avial::createConvertAffineToAvialPass());
-    pm.addPass(mlir::createLowerAffinePass());
+    if (dhirToMPI)
+        pm.addPass(mlir::avial::createConvertAvialIRToMPIPass());
 
+    if (affineTodhir)
+    {
+        pm.addPass(mlir::avial::createConvertAffineToAvialPass());
+        pm.addPass(mlir::createLowerAffinePass());
+    }
 
-    pm.addPass(mlir::avial::createConvertStdToAvialPass());
-    pm.addPass(mlir::avial::createLowerReplicateOpPass());
-    pm.addPass(mlir::avial::createConvertAvialIRToMPIPass());
+    if (stdTodhir)
+        pm.addPass(mlir::avial::createConvertStdToAvialPass());
 
-    pm.addPass(mlir::createSCFToControlFlowPass());
-    pm.addPass(mlir::createConvertControlFlowToLLVMPass());
+    if (lowerReplicate)
+        pm.addPass(mlir::avial::createLowerReplicateOpPass());
 
-    pm.addPass(mlir::createFinalizeMemRefToLLVMConversionPass());
-    
-    pm.addPass(mlir::createConvertIndexToLLVMPass());
-    pm.addPass(mlir::createArithToLLVMConversionPass());
-
-    pm.addPass(mlir::createConvertOpenMPToLLVMPass());
-
-    pm.addPass(mlir::createReconcileUnrealizedCastsPass());
-
-    
-    pm.addPass(createConvertMPItoLLVM());
-
-    if (failed(pm.run(module->getOperation()))) {
+    // Run passes
+    if (failed(pm.run(module->getOperation())))
+    {
         llvm::errs() << "Failed to run passes\n";
         return 1;
     }
 
-    mlir::verify(module->getOperation());
+    // Verify the module
+    if (failed(mlir::verify(module->getOperation())))
+    {
+        llvm::errs() << "Module verification failed\n";
+        return 1;
+    }
 
-
+    // Print the transformed module
+    module->print(llvm::outs());
 
     return 0;
 }
