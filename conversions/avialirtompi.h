@@ -181,7 +181,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                 auto taskIdModNodes = rewriter.create<mlir::arith::RemSIOp>(loc, taskIDOp->getResult(0), getNodes->getResult(1));
                 auto cond = rewriter.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), taskIdModNodes.getResult());
                 rewriter.create<mlir::scf::IfOp>(loc, cond, [&](OpBuilder &builder, Location loc)
-                                                 {
+                {
                     // Add Task Args to IfOp Mappings
 
                     
@@ -218,115 +218,127 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                 auto taskIDOp = rewriter.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(taskId));
                 auto taskIdModNodes = rewriter.create<mlir::arith::RemSIOp>(loc, taskIDOp->getResult(0), getNodes->getResult(1));
                 auto cond = rewriter.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), taskIdModNodes.getResult());
-                rewriter.create<mlir::scf::IfOp>(loc, cond, [&](OpBuilder &builder, Location loc)
-                {
-                    // if 0 receive else send
-                    auto zero = rewriter.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getSI32IntegerAttr(0));
-                    auto cond = rewriter.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), zero.getResult());
-                   
-                    auto ifOp = rewriter.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, cond, true);
+                 rewriter.create<mlir::scf::IfOp>(loc, cond, [&](OpBuilder &builder, Location loc)
+                                                 {
+                                                     // if 0, receive, Else send
+                                                     auto zero = rewriter.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(0));
+                                                     auto cond = rewriter.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), zero.getResult());
 
-                    // Then Region (Rank == 0)
-                    // Receive.
-                    // {
-                    //     mlir::OpBuilder thenBuilder = ifOp.getThenBodyBuilder();
-                    //     thenBuilder.create<mlir::mpi::RecvOp>(loc,);
-                    //     // Load the range
-                    // }
+                                                     auto ifOp = rewriter.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, cond, true);
+                                                     OpBuilder thenBuilder = ifOp.getThenBodyBuilder(rewriter.getListener());
+                                                     //OpBuilder elseBuilder = ifOp.getElseBodyBuilder(rewriter.getListener());
 
-                    // Else Region
+                                                     {
+                                                    
+                                                       
+                                                       //thenBuilder.create<mlir::mpi::RecvOp>(loc, thenBuilder.getI32Type(), task->reads[0], zero->getResult(0),zero->getResult(0),comm->getResult(0)); 
+                                                       //thenBuilder.create<mlir::scf::YieldOp>(loc); 
+                                                     }
 
-                });
-                                                 
+                                                     {
+                                                        //elseBuilder.create<mlir::scf::YieldOp>(loc);
+                                                     }
+                                                     // Then Region (Rank == 0)
+                                                     // Receive.
+                                                     // {
+                                                     //     mlir::OpBuilder thenBuilder = ifOp.getThenBodyBuilder();
+                                                     //     thenBuilder.create<mlir::mpi::RecvOp>(loc,);
+                                                     //     // Load the range
+                                                     // }
 
+                                                     // Else Region
+                                                    builder.create<mlir::scf::YieldOp>(loc);
+                                                  });
             }
 
-                // ----- Comm end ----- //
-            }
-
-            // End of Lowering the tasks
-
-            rewriter.create<func::ReturnOp>(loc);
-            rewriter.eraseOp(op);
-
-            return success();
+            // ----- Comm end ----- //
         }
-    };
 
-    namespace mlir
+        // End of Lowering the tasks
+
+        rewriter.create<func::ReturnOp>(loc);
+        rewriter.eraseOp(op);
+
+        return success();
+    }
+};
+
+namespace mlir
+{
+    namespace avial
     {
-        namespace avial
-        {
 #define GEN_PASS_DEF_CONVERTAVIALIRTOMPIPASS
 #include "dialect/Passes.h.inc"
 
-            struct ConvertAvialIRToMPIPass : public mlir::avial::impl::ConvertAvialIRToMPIPassBase<ConvertAvialIRToMPIPass>
+        struct ConvertAvialIRToMPIPass : public mlir::avial::impl::ConvertAvialIRToMPIPassBase<ConvertAvialIRToMPIPass>
+        {
+            using ConvertAvialIRToMPIPassBase::ConvertAvialIRToMPIPassBase;
+            void runOnOperation() override
             {
-                using ConvertAvialIRToMPIPassBase::ConvertAvialIRToMPIPassBase;
-                void runOnOperation() override
+                mlir::MLIRContext *context = &getContext();
+                auto *module = getOperation();
+
+                ConversionTarget target(getContext());
+                ConversionTarget targetReplicateOp(getContext());
+                ConversionTarget targetTaskOp(getContext());
+                target.addLegalDialect<mlir::scf::SCFDialect>();
+                target.addLegalDialect<mlir::memref::MemRefDialect>();
+                target.addLegalDialect<mlir::arith::ArithDialect>();
+                target.addLegalDialect<mlir::LLVM::LLVMDialect>();
+                target.addLegalDialect<mlir::func::FuncDialect>();
+                target.addLegalDialect<mlir::mpi::MPIDialect>();
+                target.addLegalDialect<mlir::affine::AffineDialect>();
+                target.addLegalDialect<mlir::omp::OpenMPDialect>();
+
+                target.addIllegalOp<avial::ScheduleOp>();
+
+                targetReplicateOp.addLegalDialect<mlir::arith::ArithDialect>();
+                targetReplicateOp.addLegalDialect<mlir::scf::SCFDialect>();
+
+                targetReplicateOp.addLegalOp<mlir::avial::TaskOp>();
+                targetReplicateOp.addIllegalOp<avial::ReplicateOp>();
+                targetReplicateOp.addLegalOp<mlir::avial::YieldOp>();
+                targetReplicateOp.addLegalDialect<mlir::memref::MemRefDialect>();
+
+                targetTaskOp.addLegalDialect<mlir::omp::OpenMPDialect>();
+                // targetTaskOp.addIllegalDialect<mlir::scf::SCFDialect>();
+                // targetTaskOp.addIllegalOp<mlir::scf::ForOp>();
+                targetTaskOp.addLegalOp<mlir::omp::ParallelOp>();
+                targetTaskOp.markOpRecursivelyLegal<mlir::omp::ParallelOp>();
+                targetTaskOp.addLegalDialect<mlir::avial::AvialDialect>();
+                targetTaskOp.addLegalDialect<mlir::arith::ArithDialect>();
+
+                // RewritePatternSet avialpatterns(context);
+                // avialpatterns.add<ConvertReplicateOp>(context);
+
+                // if (failed(applyPartialConversion(module, targetReplicateOp, std::move(avialpatterns))))
+                // {
+                //     signalPassFailure();
+                // }
+
+                // RewritePatternSet taskPattern(context);
+                // taskPattern.add<ConvertTaskOp>(context);
+
+                // if (failed(applyPartialConversion(module, targetTaskOp, std::move(taskPattern))))
+                // {
+                //     signalPassFailure();
+                // }
+
+                // llvm::errs() << "After Converting Outermost ForLoop\n";
+                // module->dump();
+
+                RewritePatternSet patterns(context);
+                patterns.add<ConvertScheduleOp>(context);
+
+
+
+                if (failed(applyPartialConversion(module, target, std::move(patterns))))
                 {
-                    mlir::MLIRContext *context = &getContext();
-                    auto *module = getOperation();
-
-                    ConversionTarget target(getContext());
-                    ConversionTarget targetReplicateOp(getContext());
-                    ConversionTarget targetTaskOp(getContext());
-                    target.addLegalDialect<mlir::scf::SCFDialect>();
-                    target.addLegalDialect<mlir::memref::MemRefDialect>();
-                    target.addLegalDialect<mlir::arith::ArithDialect>();
-                    target.addLegalDialect<mlir::LLVM::LLVMDialect>();
-                    target.addLegalDialect<mlir::func::FuncDialect>();
-                    target.addLegalDialect<mlir::mpi::MPIDialect>();
-                    target.addLegalDialect<mlir::affine::AffineDialect>();
-                    target.addLegalDialect<mlir::omp::OpenMPDialect>();
-
-                    target.addIllegalOp<avial::ScheduleOp>();
-
-                    targetReplicateOp.addLegalDialect<mlir::arith::ArithDialect>();
-                    targetReplicateOp.addLegalDialect<mlir::scf::SCFDialect>();
-
-                    targetReplicateOp.addLegalOp<mlir::avial::TaskOp>();
-                    targetReplicateOp.addIllegalOp<avial::ReplicateOp>();
-                    targetReplicateOp.addLegalOp<mlir::avial::YieldOp>();
-                    targetReplicateOp.addLegalDialect<mlir::memref::MemRefDialect>();
-
-                    targetTaskOp.addLegalDialect<mlir::omp::OpenMPDialect>();
-                    // targetTaskOp.addIllegalDialect<mlir::scf::SCFDialect>();
-                    // targetTaskOp.addIllegalOp<mlir::scf::ForOp>();
-                    targetTaskOp.addLegalOp<mlir::omp::ParallelOp>();
-                    targetTaskOp.markOpRecursivelyLegal<mlir::omp::ParallelOp>();
-                    targetTaskOp.addLegalDialect<mlir::avial::AvialDialect>();
-                    targetTaskOp.addLegalDialect<mlir::arith::ArithDialect>();
-
-                    // RewritePatternSet avialpatterns(context);
-                    // avialpatterns.add<ConvertReplicateOp>(context);
-
-                    // if (failed(applyPartialConversion(module, targetReplicateOp, std::move(avialpatterns))))
-                    // {
-                    //     signalPassFailure();
-                    // }
-
-                    // RewritePatternSet taskPattern(context);
-                    // taskPattern.add<ConvertTaskOp>(context);
-
-                    // if (failed(applyPartialConversion(module, targetTaskOp, std::move(taskPattern))))
-                    // {
-                    //     signalPassFailure();
-                    // }
-
-                    // llvm::errs() << "After Converting Outermost ForLoop\n";
-                    // module->dump();
-
-                    RewritePatternSet patterns(context);
-                    patterns.add<ConvertScheduleOp>(context);
-
-                    if (failed(applyPartialConversion(module, target, std::move(patterns))))
-                    {
-                        signalPassFailure();
-                    }
+                    signalPassFailure();
                 }
-            };
-
-        }
+            }
+        };
 
     }
+
+}

@@ -7,10 +7,7 @@
   "nodes": {
     "node0": {
       "cpu_arch": "x86_64",
-      "gpus": [
-        { "id": 0, "arch": "nvidia-sm_80", "model": "A100" },
-        { "id": 1, "arch": "nvidia-sm_80", "model": "A100" }
-      ]
+      "gpus": []
     },
     "node1": {
       "cpu_arch": "x86_64",

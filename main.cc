@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
     }
 
     SystemTopology sys_topo = parseSystemConfig();
-    
+
     llvm::SourceMgr sourceMgr;
     sourceMgr.AddNewSourceBuffer(std::move(mlirFile), llvm::SMLoc());
 
@@ -122,9 +122,6 @@ int main(int argc, char *argv[])
     // Set up pass manager
     PassManager pm(&context);
 
-    if (dhirToMPI)
-        pm.addPass(mlir::avial::createConvertAvialIRToMPIPass());
-
     if (affineTodhir)
     {
         pm.addPass(mlir::avial::createConvertAffineToAvialPass());
@@ -136,6 +133,12 @@ int main(int argc, char *argv[])
 
     if (lowerReplicate)
         pm.addPass(mlir::avial::createLowerReplicateOpPass());
+
+    if (dhirToMPI)
+    {
+        
+        pm.addPass(mlir::avial::createConvertAvialIRToMPIPass());
+    }
 
     // Run passes
     if (failed(pm.run(module->getOperation())))
