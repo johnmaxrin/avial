@@ -59,7 +59,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
         auto &replicateRegion = op.getRegion();
         auto &replicateBody = replicateRegion.front();
 
-        auto archAttr = rewriter.getStringAttr("arch");
+        auto archAttr = rewriter.getStringAttr("arch"); // Use the Module Attrs
         auto archVal = rewriter.getStringAttr("sm_90");
         auto entry1 = mlir::DataLayoutEntryAttr::get(archAttr, archVal);
         auto targetDlti = mlir::TargetDeviceSpecAttr::get(op.getContext(), {entry1});
