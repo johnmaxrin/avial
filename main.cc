@@ -136,7 +136,6 @@ int main(int argc, char *argv[])
 
     if (dhirToMPI)
     {
-        
         pm.addPass(mlir::avial::createConvertAvialIRToMPIPass());
     }
 
