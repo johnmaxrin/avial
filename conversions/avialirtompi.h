@@ -246,27 +246,24 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                         
                         OpBuilder innerIfBuilder = innerIf.getThenBodyBuilder(thenBuilder.getListener());
                         OpBuilder innerElseBuilder = innerIf.getElseBodyBuilder(thenBuilder.getListener());
-                        
-
                         // Make sure the buffer exists and is properly mapped
                         Value recvBuffer = mapping.lookupOrNull(task->writes[0]);
                         if (!recvBuffer) {
-                            recvBuffer = task->reads[0]; // fallback if not in mapping
+                            recvBuffer = task->writes[0]; // fallback if not in mapping
                         }
-                        
-                        auto tag = innerIfBuilder.create<mlir::arith::ConstantOp>(loc, innerIfBuilder.getI32Type(), innerIfBuilder.getI32IntegerAttr(0));
-                        auto source = innerIfBuilder.create<mlir::arith::ConstantOp>(loc, innerIfBuilder.getI32Type(), innerIfBuilder.getI32IntegerAttr(0));
 
-                        auto offset = innerIfBuilder.create<mlir::arith::ConstantOp>(loc, innerIfBuilder.getI32Type(), innerIfBuilder.getI32IntegerAttr(5));
-                        auto ten = innerIfBuilder.create<mlir::arith::ConstantOp>(loc, innerIfBuilder.getI32Type(), innerIfBuilder.getI32IntegerAttr(10));
+                       
+                    
+                        auto taskOp = dyn_cast<mlir::avial::TaskOp>(task->op);
+                        llvm::ArrayRef outRanges = taskOp.getOutRanges();
 
                         SmallVector<OpFoldResult> offsets = {
-                        rewriter.getIndexAttr(10), // for dim 0 // Get the 667
+                        rewriter.getIndexAttr(outRanges[0]), // for dim 0 // Get the 667
                         rewriter.getIndexAttr(0)   // for dim 1 (start at 0)
                         };
 
                         SmallVector<OpFoldResult> sizes = {
-                        rewriter.getIndexAttr(5),                // dim 0 slice length // 1000 - 667
+                        rewriter.getIndexAttr(outRanges[1] - outRanges[0]),                // dim 0 slice length // 1000 - 667
                         rewriter.getIndexAttr(1000)              // full dim 1 size
                         };
 
@@ -276,7 +273,15 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                         };
     
 
-                        Value subBuffer = innerIfBuilder.create<memref::SubViewOp>(
+                        Value subBufferIf = innerIfBuilder.create<memref::SubViewOp>(
+                        loc,
+                        recvBuffer,       // full buffer
+                        offsets,
+                        sizes,
+                        strides 
+                        );
+
+                        Value subBufferElse = innerElseBuilder.create<memref::SubViewOp>(
                         loc,
                         recvBuffer,       // full buffer
                         offsets,
@@ -284,16 +289,35 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                         strides 
                         );
                         
+                        { 
+                                // If 0, Receive from all ranks. 
+                                auto tag = innerIfBuilder.create<mlir::arith::ConstantOp>(loc, innerIfBuilder.getI32Type(), innerIfBuilder.getI32IntegerAttr(0));
+                                auto recvOp = innerIfBuilder.create<mlir::mpi::RecvOp>(
+                                loc, 
+                                retVal,  // return type
+                                subBufferIf,                 // buffer
+                                tag.getResult(),           // tag
+                                taskIdModNodes.getResult(),        // source rank
+                                comm->getResult(0)         // communicator
+                            );
                         
-                        auto recvOp = innerIfBuilder.create<mlir::mpi::RecvOp>(
-                            loc, 
-                            retVal,  // return type
-                            subBuffer,                 // buffer
-                            tag.getResult(),           // tag
-                            source.getResult(),        // source rank
-                            comm->getResult(0)         // communicator
-                        );
-                        
+                        }
+
+                        {
+                            // Not 0, Other Ranks, Send
+
+                                auto tag = innerElseBuilder.create<mlir::arith::ConstantOp>(loc, innerElseBuilder.getI32Type(), innerElseBuilder.getI32IntegerAttr(0));
+                                auto dest = innerElseBuilder.create<mlir::arith::ConstantOp>(loc, innerElseBuilder.getI32Type(), innerElseBuilder.getI32IntegerAttr(0));
+                                auto sendOp = innerElseBuilder.create<mlir::mpi::SendOp>(
+                                loc, 
+                                retVal,  // return type
+                                subBufferElse,                 // buffer
+                                tag.getResult(),           // tag
+                                dest.getResult(),        // source rank
+                                comm->getResult(0)         // communicator
+                            );                           
+
+                        }
                     }
     
 
@@ -305,6 +329,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
 
         // End of Lowering the tasks
 
+        rewriter.create<mpi::Barrier>(loc, retVal, comm->getResult(0));
         rewriter.create<func::ReturnOp>(loc);
         rewriter.eraseOp(op);
 
