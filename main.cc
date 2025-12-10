@@ -25,6 +25,7 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
+#include "mlir/Dialect/MemRef/Transforms/Passes.h"
 
 #include "conversions/avialirtompi.h"
 #include "conversions/lowerReplicateOp.h"
@@ -69,6 +70,12 @@ static llvm::cl::opt<bool> stdTodhir(
     "std-to-dhir",
     llvm::cl::desc("Enable Std Dialects to DHIR conversion"),
     llvm::cl::init(false));
+
+static llvm::cl::opt<bool> lowerTollvm(
+    "lower-to-llvm",
+    llvm::cl::desc("Lower everything to LLVM IR"),
+    llvm::cl::init(false));
+
 
 int main(int argc, char *argv[])
 {
@@ -137,6 +144,23 @@ int main(int argc, char *argv[])
     if (dhirToMPI)
     {
         pm.addPass(mlir::avial::createConvertAvialIRToMPIPass());
+    }
+
+    if(lowerTollvm)
+    {
+       
+        pm.addPass(createConvertFuncToLLVMPass());
+
+        pm.addPass(createSCFToControlFlowPass());
+        pm.addPass(createConvertControlFlowToLLVMPass());
+        pm.addPass(mlir::memref::createExpandStridedMetadataPass());
+        pm.addPass(createFinalizeMemRefToLLVMConversionPass());
+        pm.addPass(mlir::createConvertIndexToLLVMPass());
+        pm.addPass(createArithToLLVMConversionPass());
+        pm.addPass(mlir::createReconcileUnrealizedCastsPass());
+        pm.addPass(createConvertMPItoLLVM());
+        //pm.addPass(createLowerMPIPass());
+        
     }
 
     // Run passes

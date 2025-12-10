@@ -1,0 +1,308 @@
+	.file	"LLVMDialectModule"
+	.text
+	.globl	matmul                          # -- Begin function matmul
+	.p2align	4
+	.type	matmul,@function
+matmul:                                 # @matmul
+	.cfi_startproc
+# %bb.0:
+	pushq	%rbp
+	.cfi_def_cfa_offset 16
+	pushq	%r15
+	.cfi_def_cfa_offset 24
+	pushq	%r14
+	.cfi_def_cfa_offset 32
+	pushq	%r12
+	.cfi_def_cfa_offset 40
+	pushq	%rbx
+	.cfi_def_cfa_offset 48
+	subq	$16, %rsp
+	.cfi_def_cfa_offset 64
+	.cfi_offset %rbx, -48
+	.cfi_offset %r12, -40
+	.cfi_offset %r14, -32
+	.cfi_offset %r15, -24
+	.cfi_offset %rbp, -16
+	movq	%r8, %r14
+	movq	160(%rsp), %rbx
+	movq	104(%rsp), %r12
+	xorl	%edi, %edi
+	xorl	%esi, %esi
+	callq	MPI_Init@PLT
+	leaq	12(%rsp), %rsi
+	movl	$1140850688, %edi               # imm = 0x44000000
+	callq	MPI_Comm_rank@PLT
+	movl	12(%rsp), %ebp
+	leaq	8(%rsp), %rsi
+	movl	$1140850688, %edi               # imm = 0x44000000
+	callq	MPI_Comm_size@PLT
+	movl	8(%rsp), %r15d
+	testl	%ebp, %ebp
+	jne	.LBB0_10
+# %bb.1:
+	movl	$667, %eax                      # imm = 0x29B
+	movl	$2668000, %ecx                  # imm = 0x28B5E0
+	jmp	.LBB0_2
+	.p2align	4
+.LBB0_9:                                #   in Loop: Header=BB0_2 Depth=1
+	incq	%rax
+	addq	$4000, %rcx                     # imm = 0xFA0
+.LBB0_2:                                # =>This Loop Header: Depth=1
+                                        #     Child Loop BB0_4 Depth 2
+                                        #       Child Loop BB0_7 Depth 3
+	cmpq	$999, %rax                      # imm = 0x3E7
+	jg	.LBB0_10
+# %bb.3:                                #   in Loop: Header=BB0_2 Depth=1
+	imulq	$1000, %rax, %rdx               # imm = 0x3E8
+	leaq	(%r14,%rcx), %rsi
+	xorl	%edi, %edi
+	xorl	%r8d, %r8d
+	jmp	.LBB0_4
+	.p2align	4
+.LBB0_8:                                #   in Loop: Header=BB0_4 Depth=2
+	incq	%r8
+	addq	$4, %rdi
+.LBB0_4:                                #   Parent Loop BB0_2 Depth=1
+                                        # =>  This Loop Header: Depth=2
+                                        #       Child Loop BB0_7 Depth 3
+	cmpq	$999, %r8                       # imm = 0x3E7
+	jg	.LBB0_9
+# %bb.5:                                #   in Loop: Header=BB0_4 Depth=2
+	leaq	(%rdx,%r8), %r9
+	movl	$0, (%rbx,%r9,4)
+	movq	%rdi, %r10
+	xorl	%r11d, %r11d
+	cmpq	$999, %r11                      # imm = 0x3E7
+	jg	.LBB0_8
+	.p2align	4
+.LBB0_7:                                #   Parent Loop BB0_2 Depth=1
+                                        #     Parent Loop BB0_4 Depth=2
+                                        # =>    This Inner Loop Header: Depth=3
+	movss	(%rsi,%r11,4), %xmm0            # xmm0 = mem[0],zero,zero,zero
+	mulss	(%r12,%r10), %xmm0
+	addss	(%rbx,%r9,4), %xmm0
+	movss	%xmm0, (%rbx,%r9,4)
+	incq	%r11
+	addq	$4000, %r10                     # imm = 0xFA0
+	cmpq	$999, %r11                      # imm = 0x3E7
+	jle	.LBB0_7
+	jmp	.LBB0_8
+.LBB0_10:
+	movl	$1, %eax
+	xorl	%edx, %edx
+	idivl	%r15d
+	cmpl	%edx, %ebp
+	jne	.LBB0_20
+# %bb.11:
+	movl	$334, %eax                      # imm = 0x14E
+	movl	$1336000, %ecx                  # imm = 0x1462C0
+	jmp	.LBB0_12
+	.p2align	4
+.LBB0_19:                               #   in Loop: Header=BB0_12 Depth=1
+	incq	%rax
+	addq	$4000, %rcx                     # imm = 0xFA0
+.LBB0_12:                               # =>This Loop Header: Depth=1
+                                        #     Child Loop BB0_14 Depth 2
+                                        #       Child Loop BB0_17 Depth 3
+	cmpq	$666, %rax                      # imm = 0x29A
+	jg	.LBB0_20
+# %bb.13:                               #   in Loop: Header=BB0_12 Depth=1
+	imulq	$1000, %rax, %rdx               # imm = 0x3E8
+	leaq	(%r14,%rcx), %rsi
+	xorl	%edi, %edi
+	xorl	%r8d, %r8d
+	jmp	.LBB0_14
+	.p2align	4
+.LBB0_18:                               #   in Loop: Header=BB0_14 Depth=2
+	incq	%r8
+	addq	$4, %rdi
+.LBB0_14:                               #   Parent Loop BB0_12 Depth=1
+                                        # =>  This Loop Header: Depth=2
+                                        #       Child Loop BB0_17 Depth 3
+	cmpq	$999, %r8                       # imm = 0x3E7
+	jg	.LBB0_19
+# %bb.15:                               #   in Loop: Header=BB0_14 Depth=2
+	leaq	(%rdx,%r8), %r9
+	movl	$0, (%rbx,%r9,4)
+	movq	%rdi, %r10
+	xorl	%r11d, %r11d
+	cmpq	$999, %r11                      # imm = 0x3E7
+	jg	.LBB0_18
+	.p2align	4
+.LBB0_17:                               #   Parent Loop BB0_12 Depth=1
+                                        #     Parent Loop BB0_14 Depth=2
+                                        # =>    This Inner Loop Header: Depth=3
+	movss	(%rsi,%r11,4), %xmm0            # xmm0 = mem[0],zero,zero,zero
+	mulss	(%r12,%r10), %xmm0
+	addss	(%rbx,%r9,4), %xmm0
+	movss	%xmm0, (%rbx,%r9,4)
+	incq	%r11
+	addq	$4000, %r10                     # imm = 0xFA0
+	cmpq	$999, %r11                      # imm = 0x3E7
+	jle	.LBB0_17
+	jmp	.LBB0_18
+.LBB0_20:
+	movl	$2, %eax
+	xorl	%edx, %edx
+	idivl	%r15d
+	cmpl	%edx, %ebp
+	jne	.LBB0_30
+# %bb.21:
+	xorl	%eax, %eax
+	xorl	%ecx, %ecx
+	jmp	.LBB0_22
+	.p2align	4
+.LBB0_29:                               #   in Loop: Header=BB0_22 Depth=1
+	incq	%rcx
+	addq	$4000, %rax                     # imm = 0xFA0
+.LBB0_22:                               # =>This Loop Header: Depth=1
+                                        #     Child Loop BB0_24 Depth 2
+                                        #       Child Loop BB0_27 Depth 3
+	cmpq	$333, %rcx                      # imm = 0x14D
+	jg	.LBB0_30
+# %bb.23:                               #   in Loop: Header=BB0_22 Depth=1
+	imulq	$1000, %rcx, %rdx               # imm = 0x3E8
+	leaq	(%r14,%rax), %rsi
+	xorl	%edi, %edi
+	xorl	%r8d, %r8d
+	jmp	.LBB0_24
+	.p2align	4
+.LBB0_28:                               #   in Loop: Header=BB0_24 Depth=2
+	incq	%r8
+	addq	$4, %rdi
+.LBB0_24:                               #   Parent Loop BB0_22 Depth=1
+                                        # =>  This Loop Header: Depth=2
+                                        #       Child Loop BB0_27 Depth 3
+	cmpq	$999, %r8                       # imm = 0x3E7
+	jg	.LBB0_29
+# %bb.25:                               #   in Loop: Header=BB0_24 Depth=2
+	leaq	(%rdx,%r8), %r9
+	movl	$0, (%rbx,%r9,4)
+	movq	%rdi, %r10
+	xorl	%r11d, %r11d
+	cmpq	$999, %r11                      # imm = 0x3E7
+	jg	.LBB0_28
+	.p2align	4
+.LBB0_27:                               #   Parent Loop BB0_22 Depth=1
+                                        #     Parent Loop BB0_24 Depth=2
+                                        # =>    This Inner Loop Header: Depth=3
+	movss	(%rsi,%r11,4), %xmm0            # xmm0 = mem[0],zero,zero,zero
+	mulss	(%r12,%r10), %xmm0
+	addss	(%rbx,%r9,4), %xmm0
+	movss	%xmm0, (%rbx,%r9,4)
+	incq	%r11
+	addq	$4000, %r10                     # imm = 0xFA0
+	cmpq	$999, %r11                      # imm = 0x3E7
+	jle	.LBB0_27
+	jmp	.LBB0_28
+.LBB0_30:
+	movl	$1140850688, %edi               # imm = 0x44000000
+	callq	MPI_Barrier@PLT
+	movl	$3, %eax
+	xorl	%edx, %edx
+	idivl	%r15d
+	cmpl	%edx, %ebp
+	jne	.LBB0_35
+# %bb.31:
+	movl	%edx, %ecx
+	testl	%edx, %edx
+	je	.LBB0_35
+# %bb.32:
+	leaq	2668000(%rbx), %rdi
+	testl	%ebp, %ebp
+	je	.LBB0_33
+# %bb.34:
+	movl	$333, %esi                      # imm = 0x14D
+	movl	$1275069450, %edx               # imm = 0x4C00040A
+	xorl	%ecx, %ecx
+	xorl	%r8d, %r8d
+	movl	$1140850688, %r9d               # imm = 0x44000000
+	callq	MPI_Send@PLT
+	jmp	.LBB0_35
+.LBB0_33:
+	movq	$1, (%rsp)
+	movl	$333, %esi                      # imm = 0x14D
+	movl	$1275069450, %edx               # imm = 0x4C00040A
+	xorl	%r8d, %r8d
+	movl	$1140850688, %r9d               # imm = 0x44000000
+	callq	MPI_Recv@PLT
+.LBB0_35:
+	movl	$3, %eax
+	xorl	%edx, %edx
+	idivl	%r15d
+	cmpl	%edx, %ebp
+	jne	.LBB0_40
+# %bb.36:
+	movl	%edx, %ecx
+	testl	%edx, %edx
+	je	.LBB0_40
+# %bb.37:
+	leaq	1336000(%rbx), %rdi
+	testl	%ebp, %ebp
+	je	.LBB0_38
+# %bb.39:
+	movl	$333, %esi                      # imm = 0x14D
+	movl	$1275069450, %edx               # imm = 0x4C00040A
+	xorl	%ecx, %ecx
+	xorl	%r8d, %r8d
+	movl	$1140850688, %r9d               # imm = 0x44000000
+	callq	MPI_Send@PLT
+	jmp	.LBB0_40
+.LBB0_38:
+	movq	$1, (%rsp)
+	movl	$333, %esi                      # imm = 0x14D
+	movl	$1275069450, %edx               # imm = 0x4C00040A
+	xorl	%r8d, %r8d
+	movl	$1140850688, %r9d               # imm = 0x44000000
+	callq	MPI_Recv@PLT
+.LBB0_40:
+	movl	$3, %eax
+	xorl	%edx, %edx
+	idivl	%r15d
+	cmpl	%edx, %ebp
+	jne	.LBB0_45
+# %bb.41:
+	movl	%edx, %ecx
+	testl	%edx, %edx
+	je	.LBB0_45
+# %bb.42:
+	testl	%ebp, %ebp
+	je	.LBB0_43
+# %bb.44:
+	movq	%rbx, %rdi
+	movl	$334, %esi                      # imm = 0x14E
+	movl	$1275069450, %edx               # imm = 0x4C00040A
+	xorl	%ecx, %ecx
+	xorl	%r8d, %r8d
+	movl	$1140850688, %r9d               # imm = 0x44000000
+	callq	MPI_Send@PLT
+	jmp	.LBB0_45
+.LBB0_43:
+	movq	$1, (%rsp)
+	movq	%rbx, %rdi
+	movl	$334, %esi                      # imm = 0x14E
+	movl	$1275069450, %edx               # imm = 0x4C00040A
+	xorl	%r8d, %r8d
+	movl	$1140850688, %r9d               # imm = 0x44000000
+	callq	MPI_Recv@PLT
+.LBB0_45:
+	movl	$1140850688, %edi               # imm = 0x44000000
+	callq	MPI_Barrier@PLT
+	addq	$16, %rsp
+	.cfi_def_cfa_offset 48
+	popq	%rbx
+	.cfi_def_cfa_offset 40
+	popq	%r12
+	.cfi_def_cfa_offset 32
+	popq	%r14
+	.cfi_def_cfa_offset 24
+	popq	%r15
+	.cfi_def_cfa_offset 16
+	popq	%rbp
+	.cfi_def_cfa_offset 8
+	retq
+.Lfunc_end0:
+	.size	matmul, .Lfunc_end0-matmul
+	.cfi_endproc
+                                        # -- End function
+	.section	".note.GNU-stack","",@progbits
