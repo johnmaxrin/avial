@@ -43,6 +43,10 @@ namespace mlir
         {
 
           TaskOpInfo info;
+          auto targetAttr = task->getAttr("target");
+          auto deviceSpec = mlir::dyn_cast<mlir::TargetDeviceSpecAttr>(targetAttr);
+          llvm::outs() <<"Device Spec" << deviceSpec.getEntries()[0].getValue()<< "\n";
+
           info.op = task.getOperation();
           for (auto in : task.getInputs())
             info.reads.push_back(in);

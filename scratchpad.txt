@@ -14,3 +14,8 @@
 ### TODO
 - We have created tasks in such a way that we can now uniquely identify it, whether two tasks are dependent or not. Now we need to 
 - make sure the communicaton is done between such tasks! 
+
+
+### Change log
+  - Added device type to taskOp. 
+  - acceptable values cpu | gpu
