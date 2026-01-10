@@ -61,8 +61,13 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
 
         auto archAttr = rewriter.getStringAttr("arch"); // Use the Module Attrs
         auto archVal = rewriter.getStringAttr("sm_90");
+        
+        auto typAttr = rewriter.getStringAttr("type"); 
+        auto typVal = rewriter.getStringAttr("gpu");
+
         auto entry1 = mlir::DataLayoutEntryAttr::get(archAttr, archVal);
-        auto targetDlti = mlir::TargetDeviceSpecAttr::get(op.getContext(), {entry1});
+        auto entry2 = mlir::DataLayoutEntryAttr::get(typAttr, typVal);
+        auto targetDlti = mlir::TargetDeviceSpecAttr::get(op.getContext(), {entry2, entry1});
 
         int64_t constupperBound = 0;
         mlir::scf::ForOp outerFor = nullptr;
