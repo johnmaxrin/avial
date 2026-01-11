@@ -5,13 +5,40 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "includes/avialOps.h"
 
+
+enum class TargetType
+{
+  CPU,
+  GPU
+};
+
 struct TaskOpInfo
 {
   mlir::Operation *op;
   llvm::SmallVector<mlir::Value> reads;
   llvm::SmallVector<mlir::Value> writes;
   llvm::SmallVector<TaskOpInfo *> deps;
+  TargetType target;
+
+  bool isGPU() const {return target == TargetType::GPU;}
+  bool isCPU() const {return target == TargetType::CPU;}
+
 };
+
+TargetType getTargetTypeFromAttr(mlir::Attribute attr)
+{
+
+  if(!attr) return TargetType::CPU;
+
+  if(auto dltiAttr = mlir::dyn_cast<mlir::TargetDeviceSpecAttr>(attr)){
+    auto strAttr = mlir::dyn_cast<mlir::StringAttr>(dltiAttr.getEntries()[0].getValue());
+    return (strAttr.getValue().str().compare("gpu")) ? TargetType::CPU : TargetType::GPU;
+  }
+
+
+  return TargetType::CPU;
+
+}
 
 namespace mlir
 {
@@ -43,9 +70,11 @@ namespace mlir
         {
 
           TaskOpInfo info;
-          auto targetAttr = task->getAttr("target");
-          auto deviceSpec = mlir::dyn_cast<mlir::TargetDeviceSpecAttr>(targetAttr);
-          llvm::outs() <<"Device Spec" << deviceSpec.getEntries()[0].getValue()<< "\n";
+          TargetType type =  getTargetTypeFromAttr(task->getAttr("target"));
+
+          
+
+
 
           info.op = task.getOperation();
           for (auto in : task.getInputs())
