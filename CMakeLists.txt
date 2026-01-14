@@ -92,4 +92,8 @@ PRIVATE
         MLIRSupport
         MLIRMPIDialect
         MLIROpenMPToLLVM
+        MLIRSCFToGPU
+        MLIRGPUToLLVMIRTranslation
+        MLIRBuiltinToLLVMIRTranslation 
+        MLIRLLVMToLLVMIRTranslation
     )
