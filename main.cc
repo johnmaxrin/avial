@@ -9,6 +9,7 @@
 #include "mlir/Parser/Parser.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
+#include "mlir/Conversion/Passes.h"
 
 #include <iostream>
 
@@ -26,6 +27,10 @@
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
+#include "mlir/Dialect/GPU/Transforms/Passes.h"
+#include "mlir/Dialect/LLVMIR/NVVMDialect.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 
 #include "conversions/avialirtompi.h"
 #include "conversions/lowerReplicateOp.h"
@@ -41,6 +46,20 @@
 #include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
 #include "mlir/Conversion/MPIToLLVM/MPIToLLVM.h"
+#include "mlir/Conversion/UBToLLVM/UBToLLVM.h"
+#include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
+#include "mlir/Conversion/VectorToLLVM/ConvertVectorToLLVM.h"
+
+#include "mlir/Conversion/GPUToNVVM/GPUToNVVMPass.h"
+#include "mlir/Conversion/GPUCommon/GPUCommonPass.h"
+#include "mlir/Conversion/SCFToGPU/SCFToGPUPass.h"
+
+#include "mlir/Target/LLVMIR/Dialect/Builtin/BuiltinToLLVMIRTranslation.h"
+#include "mlir/Target/LLVMIR/Dialect/NVVM/NVVMToLLVMIRTranslation.h"
+#include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
+#include "mlir/Target/LLVMIR/Dialect/GPU/GPUToLLVMIRTranslation.h"
+#include "mlir/Target/LLVM/NVVM/Target.h"
+
 
 using namespace std;
 using namespace mlir;
@@ -94,9 +113,30 @@ int main(int argc, char *argv[])
 
     MLIRContext context;
     context.allowUnregisteredDialects();
-    context.appendDialectRegistry(registry);
     context.getOrLoadDialect<mlir::DLTIDialect>();
     context.printOpOnDiagnostic(true);
+
+    registerConvertNVVMToLLVMInterface(registry);
+    ub::registerConvertUBToLLVMInterface(registry);
+    registerConvertFuncToLLVMInterface(registry);
+    cf::registerConvertControlFlowToLLVMInterface(registry);
+    arith::registerConvertArithToLLVMInterface(registry);
+    registerConvertMemRefToLLVMInterface(registry);
+    registerConvertOpenMPToLLVMInterface(registry);
+    mlir::vector::registerConvertVectorToLLVMInterface(registry);
+
+    
+
+    // Register target interfaces
+    NVVM::registerNVVMTargetInterfaceExternalModels(registry);
+  
+    // Register translations - CRITICAL for GPU module conversion
+    mlir::registerBuiltinDialectTranslation(registry);
+    mlir::registerNVVMDialectTranslation(registry);
+    mlir::registerLLVMDialectTranslation(registry);
+    mlir::registerGPUDialectTranslation(registry);
+
+    context.appendDialectRegistry(registry);
 
     // Open input file
     std::string errorMsg;
@@ -144,6 +184,24 @@ int main(int argc, char *argv[])
     if (dhirToMPI)
     {
         pm.addPass(mlir::avial::createConvertAvialIRToMPIPass());
+
+        // GPU Related lowering
+        pm.nest<func::FuncOp>().addPass(createGpuMapParallelLoopsPass());
+        pm.addPass(mlir::createConvertParallelLoopToGpuPass());
+        pm.addPass(createGpuKernelOutliningPass());
+        pm.nest<mlir::gpu::GPUModuleOp>().addPass(createConvertGpuOpsToNVVMOps());
+        
+        // Attach NVVM target with correct libdevice path
+        GpuNVVMAttachTargetOptions gputargetOptions;
+        gputargetOptions.chip = "sm_61";
+        gputargetOptions.triple = "nvptx64-nvidia-cuda";
+        pm.addPass(createGpuNVVMAttachTarget(gputargetOptions));
+        
+        pm.addPass(createConvertNVVMToLLVMPass());
+        pm.addPass(createGpuModuleToBinaryPass());
+        pm.addPass(createGpuToLLVMConversionPass());
+
+
     }
 
     if(lowerTollvm)

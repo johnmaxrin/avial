@@ -85,7 +85,7 @@ struct ConvertToAvial : public OpConversionPattern<mlir::func::FuncOp>
             {
                 // Create the taskOp
                 auto archAttr = rewriter.getStringAttr("arch");
-                auto archVal = rewriter.getStringAttr("sm_90");
+                auto archVal = rewriter.getStringAttr("sm_61");
                 auto entry1 = mlir::DataLayoutEntryAttr::get(archAttr, archVal);
                 auto targetDlti = mlir::TargetDeviceSpecAttr::get(innerop.getContext(), {entry1});
                 auto taskOp = rewriter.create<avial::TaskOp>(innerop.getLoc(), avial::TaskRefType::get(rewriter.getContext()), targetDlti, mlir::ValueRange{},mlir::DenseI64ArrayAttr{}, mlir::ValueRange{}, mlir::DenseI64ArrayAttr{});
@@ -148,63 +148,6 @@ namespace mlir
                     signalPassFailure();
                 }
 
-                // module->walk<mlir::WalkOrder::PreOrder>([&](mlir::Operation *op)
-                // {
-                //     if (mlir::isa<mlir::func::FuncOp>(op))
-                //     {
-
-                //         auto funcOp = llvm::dyn_cast<mlir::func::FuncOp>(op);
-
-                //         // auto archAttr = builder.getStringAttr("arch");
-                //         // auto archVal = builder.getStringAttr("sm_90");
-                //         // auto entry1 = mlir::DataLayoutEntryAttr::get(archAttr, archVal);
-                //         // auto targetDlti = mlir::TargetDeviceSpecAttr::get(context, {entry1});
-
-                //         // auto cpu = builder.create<avial::TargetOp>(builder.getUnknownLoc(), avial::TargetRefType::get(builder.getContext(), "CPU"), "CPU", "0", targetDlti);
-                //         // mlir::TargetDeviceSpecAttr tar =  mlir::dyn_cast<mlir::TargetDeviceSpecAttr>(cpu->getAttr("dlti"));
-
-                //         // auto mapAttr = tar.getSpecForIdentifier(builder.getStringAttr("arch"));
-                //         // mapAttr.getValue().dump();
-
-                //         // DictionaryAttr arg1 = builder.getDictionaryAttr({builder.getNamedAttr("name", builder.getStringAttr("inp1")),
-                //         //                             builder.getNamedAttr("type", TypeAttr::get(memrefType))});
-                //         // ArrayAttr insAttr
-                //         // ***** Generate Schedule OP ***** //
-
-                //         auto args = funcOp.getArguments();
-                //         int idx = 0;
-                //         SmallVector<mlir::Attribute, 4> argsAttr;
-
-                //         for(auto arg: args)
-                //         {
-                //             std::string nameStr = "arg" + std::to_string(idx);
-                //             mlir::NamedAttribute nameAttr = builder.getNamedAttr("name", builder.getStringAttr(nameStr));
-                //             mlir::NamedAttribute typeAttr = builder.getNamedAttr("type", mlir::TypeAttr::get(arg.getType()));
-                //             mlir::DictionaryAttr dictAttr = builder.getDictionaryAttr({nameAttr, typeAttr});
-                //             argsAttr.push_back(dictAttr);
-
-                //             ++idx;
-                //         }
-
-                //         mlir::ArrayAttr insAttr = builder.getArrayAttr(argsAttr);
-                //         auto schOp = builder.create<avial::ScheduleOp>(builder.getUnknownLoc(),insAttr,
-                //             [&](mlir::OpBuilder &builder, mlir::Location loc, mlir::Value value, mlir::ValueRange args)
-                //             {
-
-                //             });
-
-                //             schOp.dump();
-                //         // ***** Generate Schedule OP end * //
-
-                //             // op->dumpPretty();
-
-                //             // Take Every Functions.
-                //             // Check if we have CPU_ or GPU_
-                //             // If we don;t have, emit the same IR.
-                //             // If we have any functions like that, distribute it!
-                //     }
-
-                // });
             }
         };
     }

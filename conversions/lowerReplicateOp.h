@@ -56,6 +56,10 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
         // End of InsOutAnalysis
 
         auto deviceVec = extractTargetDeviceSpecs(llvm::dyn_cast<mlir::ModuleOp>(module));
+        
+        for (auto targetSpec : deviceVec)
+            targetSpec.dump();
+        
         auto &replicateRegion = op.getRegion();
         auto &replicateBody = replicateRegion.front();
 
@@ -149,7 +153,6 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
                 auto cloned = rewriter.clone(innerOp, mapping);
                 if (mlir::isa<mlir::scf::ForOp>(cloned))
                 {
-                mlir:
                     scf::ForOp outerFor = mlir::dyn_cast<mlir::scf::ForOp>(cloned);
                     auto ub = outerFor.getUpperBound().getDefiningOp();
                     auto lb = outerFor.getLowerBound().getDefiningOp();
@@ -161,15 +164,34 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
                         constUBIdx.setValueAttr(rewriter.getIndexAttr(end));
                         constLBIdx.setValueAttr(rewriter.getIndexAttr(start));
                     }
+
+
+                    // Let's create the parallel Op
+                    auto parallelOp = rewriter.create<scf::ParallelOp>(outerFor.getLoc(), 
+                    ValueRange{mlir::dyn_cast<mlir::arith::ConstantIndexOp>(lb)},
+                    ValueRange{mlir::dyn_cast<mlir::arith::ConstantIndexOp>(ub)},
+                    ValueRange{outerFor.getStep()},
+                    ValueRange{});
+
+                    rewriter.setInsertionPointToStart(parallelOp.getBody());
+                    mapping.map(outerFor.getInductionVar(), parallelOp.getInductionVars()[0]);
+
+                    for(auto &bodyOp: outerFor.getBody()->without_terminator())
+                        rewriter.clone(bodyOp, mapping);
+                    
+                    rewriter.eraseOp(outerFor);
+                    
                 }
             }
-
+            
+            rewriter.setInsertionPointToEnd(&taskOp.getRegion().front());
             rewriter.create<avial::YieldOp>(rewriter.getUnknownLoc());
+
         }
+        
+        
 
         rewriter.eraseOp(op); // Erase the old op safely
-
-        // module->dumpPretty();
 
         return success();
     }
