@@ -10,6 +10,7 @@
 #include "mlir/IR/Verifier.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Conversion/Passes.h"
+#include "mlir/Transforms/Passes.h"
 
 #include <iostream>
 
@@ -60,7 +61,6 @@
 #include "mlir/Target/LLVMIR/Dialect/GPU/GPUToLLVMIRTranslation.h"
 #include "mlir/Target/LLVM/NVVM/Target.h"
 
-
 using namespace std;
 using namespace mlir;
 
@@ -95,7 +95,6 @@ static llvm::cl::opt<bool> lowerTollvm(
     llvm::cl::desc("Lower everything to LLVM IR"),
     llvm::cl::init(false));
 
-
 int main(int argc, char *argv[])
 {
     // Parse command-line options
@@ -125,11 +124,9 @@ int main(int argc, char *argv[])
     registerConvertOpenMPToLLVMInterface(registry);
     mlir::vector::registerConvertVectorToLLVMInterface(registry);
 
-    
-
     // Register target interfaces
     NVVM::registerNVVMTargetInterfaceExternalModels(registry);
-  
+
     // Register translations - CRITICAL for GPU module conversion
     mlir::registerBuiltinDialectTranslation(registry);
     mlir::registerNVVMDialectTranslation(registry);
@@ -168,8 +165,8 @@ int main(int argc, char *argv[])
 
     // Set up pass manager
     PassManager pm(&context);
-    context.disableMultithreading();
-    pm.enableIRPrinting();
+    // context.disableMultithreading();
+    // pm.enableIRPrinting();
 
     if (affineTodhir)
     {
@@ -191,7 +188,7 @@ int main(int argc, char *argv[])
         pm.nest<func::FuncOp>().addPass(createGpuMapParallelLoopsPass());
         pm.addPass(mlir::createConvertParallelLoopToGpuPass());
         pm.addPass(createGpuKernelOutliningPass());
-        
+
         // Attach NVVM target with correct libdevice path
         GpuNVVMAttachTargetOptions gputargetOptions;
         gputargetOptions.chip = "sm_61";
@@ -199,46 +196,50 @@ int main(int argc, char *argv[])
         pm.addPass(createGpuNVVMAttachTarget(gputargetOptions));
         pm.nest<mlir::gpu::GPUModuleOp>().addPass(mlir::createLowerAffinePass());
         pm.nest<mlir::gpu::GPUModuleOp>().addPass(createSCFToControlFlowPass());
+        pm.nest<mlir::gpu::GPUModuleOp>().addPass(mlir::memref::createExpandStridedMetadataPass());
         pm.nest<mlir::gpu::GPUModuleOp>().addPass(createConvertGpuOpsToNVVMOps());
         pm.nest<mlir::gpu::GPUModuleOp>().addPass(createArithToLLVMConversionPass());
         pm.nest<mlir::gpu::GPUModuleOp>().addPass(createConvertIndexToLLVMPass());
         pm.nest<mlir::gpu::GPUModuleOp>().addPass(createUBToLLVMConversionPass());
-        pm.nest<mlir::gpu::GPUModuleOp>().addPass(mlir::memref::createExpandStridedMetadataPass());
 
-        //pm.addPass(createConvertNVVMToLLVMPass());
-        // // pm.addPass(createGpuModuleToBinaryPass());
-        // // pm.addPass(createGpuToLLVMConversionPass());
-        // pm.nest<mlir::gpu::GPUModuleOp>().addPass(createConvertIndexToLLVMPass());
-        // pm.nest<mlir::gpu::GPUModuleOp>().addPass(createUBToLLVMConversionPass());
-        // pm.nest<mlir::gpu::GPUModuleOp>().addPass(createReconcileUnrealizedCastsPass());
-        
+
     }
 
-    if(lowerTollvm)
+    if (lowerTollvm)
     {
-       
 
-        pm.addPass(createConvertNVVMToLLVMPass());
 
         pm.addPass(createSCFToControlFlowPass());
-        pm.addPass(mlir::memref::createExpandStridedMetadataPass());
+        
 
-        pm.addPass(createUBToLLVMConversionPass());
+        pm.addNestedPass<func::FuncOp>(createGpuAsyncRegionPass());
+        pm.addPass(mlir::createGpuDecomposeMemrefsPass());  
+        pm.addPass(createGpuToLLVMConversionPass());
+        
+        
+        pm.addPass(createConvertNVVMToLLVMPass());
+        // pm.addPass(mlir::createLowerAffinePass());
+
+        pm.addPass(mlir::memref::createExpandStridedMetadataPass());
         pm.addPass(createConvertMPItoLLVM());
+        pm.addPass(createArithToLLVMConversionPass());
+        pm.addPass(mlir::createConvertIndexToLLVMPass());
+
+        // pm.addPass(createUBToLLVMConversionPass());
 
         pm.addPass(createConvertToLLVMPass());
         pm.addPass(createGpuModuleToBinaryPass());
-        pm.addPass(createGpuToLLVMConversionPass());
+    
+       
 
-        pm.addPass(createArithToLLVMConversionPass());
-        pm.addPass(mlir::createConvertIndexToLLVMPass());
+
         pm.addPass(createFinalizeMemRefToLLVMConversionPass());
         
         pm.addPass(createConvertFuncToLLVMPass());
         pm.addPass(createConvertControlFlowToLLVMPass());
         pm.addPass(mlir::createReconcileUnrealizedCastsPass());
-        //pm.addPass(createLowerMPIPass());
-        
+
+        // pm.addPass(createCanonicalizerPass());
     }
 
     // Run passes

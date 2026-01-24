@@ -6,6 +6,9 @@
 #include "includes/avialDialect.h"
 #include "includes/avialTypes.h"
 #include "includes/utils.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
+
+#include "mlir/Dialect/Index/IR/IndexDialect.h"
 
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -50,8 +53,10 @@ struct LowerMPIDialectToLLVMPass
 
         // Step 1: Set up conversion target
         MLIRContext *context = &getContext();
+
         LLVMConversionTarget target(*context);
         target.addLegalDialect<LLVM::LLVMDialect>();
+        target.addLegalDialect<gpu::GPUDialect>();
         target.addIllegalDialect<mpi::MPIDialect>();
 
         // Step 2: Type converter
@@ -171,6 +176,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         // Lower the tasks
         for (std::vector<TaskOpInfo *> level : dependencyGraph.levelVector)
         {
+            llvm::DenseMap<Value, Value> gpuBufferMap;
             int taskId = 0;
             for (auto task : level)
             {
@@ -183,24 +189,88 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                 rewriter.create<mlir::scf::IfOp>(loc, cond, [&](OpBuilder &ifbuilder, Location loc)
                                                  {
                     // Add Task Args to IfOp Mappings
-
+                
                     
                     Block &taskBlock = task->op->getRegion(0).front(); 
                     Block *thenBlock = ifbuilder.getBlock();
-                    
+
+                    IRMapping rankMapping = mapping; 
+
+                    Value buffer;
+                    if (task->isGPU())
+                    {
+                        buffer = rankMapping.lookupOrNull(task->writes[0]);
+                        Value r1buffer = rankMapping.lookupOrNull(task->reads[0]);
+                        Value r2buffer = rankMapping.lookupOrNull(task->reads[1]);
+
+                        auto subviewType = cast<MemRefType>(buffer.getType());
+                        SmallVector<Value> dynamicSizes;
+                        for (int64_t i = 0; i < subviewType.getRank(); ++i)
+                        {
+                            if (subviewType.isDynamicDim(i))
+                            {
+                                Value dimSize = ifbuilder.create<memref::DimOp>(loc, buffer, i);
+                                dynamicSizes.push_back(dimSize);
+                            }
+                        }
+
+                        auto cleanType = MemRefType::get(
+                            subviewType.getShape(),
+                            subviewType.getElementType(),
+                            MemRefLayoutAttrInterface{}, // default/identity layout
+                            subviewType.getMemorySpace());
+
+                        Value newBuffer = ifbuilder.create<memref::AllocOp>(loc, cleanType, dynamicSizes);
+                        Value newBuffer1 = ifbuilder.create<memref::AllocOp>(loc, cleanType, dynamicSizes);
+                        Value newBuffer2 = ifbuilder.create<memref::AllocOp>(loc, cleanType, dynamicSizes);
+
+                        ifbuilder.create<memref::CopyOp>(loc, buffer, newBuffer);
+
+
+                        // Convert the subview to canonical buffer. keep a map of subview and canonical buffer.
+
+                        auto gpuAlloc = ifbuilder.create<gpu::AllocOp>(loc, TypeRange(newBuffer), ValueRange{}, ValueRange{}, ValueRange{});
+                        auto gpuAllocr1 = ifbuilder.create<gpu::AllocOp>(loc, TypeRange(newBuffer1), ValueRange{}, ValueRange{}, ValueRange{});
+                        auto gpuAllocr2 = ifbuilder.create<gpu::AllocOp>(loc, TypeRange(newBuffer2), ValueRange{}, ValueRange{}, ValueRange{});
+
+                        Value gpuBuffer = gpuAlloc.getMemref();
+                        Value gpuBuffer1 = gpuAllocr1.getMemref();
+                        Value gpuBuffer2 = gpuAllocr2.getMemref();
+
+
+                        ifbuilder.create<gpu::MemcpyOp>(loc, TypeRange{}, ValueRange{}, gpuBuffer, newBuffer);
+                        ifbuilder.create<gpu::MemcpyOp>(loc, TypeRange{}, ValueRange{}, gpuBuffer1, newBuffer1);
+                        ifbuilder.create<gpu::MemcpyOp>(loc, TypeRange{}, ValueRange{}, gpuBuffer2, newBuffer2);
+                        // TODO: Copy the `in` buffers
+                        gpuBufferMap[gpuBuffer] = newBuffer;
+                        gpuBufferMap[gpuBuffer1] = newBuffer1;
+                        gpuBufferMap[gpuBuffer2] = newBuffer2;
+                        
+                        
+                        rankMapping.map(task->writes[0], gpuBuffer);
+                        rankMapping.map(task->reads[0], gpuBuffer1);
+                        rankMapping.map(task->reads[1], gpuBuffer2);
+                    }   
 
                     for (auto &op : taskBlock) {
                         if (mlir::isa<mlir::avial::YieldOp>(op))
                             continue;
                     
-                        Operation *clonedOp = ifbuilder.clone(op, mapping);
+                        Operation *clonedOp = ifbuilder.clone(op, rankMapping);
                     } 
 
+                    
+                    // buffer.replaceAllUsesWith(gpuBufferMap[buffer]);
                     // Check if the task is a part of the replicate model or standalone task. if it is replicate model then
                     // check the attributes for range of shared varialbe, if not, just communicate the value to root. 
                     
 
-                    
+                    if(task->isGPU())
+                    {
+                        
+                        Value gpubuffer = rankMapping.lookupOrNull(task->writes[0]);
+                        rewriter.create<gpu::MemcpyOp>(loc, TypeRange{}, ValueRange{}, gpuBufferMap[gpubuffer], gpubuffer);
+                    }
                     ifbuilder.create<mlir::scf::YieldOp>(loc); });
 
                 ++taskId;
@@ -214,49 +284,46 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
             // You can get the out set and share all outsets!
             // else receive from all ranks
 
-            
-
             auto one = rewriter.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(1));
             auto zero = rewriter.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(0));
             auto tag = rewriter.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(0));
 
             taskId = 0;
-            for(auto task: level)
+            for (auto task : level)
             {
 
                 Value buffer = mapping.lookupOrNull(task->writes[0]);
-                if (!buffer) {
-                buffer = task->writes[0]; // fallback if not in mapping
+                if (!buffer)
+                {
+                    buffer = task->writes[0]; // fallback if not in mapping
                 }
 
                 auto taskOp = dyn_cast<mlir::avial::TaskOp>(task->op);
                 llvm::ArrayRef outRanges = taskOp.getOutRanges();
 
-                SmallVector<OpFoldResult> offsets = {
-                rewriter.getIndexAttr(outRanges[0]), // for dim 0 // Get the 667
-                rewriter.getIndexAttr(0)   // for dim 1 (start at 0)
-                };
+                // SmallVector<OpFoldResult> offsets = {
+                //     rewriter.getIndexAttr(outRanges[0]), // for dim 0 // Get the 667
+                //     rewriter.getIndexAttr(0)             // for dim 1 (start at 0)
+                // };
 
-                SmallVector<OpFoldResult> sizes = {
-                rewriter.getIndexAttr((outRanges[1]-outRanges[0])*1000),        // TODO: Use memref to get the shape.        
-                rewriter.getIndexAttr(1000)            
-                };
+                // SmallVector<OpFoldResult> sizes = {
+                //     rewriter.getIndexAttr((outRanges[1] - outRanges[0]) * 1000), // TODO: Use memref to get the shape.
+                //     rewriter.getIndexAttr(1000)};
 
-                SmallVector<OpFoldResult> strides = {
-                rewriter.getIndexAttr(1),  // dim 0
-                rewriter.getIndexAttr(1)   // dim 1
-                };
-                
-                Value subBuffer = rewriter.create<memref::SubViewOp>(
-                loc,
-                buffer,       // full buffer
-                offsets,
-                sizes,
-                strides 
-                );
+                // SmallVector<OpFoldResult> strides = {
+                //     rewriter.getIndexAttr(1), // dim 0
+                //     rewriter.getIndexAttr(1)  // dim 1
+                // };
+
+                // Value subBuffer = rewriter.create<memref::SubViewOp>(
+                //     loc,
+                //     buffer, // full buffer
+                //     offsets,
+                //     sizes,
+                //     strides);
 
                 auto cond = rewriter.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), zero.getResult());
-                auto ifOp = rewriter.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, cond, true);               
+                auto ifOp = rewriter.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, cond, true);
                 OpBuilder thenBuilder = ifOp.getThenBodyBuilder(rewriter.getListener()); // Rank = 0
                 OpBuilder elseBuilder = ifOp.getElseBodyBuilder(rewriter.getListener()); // Rank != 0
 
@@ -264,54 +331,36 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                 auto taskIDOp = thenBuilder.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(taskId));
                 auto taskIdModNodes = thenBuilder.create<mlir::arith::RemSIOp>(loc, taskIDOp->getResult(0), getNodes->getResult(1));
                 auto innercond = thenBuilder.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::ne, zero.getResult(), taskIdModNodes.getResult());
-                auto innerIf = thenBuilder.create<mlir::scf::IfOp>(loc, mlir::TypeRange{},innercond,false);
+                auto innerIf = thenBuilder.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, innercond, false);
                 auto innerThenBuilder = innerIf.getThenBodyBuilder(thenBuilder.getListener()); // Task doesn't belong to Rank 0
 
-                
-                
-                
-                 
-                
                 auto recvOp = innerThenBuilder.create<mlir::mpi::RecvOp>(
-                loc, 
-                retVal,  // return type
-                subBuffer,                 // buffer
-                tag.getResult(),           // tag
-                taskIdModNodes->getResult(0),        // source rank
-                comm->getResult(0)         // communicator
+                    loc,
+                    retVal,                       // return type
+                    buffer,                       // buffer
+                    tag.getResult(),              // tag
+                    taskIdModNodes->getResult(0), // source rank
+                    comm->getResult(0)            // communicator
                 );
-                
-                
-                
+
                 // Else Send
                 auto elsetaskIDOp = elseBuilder.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(taskId));
                 auto elsetaskIdModNodes = elseBuilder.create<mlir::arith::RemSIOp>(loc, elsetaskIDOp->getResult(0), getNodes->getResult(1));
                 auto elsecond = elseBuilder.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), elsetaskIdModNodes.getResult());
-                auto elseinnerIf = elseBuilder.create<mlir::scf::IfOp>(loc, mlir::TypeRange{},elsecond,false);
+                auto elseinnerIf = elseBuilder.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, elsecond, false);
                 auto elseinnerThenBuilder = elseinnerIf.getThenBodyBuilder(elseBuilder.getListener()); // Task belongs to this rank
-                
 
-                
                 auto sendOp = elseinnerThenBuilder.create<mlir::mpi::SendOp>(
-                loc, 
-                retVal,  // return type
-                subBuffer,                 // buffer
-                tag.getResult(),           // tag
-                zero,        // dest rank
-                comm->getResult(0)         // communicator
+                    loc,
+                    retVal,            // return type
+                    buffer,            // buffer
+                    tag.getResult(),   // tag
+                    zero,              // dest rank
+                    comm->getResult(0) // communicator
                 );
-
-
 
                 ++taskId;
             }
-
-
-
-
-
-
-
 
             // ----- Comm end ----- //
         }
@@ -321,7 +370,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         rewriter.create<mpi::Barrier>(loc, retVal, comm->getResult(0));
         rewriter.create<func::ReturnOp>(loc);
         rewriter.eraseOp(op);
-    
+
         return success();
     }
 };
@@ -336,9 +385,23 @@ namespace mlir
         struct ConvertAvialIRToMPIPass : public mlir::avial::impl::ConvertAvialIRToMPIPassBase<ConvertAvialIRToMPIPass>
         {
             using ConvertAvialIRToMPIPassBase::ConvertAvialIRToMPIPassBase;
+
+            void getDependentDialects(DialectRegistry &registry) const override
+            {
+                registry.insert<
+                    mlir::gpu::GPUDialect,
+                    mlir::memref::MemRefDialect,
+                    mlir::arith::ArithDialect,
+                    mlir::scf::SCFDialect,
+                    mlir::func::FuncDialect,
+                    mlir::mpi::MPIDialect,
+                    mlir::LLVM::LLVMDialect>();
+            }
+
             void runOnOperation() override
             {
                 mlir::MLIRContext *context = &getContext();
+
                 auto *module = getOperation();
 
                 ConversionTarget target(getContext());
@@ -352,6 +415,7 @@ namespace mlir
                 target.addLegalDialect<mlir::mpi::MPIDialect>();
                 target.addLegalDialect<mlir::affine::AffineDialect>();
                 target.addLegalDialect<mlir::omp::OpenMPDialect>();
+                target.addLegalDialect<mlir::gpu::GPUDialect>();
 
                 target.addIllegalOp<avial::ScheduleOp>();
 
