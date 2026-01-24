@@ -56,17 +56,17 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
         // End of InsOutAnalysis
 
         auto deviceVec = extractTargetDeviceSpecs(llvm::dyn_cast<mlir::ModuleOp>(module));
-        
+
         for (auto targetSpec : deviceVec)
             targetSpec.dump();
-        
+
         auto &replicateRegion = op.getRegion();
         auto &replicateBody = replicateRegion.front();
 
         auto archAttr = rewriter.getStringAttr("arch"); // Use the Module Attrs
         auto archVal = rewriter.getStringAttr("sm_90");
-        
-        auto typAttr = rewriter.getStringAttr("type"); 
+
+        auto typAttr = rewriter.getStringAttr("type");
         auto typVal = rewriter.getStringAttr("gpu");
 
         auto entry1 = mlir::DataLayoutEntryAttr::get(archAttr, archVal);
@@ -113,6 +113,15 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
         llvm::SmallVector<mlir::Value> outsVec(insoutAnalysis.outs.begin(),
                                                insoutAnalysis.outs.end());
 
+        llvm::SmallPtrSet<mlir::Value, 8> outsSet(outsVec.begin(), outsVec.end());
+        insVec.erase(
+            llvm::remove_if(insVec, [&](mlir::Value v)
+                            { return outsSet.contains(v); }),
+            insVec.end());
+
+        llvm::SmallVector<mlir::Value> subViewIns;
+        llvm::SmallVector<mlir::Value> subViewOuts;
+
         int64_t current = 0;
         for (int i = 0; i < num_devices; ++i)
         {
@@ -123,14 +132,83 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
 
             IRMapping mapping;
             PatternRewriter::InsertionGuard guard(rewriter);
-            rewriter.setInsertionPointAfter(op);
+            rewriter.setInsertionPoint(op);
+
+            // TODO:  Take this device's DLTI. So that we can generate gpu.alloc() correctly.
+
+            // Create Subviews and add It to local Mappings.
+            for (auto in : insVec)
+            {
+                auto memrefType = dyn_cast<MemRefType>(in.getType());
+                if (memrefType && memrefType.getRank() > 0)
+                {
+                    // Create subview for input (if it's split along first dimension)
+                    auto shape = memrefType.getShape();
+
+                    SmallVector<OpFoldResult> offsets, sizes, strides;
+
+                    offsets.push_back(rewriter.getIndexAttr(start));
+                    for (size_t d = 1; d < shape.size(); ++d)
+                    {
+                        offsets.push_back(rewriter.getIndexAttr(0));
+                    }
+
+                    sizes.push_back(rewriter.getIndexAttr(chunk));
+                    for (size_t d = 1; d < shape.size(); ++d)
+                    {
+                        sizes.push_back(rewriter.getIndexAttr(shape[d]));
+                    }
+
+                    for (size_t d = 0; d < shape.size(); ++d)
+                    {
+                        strides.push_back(rewriter.getIndexAttr(1));
+                    }
+
+                    auto subview = rewriter.create<memref::SubViewOp>(
+                        op.getLoc(), in, offsets, sizes, strides);
+
+                    subViewIns.push_back(subview);
+                    mapping.map(in, subview);
+                }
+            }
+
+            for (auto out : outsVec)
+            {
+                auto memrefType = cast<MemRefType>(out.getType());
+                auto shape = memrefType.getShape();
+
+                SmallVector<OpFoldResult> offsets, sizes, strides;
+
+                offsets.push_back(rewriter.getIndexAttr(start));
+                for (size_t d = 1; d < shape.size(); ++d)
+                {
+                    offsets.push_back(rewriter.getIndexAttr(0));
+                }
+
+                sizes.push_back(rewriter.getIndexAttr(chunk));
+                for (size_t d = 1; d < shape.size(); ++d)
+                {
+                    sizes.push_back(rewriter.getIndexAttr(shape[d]));
+                }
+
+                for (size_t d = 0; d < shape.size(); ++d)
+                {
+                    strides.push_back(rewriter.getIndexAttr(1));
+                }
+
+                auto subview = rewriter.create<memref::SubViewOp>(
+                    op.getLoc(), out, offsets, sizes, strides);
+
+                subViewOuts.push_back(subview);
+                mapping.map(out, subview);
+            }
 
             mlir::DenseI64ArrayAttr outRanges = rewriter.getDenseI64ArrayAttr({start, end});
             auto taskOp = rewriter.create<avial::TaskOp>(
                 op.getLoc(),
                 avial::TaskRefType::get(rewriter.getContext()),
                 targetDlti,
-                ValueRange(insVec), rewriter.getDenseI64ArrayAttr({0, 0}), ValueRange(outsVec), outRanges);
+                ValueRange(subViewIns), rewriter.getDenseI64ArrayAttr({0, 0}), ValueRange(subViewOuts), outRanges);
             taskOp->setAttr("name", rewriter.getStringAttr(std::to_string(i)));
 
             mlir::IntegerAttr repIdAttr;
@@ -161,35 +239,33 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
                         mlir::arith::ConstantIndexOp constUBIdx = mlir::dyn_cast<mlir::arith::ConstantIndexOp>(ub);
                         mlir::arith::ConstantIndexOp constLBIdx = mlir::dyn_cast<mlir::arith::ConstantIndexOp>(lb);
 
-                        constUBIdx.setValueAttr(rewriter.getIndexAttr(end));
-                        constLBIdx.setValueAttr(rewriter.getIndexAttr(start));
+                        constUBIdx.setValueAttr(rewriter.getIndexAttr(chunk));
+                        constLBIdx.setValueAttr(rewriter.getIndexAttr(0));
                     }
 
-
                     // Let's create the parallel Op
-                    auto parallelOp = rewriter.create<scf::ParallelOp>(outerFor.getLoc(), 
-                    ValueRange{mlir::dyn_cast<mlir::arith::ConstantIndexOp>(lb)},
-                    ValueRange{mlir::dyn_cast<mlir::arith::ConstantIndexOp>(ub)},
-                    ValueRange{outerFor.getStep()},
-                    ValueRange{});
+                    auto parallelOp = rewriter.create<scf::ParallelOp>(outerFor.getLoc(),
+                                                                       ValueRange{mlir::dyn_cast<mlir::arith::ConstantIndexOp>(lb)},
+                                                                       ValueRange{mlir::dyn_cast<mlir::arith::ConstantIndexOp>(ub)},
+                                                                       ValueRange{outerFor.getStep()},
+                                                                       ValueRange{});
 
                     rewriter.setInsertionPointToStart(parallelOp.getBody());
                     mapping.map(outerFor.getInductionVar(), parallelOp.getInductionVars()[0]);
 
-                    for(auto &bodyOp: outerFor.getBody()->without_terminator())
+                    for (auto &bodyOp : outerFor.getBody()->without_terminator())
                         rewriter.clone(bodyOp, mapping);
-                    
+
                     rewriter.eraseOp(outerFor);
-                    
                 }
             }
-            
+
             rewriter.setInsertionPointToEnd(&taskOp.getRegion().front());
             rewriter.create<avial::YieldOp>(rewriter.getUnknownLoc());
 
+            subViewIns.clear();
+            subViewOuts.clear();
         }
-        
-        
 
         rewriter.eraseOp(op); // Erase the old op safely
 

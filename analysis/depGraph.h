@@ -55,7 +55,7 @@ namespace mlir
 
       void build(avial::ScheduleOp schedule)
       {
-        llvm::outs() << "-- Building task dependency graph\n";
+        llvm::errs() << "-- Building task dependency graph\n";
 
         // for(TargetOp target: schedule.getBody().getOps<TargetOp>())
         //   targets.push_back(target);
@@ -70,8 +70,7 @@ namespace mlir
         {
 
           TaskOpInfo info;
-          TargetType type =  getTargetTypeFromAttr(task->getAttr("target"));
-
+          info.target = getTargetTypeFromAttr(task->getAttr("target"));
           
 
 
@@ -137,7 +136,7 @@ namespace mlir
 
       void printDiGraph()
       {
-        llvm::outs() << "digraph TaskGraph {\n";
+        llvm::errs() << "digraph TaskGraph {\n";
         for (auto &task : tasks)
         {
           auto nameAttr = task.op->getAttrOfType<mlir::StringAttr>("name");
@@ -147,10 +146,10 @@ namespace mlir
           {
             auto nameAttr = dep->op->getAttrOfType<mlir::StringAttr>("name");
             std::string depName = nameAttr ? nameAttr.getValue().str() : "unnamed";
-            llvm::outs() << "  \"" << depName << "\" -> \"" << name << "\";\n";
+            llvm::errs() << "  \"" << depName << "\" -> \"" << name << "\";\n";
           }
         }
-        llvm::outs() << "}\n";
+        llvm::errs() << "}\n";
       }
 
       void schedule()
