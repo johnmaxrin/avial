@@ -39,570 +39,764 @@ define void @matmul(i32 %0, i32 %1, i32 %2, ptr %3, ptr %4, i64 %5, i64 %6, i64 
   %29 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %28, i64 %22, 4, 0
   %30 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %29, i64 %21, 3, 1
   %31 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %30, i64 %23, 4, 1
-  %32 = call i32 @MPI_Init(ptr null, ptr null)
-  %33 = alloca i32, align 4
-  %34 = call i32 @MPI_Comm_rank(i32 1140850688, ptr %33)
-  %35 = load i32, ptr %33, align 4
-  %36 = alloca i32, align 4
-  %37 = call i32 @MPI_Comm_size(i32 1140850688, ptr %36)
-  %38 = load i32, ptr %36, align 4
-  %39 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 0
-  %40 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 1
-  %41 = insertvalue { ptr, ptr, i64 } poison, ptr %39, 0
-  %42 = insertvalue { ptr, ptr, i64 } %41, ptr %40, 1
-  %43 = insertvalue { ptr, ptr, i64 } %42, i64 0, 2
-  %44 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 2
-  %45 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 3, 0
-  %46 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 3, 1
-  %47 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 4, 0
-  %48 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 4, 1
-  %49 = extractvalue { ptr, ptr, i64 } %43, 0
-  %50 = extractvalue { ptr, ptr, i64 } %43, 1
-  %51 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %49, 0
-  %52 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %51, ptr %50, 1
-  %53 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %52, i64 0, 2
-  %54 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %53, i64 334, 3, 0
-  %55 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %54, i64 1000, 4, 0
-  %56 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %55, i64 1000, 3, 1
-  %57 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %56, i64 1, 4, 1
-  %58 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 0
-  %59 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 1
-  %60 = insertvalue { ptr, ptr, i64 } poison, ptr %58, 0
-  %61 = insertvalue { ptr, ptr, i64 } %60, ptr %59, 1
-  %62 = insertvalue { ptr, ptr, i64 } %61, i64 0, 2
-  %63 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 2
-  %64 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 3, 0
-  %65 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 3, 1
-  %66 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 4, 0
-  %67 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 4, 1
-  %68 = extractvalue { ptr, ptr, i64 } %62, 0
-  %69 = extractvalue { ptr, ptr, i64 } %62, 1
-  %70 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %68, 0
-  %71 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %70, ptr %69, 1
-  %72 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %71, i64 334000, 2
-  %73 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %72, i64 333, 3, 0
-  %74 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %73, i64 1000, 4, 0
-  %75 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %74, i64 1000, 3, 1
-  %76 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %75, i64 1, 4, 1
-  %77 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 0
-  %78 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 1
-  %79 = insertvalue { ptr, ptr, i64 } poison, ptr %77, 0
-  %80 = insertvalue { ptr, ptr, i64 } %79, ptr %78, 1
-  %81 = insertvalue { ptr, ptr, i64 } %80, i64 0, 2
-  %82 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 2
-  %83 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 3, 0
-  %84 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 3, 1
-  %85 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 4, 0
-  %86 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 4, 1
-  %87 = extractvalue { ptr, ptr, i64 } %81, 0
-  %88 = extractvalue { ptr, ptr, i64 } %81, 1
-  %89 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %87, 0
-  %90 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %89, ptr %88, 1
-  %91 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %90, i64 667000, 2
-  %92 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %91, i64 333, 3, 0
-  %93 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %92, i64 1000, 4, 0
-  %94 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %93, i64 1000, 3, 1
-  %95 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %94, i64 1, 4, 1
-  %96 = srem i32 0, %38
-  %97 = icmp eq i32 %35, %96
-  br i1 %97, label %98, label %166
+  %32 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %10, 0
+  %33 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %32, ptr %11, 1
+  %34 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %33, i64 %12, 2
+  %35 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %34, i64 %13, 3, 0
+  %36 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %35, i64 %15, 4, 0
+  %37 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %36, i64 %14, 3, 1
+  %38 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %37, i64 %16, 4, 1
+  %39 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %3, 0
+  %40 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %39, ptr %4, 1
+  %41 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %40, i64 %5, 2
+  %42 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, i64 %6, 3, 0
+  %43 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %42, i64 %8, 4, 0
+  %44 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %43, i64 %7, 3, 1
+  %45 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %44, i64 %9, 4, 1
+  %46 = call i32 @MPI_Init(ptr null, ptr null)
+  %47 = alloca i32, align 4
+  %48 = call i32 @MPI_Comm_rank(i32 1140850688, ptr %47)
+  %49 = load i32, ptr %47, align 4
+  %50 = alloca i32, align 4
+  %51 = call i32 @MPI_Comm_size(i32 1140850688, ptr %50)
+  %52 = load i32, ptr %50, align 4
+  %53 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %38, 0
+  %54 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %38, 1
+  %55 = insertvalue { ptr, ptr, i64 } poison, ptr %53, 0
+  %56 = insertvalue { ptr, ptr, i64 } %55, ptr %54, 1
+  %57 = insertvalue { ptr, ptr, i64 } %56, i64 0, 2
+  %58 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %38, 2
+  %59 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %38, 3, 0
+  %60 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %38, 3, 1
+  %61 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %38, 4, 0
+  %62 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %38, 4, 1
+  %63 = extractvalue { ptr, ptr, i64 } %57, 0
+  %64 = extractvalue { ptr, ptr, i64 } %57, 1
+  %65 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %63, 0
+  %66 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %65, ptr %64, 1
+  %67 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %66, i64 0, 2
+  %68 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %67, i64 334, 3, 0
+  %69 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %68, i64 1000, 4, 0
+  %70 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %69, i64 1000, 3, 1
+  %71 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %70, i64 1, 4, 1
+  %72 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %45, 0
+  %73 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %45, 1
+  %74 = insertvalue { ptr, ptr, i64 } poison, ptr %72, 0
+  %75 = insertvalue { ptr, ptr, i64 } %74, ptr %73, 1
+  %76 = insertvalue { ptr, ptr, i64 } %75, i64 0, 2
+  %77 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %45, 2
+  %78 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %45, 3, 0
+  %79 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %45, 3, 1
+  %80 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %45, 4, 0
+  %81 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %45, 4, 1
+  %82 = extractvalue { ptr, ptr, i64 } %76, 0
+  %83 = extractvalue { ptr, ptr, i64 } %76, 1
+  %84 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %82, 0
+  %85 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %84, ptr %83, 1
+  %86 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %85, i64 0, 2
+  %87 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %86, i64 334, 3, 0
+  %88 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %87, i64 1000, 4, 0
+  %89 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %88, i64 1000, 3, 1
+  %90 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %89, i64 1, 4, 1
+  %91 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 0
+  %92 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 1
+  %93 = insertvalue { ptr, ptr, i64 } poison, ptr %91, 0
+  %94 = insertvalue { ptr, ptr, i64 } %93, ptr %92, 1
+  %95 = insertvalue { ptr, ptr, i64 } %94, i64 0, 2
+  %96 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 2
+  %97 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 3, 0
+  %98 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 3, 1
+  %99 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 4, 0
+  %100 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 4, 1
+  %101 = extractvalue { ptr, ptr, i64 } %95, 0
+  %102 = extractvalue { ptr, ptr, i64 } %95, 1
+  %103 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %101, 0
+  %104 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %103, ptr %102, 1
+  %105 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %104, i64 0, 2
+  %106 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %105, i64 334, 3, 0
+  %107 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %106, i64 1000, 4, 0
+  %108 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %107, i64 1000, 3, 1
+  %109 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %108, i64 1, 4, 1
+  %110 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %38, 0
+  %111 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %38, 1
+  %112 = insertvalue { ptr, ptr, i64 } poison, ptr %110, 0
+  %113 = insertvalue { ptr, ptr, i64 } %112, ptr %111, 1
+  %114 = insertvalue { ptr, ptr, i64 } %113, i64 0, 2
+  %115 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %38, 2
+  %116 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %38, 3, 0
+  %117 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %38, 3, 1
+  %118 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %38, 4, 0
+  %119 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %38, 4, 1
+  %120 = extractvalue { ptr, ptr, i64 } %114, 0
+  %121 = extractvalue { ptr, ptr, i64 } %114, 1
+  %122 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %120, 0
+  %123 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %122, ptr %121, 1
+  %124 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %123, i64 334000, 2
+  %125 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %124, i64 333, 3, 0
+  %126 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %125, i64 1000, 4, 0
+  %127 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %126, i64 1000, 3, 1
+  %128 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %127, i64 1, 4, 1
+  %129 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %45, 0
+  %130 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %45, 1
+  %131 = insertvalue { ptr, ptr, i64 } poison, ptr %129, 0
+  %132 = insertvalue { ptr, ptr, i64 } %131, ptr %130, 1
+  %133 = insertvalue { ptr, ptr, i64 } %132, i64 0, 2
+  %134 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %45, 2
+  %135 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %45, 3, 0
+  %136 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %45, 3, 1
+  %137 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %45, 4, 0
+  %138 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %45, 4, 1
+  %139 = extractvalue { ptr, ptr, i64 } %133, 0
+  %140 = extractvalue { ptr, ptr, i64 } %133, 1
+  %141 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %139, 0
+  %142 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %141, ptr %140, 1
+  %143 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %142, i64 334000, 2
+  %144 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %143, i64 333, 3, 0
+  %145 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %144, i64 1000, 4, 0
+  %146 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %145, i64 1000, 3, 1
+  %147 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %146, i64 1, 4, 1
+  %148 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 0
+  %149 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 1
+  %150 = insertvalue { ptr, ptr, i64 } poison, ptr %148, 0
+  %151 = insertvalue { ptr, ptr, i64 } %150, ptr %149, 1
+  %152 = insertvalue { ptr, ptr, i64 } %151, i64 0, 2
+  %153 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 2
+  %154 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 3, 0
+  %155 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 3, 1
+  %156 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 4, 0
+  %157 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 4, 1
+  %158 = extractvalue { ptr, ptr, i64 } %152, 0
+  %159 = extractvalue { ptr, ptr, i64 } %152, 1
+  %160 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %158, 0
+  %161 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %160, ptr %159, 1
+  %162 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %161, i64 334000, 2
+  %163 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %162, i64 333, 3, 0
+  %164 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %163, i64 1000, 4, 0
+  %165 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %164, i64 1000, 3, 1
+  %166 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %165, i64 1, 4, 1
+  %167 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %38, 0
+  %168 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %38, 1
+  %169 = insertvalue { ptr, ptr, i64 } poison, ptr %167, 0
+  %170 = insertvalue { ptr, ptr, i64 } %169, ptr %168, 1
+  %171 = insertvalue { ptr, ptr, i64 } %170, i64 0, 2
+  %172 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %38, 2
+  %173 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %38, 3, 0
+  %174 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %38, 3, 1
+  %175 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %38, 4, 0
+  %176 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %38, 4, 1
+  %177 = extractvalue { ptr, ptr, i64 } %171, 0
+  %178 = extractvalue { ptr, ptr, i64 } %171, 1
+  %179 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %177, 0
+  %180 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %179, ptr %178, 1
+  %181 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %180, i64 667000, 2
+  %182 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %181, i64 333, 3, 0
+  %183 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %182, i64 1000, 4, 0
+  %184 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %183, i64 1000, 3, 1
+  %185 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %184, i64 1, 4, 1
+  %186 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %45, 0
+  %187 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %45, 1
+  %188 = insertvalue { ptr, ptr, i64 } poison, ptr %186, 0
+  %189 = insertvalue { ptr, ptr, i64 } %188, ptr %187, 1
+  %190 = insertvalue { ptr, ptr, i64 } %189, i64 0, 2
+  %191 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %45, 2
+  %192 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %45, 3, 0
+  %193 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %45, 3, 1
+  %194 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %45, 4, 0
+  %195 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %45, 4, 1
+  %196 = extractvalue { ptr, ptr, i64 } %190, 0
+  %197 = extractvalue { ptr, ptr, i64 } %190, 1
+  %198 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %196, 0
+  %199 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %198, ptr %197, 1
+  %200 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %199, i64 667000, 2
+  %201 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %200, i64 333, 3, 0
+  %202 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %201, i64 1000, 4, 0
+  %203 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %202, i64 1000, 3, 1
+  %204 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %203, i64 1, 4, 1
+  %205 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 0
+  %206 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 1
+  %207 = insertvalue { ptr, ptr, i64 } poison, ptr %205, 0
+  %208 = insertvalue { ptr, ptr, i64 } %207, ptr %206, 1
+  %209 = insertvalue { ptr, ptr, i64 } %208, i64 0, 2
+  %210 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 2
+  %211 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 3, 0
+  %212 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 3, 1
+  %213 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 4, 0
+  %214 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 4, 1
+  %215 = extractvalue { ptr, ptr, i64 } %209, 0
+  %216 = extractvalue { ptr, ptr, i64 } %209, 1
+  %217 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %215, 0
+  %218 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %217, ptr %216, 1
+  %219 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %218, i64 667000, 2
+  %220 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %219, i64 333, 3, 0
+  %221 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %220, i64 1000, 4, 0
+  %222 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %221, i64 1000, 3, 1
+  %223 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %222, i64 1, 4, 1
+  %224 = srem i32 0, %52
+  %225 = icmp eq i32 %49, %224
+  br i1 %225, label %226, label %313
 
-98:                                               ; preds = %24
-  %99 = call ptr @malloc(i64 1336000)
-  %100 = call ptr @malloc(i64 1336000)
-  %101 = call ptr @malloc(i64 1336000)
-  %102 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %57, 3, 0
-  %103 = mul i64 %102, 1
-  %104 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %57, 3, 1
-  %105 = mul i64 %103, %104
-  %106 = mul i64 %105, 4
-  %107 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %57, 1
-  %108 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %57, 2
-  %109 = getelementptr float, ptr %107, i64 %108
-  call void @llvm.memcpy.p0.p0.i64(ptr %99, ptr %109, i64 %106, i1 false)
-  %110 = call ptr @mgpuStreamCreate()
-  %111 = call ptr @mgpuMemAlloc(i64 1336000, ptr %110, i8 0)
-  %112 = call ptr @mgpuMemAlloc(i64 1336000, ptr %110, i8 0)
-  %113 = call ptr @mgpuMemAlloc(i64 1336000, ptr %110, i8 0)
-  call void @mgpuMemcpy(ptr %111, ptr %99, i64 1336000, ptr %110)
-  call void @mgpuMemcpy(ptr %112, ptr %100, i64 1336000, ptr %110)
-  call void @mgpuMemcpy(ptr %113, ptr %101, i64 1336000, ptr %110)
-  %114 = alloca %0, align 8
-  %115 = alloca ptr, i64 24, align 8
-  %116 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 0
-  store i64 1, ptr %116, align 4
-  %117 = getelementptr ptr, ptr %115, i32 0
-  store ptr %116, ptr %117, align 8
-  %118 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 1
-  store i64 0, ptr %118, align 4
-  %119 = getelementptr ptr, ptr %115, i32 1
-  store ptr %118, ptr %119, align 8
-  %120 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 2
-  store float 0.000000e+00, ptr %120, align 4
-  %121 = getelementptr ptr, ptr %115, i32 2
-  store ptr %120, ptr %121, align 8
-  %122 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 3
-  store ptr %111, ptr %122, align 8
-  %123 = getelementptr ptr, ptr %115, i32 3
-  store ptr %122, ptr %123, align 8
-  %124 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 4
-  store ptr %111, ptr %124, align 8
-  %125 = getelementptr ptr, ptr %115, i32 4
-  store ptr %124, ptr %125, align 8
-  %126 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 5
-  store i64 0, ptr %126, align 4
-  %127 = getelementptr ptr, ptr %115, i32 5
-  store ptr %126, ptr %127, align 8
-  %128 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 6
-  store i64 334, ptr %128, align 4
-  %129 = getelementptr ptr, ptr %115, i32 6
-  store ptr %128, ptr %129, align 8
-  %130 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 7
-  store i64 1000, ptr %130, align 4
-  %131 = getelementptr ptr, ptr %115, i32 7
-  store ptr %130, ptr %131, align 8
-  %132 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 8
-  store i64 1000, ptr %132, align 4
-  %133 = getelementptr ptr, ptr %115, i32 8
-  store ptr %132, ptr %133, align 8
-  %134 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 9
-  store i64 1, ptr %134, align 4
-  %135 = getelementptr ptr, ptr %115, i32 9
-  store ptr %134, ptr %135, align 8
-  %136 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 10
-  store ptr %113, ptr %136, align 8
-  %137 = getelementptr ptr, ptr %115, i32 10
-  store ptr %136, ptr %137, align 8
-  %138 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 11
-  store ptr %113, ptr %138, align 8
-  %139 = getelementptr ptr, ptr %115, i32 11
-  store ptr %138, ptr %139, align 8
-  %140 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 12
-  store i64 0, ptr %140, align 4
-  %141 = getelementptr ptr, ptr %115, i32 12
-  store ptr %140, ptr %141, align 8
-  %142 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 13
-  store i64 334, ptr %142, align 4
-  %143 = getelementptr ptr, ptr %115, i32 13
-  store ptr %142, ptr %143, align 8
-  %144 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 14
-  store i64 1000, ptr %144, align 4
-  %145 = getelementptr ptr, ptr %115, i32 14
-  store ptr %144, ptr %145, align 8
-  %146 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 15
-  store i64 1000, ptr %146, align 4
-  %147 = getelementptr ptr, ptr %115, i32 15
-  store ptr %146, ptr %147, align 8
-  %148 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 16
-  store i64 1, ptr %148, align 4
-  %149 = getelementptr ptr, ptr %115, i32 16
-  store ptr %148, ptr %149, align 8
-  %150 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 17
-  store ptr %112, ptr %150, align 8
-  %151 = getelementptr ptr, ptr %115, i32 17
-  store ptr %150, ptr %151, align 8
-  %152 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 18
-  store ptr %112, ptr %152, align 8
-  %153 = getelementptr ptr, ptr %115, i32 18
-  store ptr %152, ptr %153, align 8
-  %154 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 19
-  store i64 0, ptr %154, align 4
-  %155 = getelementptr ptr, ptr %115, i32 19
-  store ptr %154, ptr %155, align 8
-  %156 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 20
-  store i64 334, ptr %156, align 4
-  %157 = getelementptr ptr, ptr %115, i32 20
-  store ptr %156, ptr %157, align 8
-  %158 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 21
-  store i64 1000, ptr %158, align 4
-  %159 = getelementptr ptr, ptr %115, i32 21
-  store ptr %158, ptr %159, align 8
-  %160 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 22
-  store i64 1000, ptr %160, align 4
-  %161 = getelementptr ptr, ptr %115, i32 22
-  store ptr %160, ptr %161, align 8
-  %162 = getelementptr inbounds nuw %0, ptr %114, i32 0, i32 23
-  store i64 1, ptr %162, align 4
-  %163 = getelementptr ptr, ptr %115, i32 23
-  store ptr %162, ptr %163, align 8
-  %164 = load ptr, ptr @matmul_kernel_module, align 8
-  %165 = call ptr @mgpuModuleGetFunction(ptr %164, ptr @matmul_kernel_matmul_kernel_name)
-  call void @mgpuLaunchKernel(ptr %165, i64 334, i64 1, i64 1, i64 1, i64 1, i64 1, i32 0, ptr %110, ptr %115, ptr null, i64 24)
-  call void @mgpuMemcpy(ptr %99, ptr %111, i64 1336000, ptr %110)
-  call void @mgpuStreamSynchronize(ptr %110)
-  call void @mgpuStreamDestroy(ptr %110)
-  br label %166
-
-166:                                              ; preds = %98, %24
-  %167 = srem i32 1, %38
-  %168 = icmp eq i32 %35, %167
-  br i1 %168, label %169, label %237
-
-169:                                              ; preds = %166
-  %170 = call ptr @malloc(i64 1332000)
-  %171 = call ptr @malloc(i64 1332000)
-  %172 = call ptr @malloc(i64 1332000)
-  %173 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %76, 3, 0
-  %174 = mul i64 %173, 1
-  %175 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %76, 3, 1
-  %176 = mul i64 %174, %175
-  %177 = mul i64 %176, 4
-  %178 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %76, 1
-  %179 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %76, 2
-  %180 = getelementptr float, ptr %178, i64 %179
-  call void @llvm.memcpy.p0.p0.i64(ptr %170, ptr %180, i64 %177, i1 false)
-  %181 = call ptr @mgpuStreamCreate()
-  %182 = call ptr @mgpuMemAlloc(i64 1332000, ptr %181, i8 0)
-  %183 = call ptr @mgpuMemAlloc(i64 1332000, ptr %181, i8 0)
-  %184 = call ptr @mgpuMemAlloc(i64 1332000, ptr %181, i8 0)
-  call void @mgpuMemcpy(ptr %182, ptr %170, i64 1332000, ptr %181)
-  call void @mgpuMemcpy(ptr %183, ptr %171, i64 1332000, ptr %181)
-  call void @mgpuMemcpy(ptr %184, ptr %172, i64 1332000, ptr %181)
-  %185 = alloca %1, align 8
-  %186 = alloca ptr, i64 24, align 8
-  %187 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 0
-  store i64 1, ptr %187, align 4
-  %188 = getelementptr ptr, ptr %186, i32 0
-  store ptr %187, ptr %188, align 8
-  %189 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 1
-  store i64 0, ptr %189, align 4
-  %190 = getelementptr ptr, ptr %186, i32 1
-  store ptr %189, ptr %190, align 8
-  %191 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 2
-  store float 0.000000e+00, ptr %191, align 4
-  %192 = getelementptr ptr, ptr %186, i32 2
-  store ptr %191, ptr %192, align 8
-  %193 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 3
-  store ptr %182, ptr %193, align 8
-  %194 = getelementptr ptr, ptr %186, i32 3
-  store ptr %193, ptr %194, align 8
-  %195 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 4
-  store ptr %182, ptr %195, align 8
-  %196 = getelementptr ptr, ptr %186, i32 4
-  store ptr %195, ptr %196, align 8
-  %197 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 5
-  store i64 0, ptr %197, align 4
-  %198 = getelementptr ptr, ptr %186, i32 5
-  store ptr %197, ptr %198, align 8
-  %199 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 6
-  store i64 333, ptr %199, align 4
-  %200 = getelementptr ptr, ptr %186, i32 6
-  store ptr %199, ptr %200, align 8
-  %201 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 7
-  store i64 1000, ptr %201, align 4
-  %202 = getelementptr ptr, ptr %186, i32 7
-  store ptr %201, ptr %202, align 8
-  %203 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 8
-  store i64 1000, ptr %203, align 4
-  %204 = getelementptr ptr, ptr %186, i32 8
-  store ptr %203, ptr %204, align 8
-  %205 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 9
-  store i64 1, ptr %205, align 4
-  %206 = getelementptr ptr, ptr %186, i32 9
-  store ptr %205, ptr %206, align 8
-  %207 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 10
-  store ptr %184, ptr %207, align 8
-  %208 = getelementptr ptr, ptr %186, i32 10
-  store ptr %207, ptr %208, align 8
-  %209 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 11
-  store ptr %184, ptr %209, align 8
-  %210 = getelementptr ptr, ptr %186, i32 11
-  store ptr %209, ptr %210, align 8
-  %211 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 12
-  store i64 0, ptr %211, align 4
-  %212 = getelementptr ptr, ptr %186, i32 12
-  store ptr %211, ptr %212, align 8
-  %213 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 13
-  store i64 333, ptr %213, align 4
-  %214 = getelementptr ptr, ptr %186, i32 13
-  store ptr %213, ptr %214, align 8
-  %215 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 14
-  store i64 1000, ptr %215, align 4
-  %216 = getelementptr ptr, ptr %186, i32 14
-  store ptr %215, ptr %216, align 8
-  %217 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 15
-  store i64 1000, ptr %217, align 4
-  %218 = getelementptr ptr, ptr %186, i32 15
-  store ptr %217, ptr %218, align 8
-  %219 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 16
-  store i64 1, ptr %219, align 4
-  %220 = getelementptr ptr, ptr %186, i32 16
-  store ptr %219, ptr %220, align 8
-  %221 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 17
-  store ptr %183, ptr %221, align 8
-  %222 = getelementptr ptr, ptr %186, i32 17
-  store ptr %221, ptr %222, align 8
-  %223 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 18
-  store ptr %183, ptr %223, align 8
-  %224 = getelementptr ptr, ptr %186, i32 18
-  store ptr %223, ptr %224, align 8
-  %225 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 19
-  store i64 0, ptr %225, align 4
-  %226 = getelementptr ptr, ptr %186, i32 19
-  store ptr %225, ptr %226, align 8
-  %227 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 20
-  store i64 333, ptr %227, align 4
-  %228 = getelementptr ptr, ptr %186, i32 20
-  store ptr %227, ptr %228, align 8
-  %229 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 21
-  store i64 1000, ptr %229, align 4
-  %230 = getelementptr ptr, ptr %186, i32 21
-  store ptr %229, ptr %230, align 8
-  %231 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 22
-  store i64 1000, ptr %231, align 4
-  %232 = getelementptr ptr, ptr %186, i32 22
-  store ptr %231, ptr %232, align 8
-  %233 = getelementptr inbounds nuw %1, ptr %185, i32 0, i32 23
-  store i64 1, ptr %233, align 4
-  %234 = getelementptr ptr, ptr %186, i32 23
-  store ptr %233, ptr %234, align 8
-  %235 = load ptr, ptr @matmul_kernel_0_module, align 8
-  %236 = call ptr @mgpuModuleGetFunction(ptr %235, ptr @matmul_kernel_0_matmul_kernel_name)
-  call void @mgpuLaunchKernel(ptr %236, i64 333, i64 1, i64 1, i64 1, i64 1, i64 1, i32 0, ptr %181, ptr %186, ptr null, i64 24)
-  call void @mgpuMemcpy(ptr %170, ptr %182, i64 1332000, ptr %181)
-  call void @mgpuStreamSynchronize(ptr %181)
-  call void @mgpuStreamDestroy(ptr %181)
-  br label %237
-
-237:                                              ; preds = %169, %166
-  %238 = srem i32 2, %38
-  %239 = icmp eq i32 %35, %238
-  br i1 %239, label %240, label %308
-
-240:                                              ; preds = %237
-  %241 = call ptr @malloc(i64 1332000)
-  %242 = call ptr @malloc(i64 1332000)
-  %243 = call ptr @malloc(i64 1332000)
-  %244 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %95, 3, 0
-  %245 = mul i64 %244, 1
-  %246 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %95, 3, 1
-  %247 = mul i64 %245, %246
-  %248 = mul i64 %247, 4
-  %249 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %95, 1
-  %250 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %95, 2
-  %251 = getelementptr float, ptr %249, i64 %250
-  call void @llvm.memcpy.p0.p0.i64(ptr %241, ptr %251, i64 %248, i1 false)
-  %252 = call ptr @mgpuStreamCreate()
-  %253 = call ptr @mgpuMemAlloc(i64 1332000, ptr %252, i8 0)
-  %254 = call ptr @mgpuMemAlloc(i64 1332000, ptr %252, i8 0)
-  %255 = call ptr @mgpuMemAlloc(i64 1332000, ptr %252, i8 0)
-  call void @mgpuMemcpy(ptr %253, ptr %241, i64 1332000, ptr %252)
-  call void @mgpuMemcpy(ptr %254, ptr %242, i64 1332000, ptr %252)
-  call void @mgpuMemcpy(ptr %255, ptr %243, i64 1332000, ptr %252)
-  %256 = alloca %2, align 8
-  %257 = alloca ptr, i64 24, align 8
-  %258 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 0
-  store i64 1, ptr %258, align 4
-  %259 = getelementptr ptr, ptr %257, i32 0
-  store ptr %258, ptr %259, align 8
-  %260 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 1
-  store i64 0, ptr %260, align 4
-  %261 = getelementptr ptr, ptr %257, i32 1
+226:                                              ; preds = %24
+  %227 = call ptr @malloc(i64 1336000)
+  %228 = call ptr @malloc(i64 1336000)
+  %229 = call ptr @malloc(i64 1336000)
+  %230 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %109, 3, 0
+  %231 = mul i64 %230, 1
+  %232 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %109, 3, 1
+  %233 = mul i64 %231, %232
+  %234 = mul i64 %233, 4
+  %235 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %109, 1
+  %236 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %109, 2
+  %237 = getelementptr float, ptr %235, i64 %236
+  call void @llvm.memcpy.p0.p0.i64(ptr %227, ptr %237, i64 %234, i1 false)
+  %238 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %71, 3, 0
+  %239 = mul i64 %238, 1
+  %240 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %71, 3, 1
+  %241 = mul i64 %239, %240
+  %242 = mul i64 %241, 4
+  %243 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %71, 1
+  %244 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %71, 2
+  %245 = getelementptr float, ptr %243, i64 %244
+  call void @llvm.memcpy.p0.p0.i64(ptr %228, ptr %245, i64 %242, i1 false)
+  %246 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %90, 3, 0
+  %247 = mul i64 %246, 1
+  %248 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %90, 3, 1
+  %249 = mul i64 %247, %248
+  %250 = mul i64 %249, 4
+  %251 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %90, 1
+  %252 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %90, 2
+  %253 = getelementptr float, ptr %251, i64 %252
+  call void @llvm.memcpy.p0.p0.i64(ptr %229, ptr %253, i64 %250, i1 false)
+  %254 = call ptr @mgpuStreamCreate()
+  %255 = call ptr @mgpuMemAlloc(i64 1336000, ptr %254, i8 0)
+  %256 = call ptr @mgpuMemAlloc(i64 1336000, ptr %254, i8 0)
+  %257 = call ptr @mgpuMemAlloc(i64 1336000, ptr %254, i8 0)
+  call void @mgpuMemcpy(ptr %255, ptr %227, i64 1336000, ptr %254)
+  call void @mgpuMemcpy(ptr %256, ptr %228, i64 1336000, ptr %254)
+  call void @mgpuMemcpy(ptr %257, ptr %229, i64 1336000, ptr %254)
+  %258 = alloca %0, align 8
+  %259 = alloca ptr, i64 24, align 8
+  %260 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 0
+  store i64 1, ptr %260, align 4
+  %261 = getelementptr ptr, ptr %259, i32 0
   store ptr %260, ptr %261, align 8
-  %262 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 2
-  store float 0.000000e+00, ptr %262, align 4
-  %263 = getelementptr ptr, ptr %257, i32 2
+  %262 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 1
+  store i64 0, ptr %262, align 4
+  %263 = getelementptr ptr, ptr %259, i32 1
   store ptr %262, ptr %263, align 8
-  %264 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 3
-  store ptr %253, ptr %264, align 8
-  %265 = getelementptr ptr, ptr %257, i32 3
+  %264 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 2
+  store float 0.000000e+00, ptr %264, align 4
+  %265 = getelementptr ptr, ptr %259, i32 2
   store ptr %264, ptr %265, align 8
-  %266 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 4
-  store ptr %253, ptr %266, align 8
-  %267 = getelementptr ptr, ptr %257, i32 4
+  %266 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 3
+  store ptr %255, ptr %266, align 8
+  %267 = getelementptr ptr, ptr %259, i32 3
   store ptr %266, ptr %267, align 8
-  %268 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 5
-  store i64 0, ptr %268, align 4
-  %269 = getelementptr ptr, ptr %257, i32 5
+  %268 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 4
+  store ptr %255, ptr %268, align 8
+  %269 = getelementptr ptr, ptr %259, i32 4
   store ptr %268, ptr %269, align 8
-  %270 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 6
-  store i64 333, ptr %270, align 4
-  %271 = getelementptr ptr, ptr %257, i32 6
+  %270 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 5
+  store i64 0, ptr %270, align 4
+  %271 = getelementptr ptr, ptr %259, i32 5
   store ptr %270, ptr %271, align 8
-  %272 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 7
-  store i64 1000, ptr %272, align 4
-  %273 = getelementptr ptr, ptr %257, i32 7
+  %272 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 6
+  store i64 334, ptr %272, align 4
+  %273 = getelementptr ptr, ptr %259, i32 6
   store ptr %272, ptr %273, align 8
-  %274 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 8
+  %274 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 7
   store i64 1000, ptr %274, align 4
-  %275 = getelementptr ptr, ptr %257, i32 8
+  %275 = getelementptr ptr, ptr %259, i32 7
   store ptr %274, ptr %275, align 8
-  %276 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 9
-  store i64 1, ptr %276, align 4
-  %277 = getelementptr ptr, ptr %257, i32 9
+  %276 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 8
+  store i64 1000, ptr %276, align 4
+  %277 = getelementptr ptr, ptr %259, i32 8
   store ptr %276, ptr %277, align 8
-  %278 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 10
-  store ptr %255, ptr %278, align 8
-  %279 = getelementptr ptr, ptr %257, i32 10
+  %278 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 9
+  store i64 1, ptr %278, align 4
+  %279 = getelementptr ptr, ptr %259, i32 9
   store ptr %278, ptr %279, align 8
-  %280 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 11
-  store ptr %255, ptr %280, align 8
-  %281 = getelementptr ptr, ptr %257, i32 11
+  %280 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 10
+  store ptr %257, ptr %280, align 8
+  %281 = getelementptr ptr, ptr %259, i32 10
   store ptr %280, ptr %281, align 8
-  %282 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 12
-  store i64 0, ptr %282, align 4
-  %283 = getelementptr ptr, ptr %257, i32 12
+  %282 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 11
+  store ptr %257, ptr %282, align 8
+  %283 = getelementptr ptr, ptr %259, i32 11
   store ptr %282, ptr %283, align 8
-  %284 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 13
-  store i64 333, ptr %284, align 4
-  %285 = getelementptr ptr, ptr %257, i32 13
+  %284 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 12
+  store i64 0, ptr %284, align 4
+  %285 = getelementptr ptr, ptr %259, i32 12
   store ptr %284, ptr %285, align 8
-  %286 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 14
-  store i64 1000, ptr %286, align 4
-  %287 = getelementptr ptr, ptr %257, i32 14
+  %286 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 13
+  store i64 334, ptr %286, align 4
+  %287 = getelementptr ptr, ptr %259, i32 13
   store ptr %286, ptr %287, align 8
-  %288 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 15
+  %288 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 14
   store i64 1000, ptr %288, align 4
-  %289 = getelementptr ptr, ptr %257, i32 15
+  %289 = getelementptr ptr, ptr %259, i32 14
   store ptr %288, ptr %289, align 8
-  %290 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 16
-  store i64 1, ptr %290, align 4
-  %291 = getelementptr ptr, ptr %257, i32 16
+  %290 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 15
+  store i64 1000, ptr %290, align 4
+  %291 = getelementptr ptr, ptr %259, i32 15
   store ptr %290, ptr %291, align 8
-  %292 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 17
-  store ptr %254, ptr %292, align 8
-  %293 = getelementptr ptr, ptr %257, i32 17
+  %292 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 16
+  store i64 1, ptr %292, align 4
+  %293 = getelementptr ptr, ptr %259, i32 16
   store ptr %292, ptr %293, align 8
-  %294 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 18
-  store ptr %254, ptr %294, align 8
-  %295 = getelementptr ptr, ptr %257, i32 18
+  %294 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 17
+  store ptr %256, ptr %294, align 8
+  %295 = getelementptr ptr, ptr %259, i32 17
   store ptr %294, ptr %295, align 8
-  %296 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 19
-  store i64 0, ptr %296, align 4
-  %297 = getelementptr ptr, ptr %257, i32 19
+  %296 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 18
+  store ptr %256, ptr %296, align 8
+  %297 = getelementptr ptr, ptr %259, i32 18
   store ptr %296, ptr %297, align 8
-  %298 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 20
-  store i64 333, ptr %298, align 4
-  %299 = getelementptr ptr, ptr %257, i32 20
+  %298 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 19
+  store i64 0, ptr %298, align 4
+  %299 = getelementptr ptr, ptr %259, i32 19
   store ptr %298, ptr %299, align 8
-  %300 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 21
-  store i64 1000, ptr %300, align 4
-  %301 = getelementptr ptr, ptr %257, i32 21
+  %300 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 20
+  store i64 334, ptr %300, align 4
+  %301 = getelementptr ptr, ptr %259, i32 20
   store ptr %300, ptr %301, align 8
-  %302 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 22
+  %302 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 21
   store i64 1000, ptr %302, align 4
-  %303 = getelementptr ptr, ptr %257, i32 22
+  %303 = getelementptr ptr, ptr %259, i32 21
   store ptr %302, ptr %303, align 8
-  %304 = getelementptr inbounds nuw %2, ptr %256, i32 0, i32 23
-  store i64 1, ptr %304, align 4
-  %305 = getelementptr ptr, ptr %257, i32 23
+  %304 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 22
+  store i64 1000, ptr %304, align 4
+  %305 = getelementptr ptr, ptr %259, i32 22
   store ptr %304, ptr %305, align 8
-  %306 = load ptr, ptr @matmul_kernel_1_module, align 8
-  %307 = call ptr @mgpuModuleGetFunction(ptr %306, ptr @matmul_kernel_1_matmul_kernel_name)
-  call void @mgpuLaunchKernel(ptr %307, i64 333, i64 1, i64 1, i64 1, i64 1, i64 1, i32 0, ptr %252, ptr %257, ptr null, i64 24)
-  call void @mgpuMemcpy(ptr %241, ptr %253, i64 1332000, ptr %252)
-  call void @mgpuStreamSynchronize(ptr %252)
-  call void @mgpuStreamDestroy(ptr %252)
-  br label %308
+  %306 = getelementptr inbounds nuw %0, ptr %258, i32 0, i32 23
+  store i64 1, ptr %306, align 4
+  %307 = getelementptr ptr, ptr %259, i32 23
+  store ptr %306, ptr %307, align 8
+  %308 = load ptr, ptr @matmul_kernel_module, align 8
+  %309 = call ptr @mgpuModuleGetFunction(ptr %308, ptr @matmul_kernel_matmul_kernel_name)
+  call void @mgpuLaunchKernel(ptr %309, i64 334, i64 1, i64 1, i64 1, i64 1, i64 1, i32 0, ptr %254, ptr %259, ptr null, i64 24)
+  call void @mgpuMemcpy(ptr %227, ptr %255, i64 1336000, ptr %254)
+  call void @mgpuStreamSynchronize(ptr %254)
+  call void @mgpuStreamDestroy(ptr %254)
+  %310 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %109, 1
+  %311 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %109, 2
+  %312 = getelementptr float, ptr %310, i64 %311
+  call void @llvm.memcpy.p0.p0.i64(ptr %312, ptr %227, i64 1336000, i1 false)
+  br label %313
 
-308:                                              ; preds = %240, %237
-  %309 = call i32 @MPI_Barrier(i32 1140850688)
-  %310 = icmp eq i32 %35, 0
-  br i1 %310, label %311, label %322
+313:                                              ; preds = %226, %24
+  %314 = srem i32 1, %52
+  %315 = icmp eq i32 %49, %314
+  br i1 %315, label %316, label %403
 
-311:                                              ; preds = %308
-  %312 = srem i32 0, %38
-  %313 = icmp ne i32 %312, 0
-  br i1 %313, label %314, label %321
+316:                                              ; preds = %313
+  %317 = call ptr @malloc(i64 1332000)
+  %318 = call ptr @malloc(i64 1332000)
+  %319 = call ptr @malloc(i64 1332000)
+  %320 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %166, 3, 0
+  %321 = mul i64 %320, 1
+  %322 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %166, 3, 1
+  %323 = mul i64 %321, %322
+  %324 = mul i64 %323, 4
+  %325 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %166, 1
+  %326 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %166, 2
+  %327 = getelementptr float, ptr %325, i64 %326
+  call void @llvm.memcpy.p0.p0.i64(ptr %317, ptr %327, i64 %324, i1 false)
+  %328 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %128, 3, 0
+  %329 = mul i64 %328, 1
+  %330 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %128, 3, 1
+  %331 = mul i64 %329, %330
+  %332 = mul i64 %331, 4
+  %333 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %128, 1
+  %334 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %128, 2
+  %335 = getelementptr float, ptr %333, i64 %334
+  call void @llvm.memcpy.p0.p0.i64(ptr %318, ptr %335, i64 %332, i1 false)
+  %336 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %147, 3, 0
+  %337 = mul i64 %336, 1
+  %338 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %147, 3, 1
+  %339 = mul i64 %337, %338
+  %340 = mul i64 %339, 4
+  %341 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %147, 1
+  %342 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %147, 2
+  %343 = getelementptr float, ptr %341, i64 %342
+  call void @llvm.memcpy.p0.p0.i64(ptr %319, ptr %343, i64 %340, i1 false)
+  %344 = call ptr @mgpuStreamCreate()
+  %345 = call ptr @mgpuMemAlloc(i64 1332000, ptr %344, i8 0)
+  %346 = call ptr @mgpuMemAlloc(i64 1332000, ptr %344, i8 0)
+  %347 = call ptr @mgpuMemAlloc(i64 1332000, ptr %344, i8 0)
+  call void @mgpuMemcpy(ptr %345, ptr %317, i64 1332000, ptr %344)
+  call void @mgpuMemcpy(ptr %346, ptr %318, i64 1332000, ptr %344)
+  call void @mgpuMemcpy(ptr %347, ptr %319, i64 1332000, ptr %344)
+  %348 = alloca %1, align 8
+  %349 = alloca ptr, i64 24, align 8
+  %350 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 0
+  store i64 1, ptr %350, align 4
+  %351 = getelementptr ptr, ptr %349, i32 0
+  store ptr %350, ptr %351, align 8
+  %352 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 1
+  store i64 0, ptr %352, align 4
+  %353 = getelementptr ptr, ptr %349, i32 1
+  store ptr %352, ptr %353, align 8
+  %354 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 2
+  store float 0.000000e+00, ptr %354, align 4
+  %355 = getelementptr ptr, ptr %349, i32 2
+  store ptr %354, ptr %355, align 8
+  %356 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 3
+  store ptr %345, ptr %356, align 8
+  %357 = getelementptr ptr, ptr %349, i32 3
+  store ptr %356, ptr %357, align 8
+  %358 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 4
+  store ptr %345, ptr %358, align 8
+  %359 = getelementptr ptr, ptr %349, i32 4
+  store ptr %358, ptr %359, align 8
+  %360 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 5
+  store i64 0, ptr %360, align 4
+  %361 = getelementptr ptr, ptr %349, i32 5
+  store ptr %360, ptr %361, align 8
+  %362 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 6
+  store i64 333, ptr %362, align 4
+  %363 = getelementptr ptr, ptr %349, i32 6
+  store ptr %362, ptr %363, align 8
+  %364 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 7
+  store i64 1000, ptr %364, align 4
+  %365 = getelementptr ptr, ptr %349, i32 7
+  store ptr %364, ptr %365, align 8
+  %366 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 8
+  store i64 1000, ptr %366, align 4
+  %367 = getelementptr ptr, ptr %349, i32 8
+  store ptr %366, ptr %367, align 8
+  %368 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 9
+  store i64 1, ptr %368, align 4
+  %369 = getelementptr ptr, ptr %349, i32 9
+  store ptr %368, ptr %369, align 8
+  %370 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 10
+  store ptr %347, ptr %370, align 8
+  %371 = getelementptr ptr, ptr %349, i32 10
+  store ptr %370, ptr %371, align 8
+  %372 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 11
+  store ptr %347, ptr %372, align 8
+  %373 = getelementptr ptr, ptr %349, i32 11
+  store ptr %372, ptr %373, align 8
+  %374 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 12
+  store i64 0, ptr %374, align 4
+  %375 = getelementptr ptr, ptr %349, i32 12
+  store ptr %374, ptr %375, align 8
+  %376 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 13
+  store i64 333, ptr %376, align 4
+  %377 = getelementptr ptr, ptr %349, i32 13
+  store ptr %376, ptr %377, align 8
+  %378 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 14
+  store i64 1000, ptr %378, align 4
+  %379 = getelementptr ptr, ptr %349, i32 14
+  store ptr %378, ptr %379, align 8
+  %380 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 15
+  store i64 1000, ptr %380, align 4
+  %381 = getelementptr ptr, ptr %349, i32 15
+  store ptr %380, ptr %381, align 8
+  %382 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 16
+  store i64 1, ptr %382, align 4
+  %383 = getelementptr ptr, ptr %349, i32 16
+  store ptr %382, ptr %383, align 8
+  %384 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 17
+  store ptr %346, ptr %384, align 8
+  %385 = getelementptr ptr, ptr %349, i32 17
+  store ptr %384, ptr %385, align 8
+  %386 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 18
+  store ptr %346, ptr %386, align 8
+  %387 = getelementptr ptr, ptr %349, i32 18
+  store ptr %386, ptr %387, align 8
+  %388 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 19
+  store i64 0, ptr %388, align 4
+  %389 = getelementptr ptr, ptr %349, i32 19
+  store ptr %388, ptr %389, align 8
+  %390 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 20
+  store i64 333, ptr %390, align 4
+  %391 = getelementptr ptr, ptr %349, i32 20
+  store ptr %390, ptr %391, align 8
+  %392 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 21
+  store i64 1000, ptr %392, align 4
+  %393 = getelementptr ptr, ptr %349, i32 21
+  store ptr %392, ptr %393, align 8
+  %394 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 22
+  store i64 1000, ptr %394, align 4
+  %395 = getelementptr ptr, ptr %349, i32 22
+  store ptr %394, ptr %395, align 8
+  %396 = getelementptr inbounds nuw %1, ptr %348, i32 0, i32 23
+  store i64 1, ptr %396, align 4
+  %397 = getelementptr ptr, ptr %349, i32 23
+  store ptr %396, ptr %397, align 8
+  %398 = load ptr, ptr @matmul_kernel_0_module, align 8
+  %399 = call ptr @mgpuModuleGetFunction(ptr %398, ptr @matmul_kernel_0_matmul_kernel_name)
+  call void @mgpuLaunchKernel(ptr %399, i64 333, i64 1, i64 1, i64 1, i64 1, i64 1, i32 0, ptr %344, ptr %349, ptr null, i64 24)
+  call void @mgpuMemcpy(ptr %317, ptr %345, i64 1332000, ptr %344)
+  call void @mgpuStreamSynchronize(ptr %344)
+  call void @mgpuStreamDestroy(ptr %344)
+  %400 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %166, 1
+  %401 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %166, 2
+  %402 = getelementptr float, ptr %400, i64 %401
+  call void @llvm.memcpy.p0.p0.i64(ptr %402, ptr %317, i64 1332000, i1 false)
+  br label %403
 
-314:                                              ; preds = %311
-  %315 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %57, 1
-  %316 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %57, 2
-  %317 = getelementptr float, ptr %315, i64 %316
-  %318 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %57, 3, 0
-  %319 = trunc i64 %318 to i32
-  %320 = call i32 @MPI_Recv(ptr %317, i32 %319, i32 1275069450, i32 %312, i32 0, i32 1140850688, ptr inttoptr (i64 1 to ptr))
-  br label %321
+403:                                              ; preds = %316, %313
+  %404 = srem i32 2, %52
+  %405 = icmp eq i32 %49, %404
+  br i1 %405, label %406, label %493
 
-321:                                              ; preds = %314, %311, %325, %322
-  br label %332
+406:                                              ; preds = %403
+  %407 = call ptr @malloc(i64 1332000)
+  %408 = call ptr @malloc(i64 1332000)
+  %409 = call ptr @malloc(i64 1332000)
+  %410 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %223, 3, 0
+  %411 = mul i64 %410, 1
+  %412 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %223, 3, 1
+  %413 = mul i64 %411, %412
+  %414 = mul i64 %413, 4
+  %415 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %223, 1
+  %416 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %223, 2
+  %417 = getelementptr float, ptr %415, i64 %416
+  call void @llvm.memcpy.p0.p0.i64(ptr %407, ptr %417, i64 %414, i1 false)
+  %418 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %185, 3, 0
+  %419 = mul i64 %418, 1
+  %420 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %185, 3, 1
+  %421 = mul i64 %419, %420
+  %422 = mul i64 %421, 4
+  %423 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %185, 1
+  %424 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %185, 2
+  %425 = getelementptr float, ptr %423, i64 %424
+  call void @llvm.memcpy.p0.p0.i64(ptr %408, ptr %425, i64 %422, i1 false)
+  %426 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %204, 3, 0
+  %427 = mul i64 %426, 1
+  %428 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %204, 3, 1
+  %429 = mul i64 %427, %428
+  %430 = mul i64 %429, 4
+  %431 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %204, 1
+  %432 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %204, 2
+  %433 = getelementptr float, ptr %431, i64 %432
+  call void @llvm.memcpy.p0.p0.i64(ptr %409, ptr %433, i64 %430, i1 false)
+  %434 = call ptr @mgpuStreamCreate()
+  %435 = call ptr @mgpuMemAlloc(i64 1332000, ptr %434, i8 0)
+  %436 = call ptr @mgpuMemAlloc(i64 1332000, ptr %434, i8 0)
+  %437 = call ptr @mgpuMemAlloc(i64 1332000, ptr %434, i8 0)
+  call void @mgpuMemcpy(ptr %435, ptr %407, i64 1332000, ptr %434)
+  call void @mgpuMemcpy(ptr %436, ptr %408, i64 1332000, ptr %434)
+  call void @mgpuMemcpy(ptr %437, ptr %409, i64 1332000, ptr %434)
+  %438 = alloca %2, align 8
+  %439 = alloca ptr, i64 24, align 8
+  %440 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 0
+  store i64 1, ptr %440, align 4
+  %441 = getelementptr ptr, ptr %439, i32 0
+  store ptr %440, ptr %441, align 8
+  %442 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 1
+  store i64 0, ptr %442, align 4
+  %443 = getelementptr ptr, ptr %439, i32 1
+  store ptr %442, ptr %443, align 8
+  %444 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 2
+  store float 0.000000e+00, ptr %444, align 4
+  %445 = getelementptr ptr, ptr %439, i32 2
+  store ptr %444, ptr %445, align 8
+  %446 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 3
+  store ptr %435, ptr %446, align 8
+  %447 = getelementptr ptr, ptr %439, i32 3
+  store ptr %446, ptr %447, align 8
+  %448 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 4
+  store ptr %435, ptr %448, align 8
+  %449 = getelementptr ptr, ptr %439, i32 4
+  store ptr %448, ptr %449, align 8
+  %450 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 5
+  store i64 0, ptr %450, align 4
+  %451 = getelementptr ptr, ptr %439, i32 5
+  store ptr %450, ptr %451, align 8
+  %452 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 6
+  store i64 333, ptr %452, align 4
+  %453 = getelementptr ptr, ptr %439, i32 6
+  store ptr %452, ptr %453, align 8
+  %454 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 7
+  store i64 1000, ptr %454, align 4
+  %455 = getelementptr ptr, ptr %439, i32 7
+  store ptr %454, ptr %455, align 8
+  %456 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 8
+  store i64 1000, ptr %456, align 4
+  %457 = getelementptr ptr, ptr %439, i32 8
+  store ptr %456, ptr %457, align 8
+  %458 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 9
+  store i64 1, ptr %458, align 4
+  %459 = getelementptr ptr, ptr %439, i32 9
+  store ptr %458, ptr %459, align 8
+  %460 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 10
+  store ptr %437, ptr %460, align 8
+  %461 = getelementptr ptr, ptr %439, i32 10
+  store ptr %460, ptr %461, align 8
+  %462 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 11
+  store ptr %437, ptr %462, align 8
+  %463 = getelementptr ptr, ptr %439, i32 11
+  store ptr %462, ptr %463, align 8
+  %464 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 12
+  store i64 0, ptr %464, align 4
+  %465 = getelementptr ptr, ptr %439, i32 12
+  store ptr %464, ptr %465, align 8
+  %466 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 13
+  store i64 333, ptr %466, align 4
+  %467 = getelementptr ptr, ptr %439, i32 13
+  store ptr %466, ptr %467, align 8
+  %468 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 14
+  store i64 1000, ptr %468, align 4
+  %469 = getelementptr ptr, ptr %439, i32 14
+  store ptr %468, ptr %469, align 8
+  %470 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 15
+  store i64 1000, ptr %470, align 4
+  %471 = getelementptr ptr, ptr %439, i32 15
+  store ptr %470, ptr %471, align 8
+  %472 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 16
+  store i64 1, ptr %472, align 4
+  %473 = getelementptr ptr, ptr %439, i32 16
+  store ptr %472, ptr %473, align 8
+  %474 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 17
+  store ptr %436, ptr %474, align 8
+  %475 = getelementptr ptr, ptr %439, i32 17
+  store ptr %474, ptr %475, align 8
+  %476 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 18
+  store ptr %436, ptr %476, align 8
+  %477 = getelementptr ptr, ptr %439, i32 18
+  store ptr %476, ptr %477, align 8
+  %478 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 19
+  store i64 0, ptr %478, align 4
+  %479 = getelementptr ptr, ptr %439, i32 19
+  store ptr %478, ptr %479, align 8
+  %480 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 20
+  store i64 333, ptr %480, align 4
+  %481 = getelementptr ptr, ptr %439, i32 20
+  store ptr %480, ptr %481, align 8
+  %482 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 21
+  store i64 1000, ptr %482, align 4
+  %483 = getelementptr ptr, ptr %439, i32 21
+  store ptr %482, ptr %483, align 8
+  %484 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 22
+  store i64 1000, ptr %484, align 4
+  %485 = getelementptr ptr, ptr %439, i32 22
+  store ptr %484, ptr %485, align 8
+  %486 = getelementptr inbounds nuw %2, ptr %438, i32 0, i32 23
+  store i64 1, ptr %486, align 4
+  %487 = getelementptr ptr, ptr %439, i32 23
+  store ptr %486, ptr %487, align 8
+  %488 = load ptr, ptr @matmul_kernel_1_module, align 8
+  %489 = call ptr @mgpuModuleGetFunction(ptr %488, ptr @matmul_kernel_1_matmul_kernel_name)
+  call void @mgpuLaunchKernel(ptr %489, i64 333, i64 1, i64 1, i64 1, i64 1, i64 1, i32 0, ptr %434, ptr %439, ptr null, i64 24)
+  call void @mgpuMemcpy(ptr %407, ptr %435, i64 1332000, ptr %434)
+  call void @mgpuStreamSynchronize(ptr %434)
+  call void @mgpuStreamDestroy(ptr %434)
+  %490 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %223, 1
+  %491 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %223, 2
+  %492 = getelementptr float, ptr %490, i64 %491
+  call void @llvm.memcpy.p0.p0.i64(ptr %492, ptr %407, i64 1332000, i1 false)
+  br label %493
 
-322:                                              ; preds = %308
-  %323 = srem i32 0, %38
-  %324 = icmp eq i32 %35, %323
-  br i1 %324, label %325, label %321
+493:                                              ; preds = %406, %403
+  %494 = call i32 @MPI_Barrier(i32 1140850688)
+  %495 = icmp eq i32 %49, 0
+  br i1 %495, label %496, label %507
 
-325:                                              ; preds = %322
-  %326 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %57, 1
-  %327 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %57, 2
-  %328 = getelementptr float, ptr %326, i64 %327
-  %329 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %57, 3, 0
-  %330 = trunc i64 %329 to i32
-  %331 = call i32 @MPI_Send(ptr %328, i32 %330, i32 1275069450, i32 0, i32 0, i32 1140850688)
-  br label %321
+496:                                              ; preds = %493
+  %497 = srem i32 0, %52
+  %498 = icmp ne i32 %497, 0
+  br i1 %498, label %499, label %506
 
-332:                                              ; preds = %321
-  %333 = icmp eq i32 %35, 0
-  br i1 %333, label %334, label %345
+499:                                              ; preds = %496
+  %500 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %109, 1
+  %501 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %109, 2
+  %502 = getelementptr float, ptr %500, i64 %501
+  %503 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %109, 3, 0
+  %504 = trunc i64 %503 to i32
+  %505 = call i32 @MPI_Recv(ptr %502, i32 %504, i32 1275069450, i32 %497, i32 0, i32 1140850688, ptr inttoptr (i64 1 to ptr))
+  br label %506
 
-334:                                              ; preds = %332
-  %335 = srem i32 1, %38
-  %336 = icmp ne i32 %335, 0
-  br i1 %336, label %337, label %344
+506:                                              ; preds = %499, %496, %510, %507
+  br label %517
 
-337:                                              ; preds = %334
-  %338 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %76, 1
-  %339 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %76, 2
-  %340 = getelementptr float, ptr %338, i64 %339
-  %341 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %76, 3, 0
-  %342 = trunc i64 %341 to i32
-  %343 = call i32 @MPI_Recv(ptr %340, i32 %342, i32 1275069450, i32 %335, i32 0, i32 1140850688, ptr inttoptr (i64 1 to ptr))
-  br label %344
+507:                                              ; preds = %493
+  %508 = srem i32 0, %52
+  %509 = icmp eq i32 %49, %508
+  br i1 %509, label %510, label %506
 
-344:                                              ; preds = %337, %334, %348, %345
-  br label %355
+510:                                              ; preds = %507
+  %511 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %109, 1
+  %512 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %109, 2
+  %513 = getelementptr float, ptr %511, i64 %512
+  %514 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %109, 3, 0
+  %515 = trunc i64 %514 to i32
+  %516 = call i32 @MPI_Send(ptr %513, i32 %515, i32 1275069450, i32 0, i32 0, i32 1140850688)
+  br label %506
 
-345:                                              ; preds = %332
-  %346 = srem i32 1, %38
-  %347 = icmp eq i32 %35, %346
-  br i1 %347, label %348, label %344
+517:                                              ; preds = %506
+  %518 = icmp eq i32 %49, 0
+  br i1 %518, label %519, label %530
 
-348:                                              ; preds = %345
-  %349 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %76, 1
-  %350 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %76, 2
-  %351 = getelementptr float, ptr %349, i64 %350
-  %352 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %76, 3, 0
-  %353 = trunc i64 %352 to i32
-  %354 = call i32 @MPI_Send(ptr %351, i32 %353, i32 1275069450, i32 0, i32 0, i32 1140850688)
-  br label %344
+519:                                              ; preds = %517
+  %520 = srem i32 1, %52
+  %521 = icmp ne i32 %520, 0
+  br i1 %521, label %522, label %529
 
-355:                                              ; preds = %344
-  %356 = icmp eq i32 %35, 0
-  br i1 %356, label %357, label %368
+522:                                              ; preds = %519
+  %523 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %166, 1
+  %524 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %166, 2
+  %525 = getelementptr float, ptr %523, i64 %524
+  %526 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %166, 3, 0
+  %527 = trunc i64 %526 to i32
+  %528 = call i32 @MPI_Recv(ptr %525, i32 %527, i32 1275069450, i32 %520, i32 0, i32 1140850688, ptr inttoptr (i64 1 to ptr))
+  br label %529
 
-357:                                              ; preds = %355
-  %358 = srem i32 2, %38
-  %359 = icmp ne i32 %358, 0
-  br i1 %359, label %360, label %367
+529:                                              ; preds = %522, %519, %533, %530
+  br label %540
 
-360:                                              ; preds = %357
-  %361 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %95, 1
-  %362 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %95, 2
-  %363 = getelementptr float, ptr %361, i64 %362
-  %364 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %95, 3, 0
-  %365 = trunc i64 %364 to i32
-  %366 = call i32 @MPI_Recv(ptr %363, i32 %365, i32 1275069450, i32 %358, i32 0, i32 1140850688, ptr inttoptr (i64 1 to ptr))
-  br label %367
+530:                                              ; preds = %517
+  %531 = srem i32 1, %52
+  %532 = icmp eq i32 %49, %531
+  br i1 %532, label %533, label %529
 
-367:                                              ; preds = %360, %357, %371, %368
-  br label %378
+533:                                              ; preds = %530
+  %534 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %166, 1
+  %535 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %166, 2
+  %536 = getelementptr float, ptr %534, i64 %535
+  %537 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %166, 3, 0
+  %538 = trunc i64 %537 to i32
+  %539 = call i32 @MPI_Send(ptr %536, i32 %538, i32 1275069450, i32 0, i32 0, i32 1140850688)
+  br label %529
 
-368:                                              ; preds = %355
-  %369 = srem i32 2, %38
-  %370 = icmp eq i32 %35, %369
-  br i1 %370, label %371, label %367
+540:                                              ; preds = %529
+  %541 = icmp eq i32 %49, 0
+  br i1 %541, label %542, label %553
 
-371:                                              ; preds = %368
-  %372 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %95, 1
-  %373 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %95, 2
-  %374 = getelementptr float, ptr %372, i64 %373
-  %375 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %95, 3, 0
-  %376 = trunc i64 %375 to i32
-  %377 = call i32 @MPI_Send(ptr %374, i32 %376, i32 1275069450, i32 0, i32 0, i32 1140850688)
-  br label %367
+542:                                              ; preds = %540
+  %543 = srem i32 2, %52
+  %544 = icmp ne i32 %543, 0
+  br i1 %544, label %545, label %552
 
-378:                                              ; preds = %367
-  %379 = call i32 @MPI_Barrier(i32 1140850688)
+545:                                              ; preds = %542
+  %546 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %223, 1
+  %547 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %223, 2
+  %548 = getelementptr float, ptr %546, i64 %547
+  %549 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %223, 3, 0
+  %550 = trunc i64 %549 to i32
+  %551 = call i32 @MPI_Recv(ptr %548, i32 %550, i32 1275069450, i32 %543, i32 0, i32 1140850688, ptr inttoptr (i64 1 to ptr))
+  br label %552
+
+552:                                              ; preds = %545, %542, %556, %553
+  br label %563
+
+553:                                              ; preds = %540
+  %554 = srem i32 2, %52
+  %555 = icmp eq i32 %49, %554
+  br i1 %555, label %556, label %552
+
+556:                                              ; preds = %553
+  %557 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %223, 1
+  %558 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %223, 2
+  %559 = getelementptr float, ptr %557, i64 %558
+  %560 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %223, 3, 0
+  %561 = trunc i64 %560 to i32
+  %562 = call i32 @MPI_Send(ptr %559, i32 %561, i32 1275069450, i32 0, i32 0, i32 1140850688)
+  br label %552
+
+563:                                              ; preds = %552
+  %564 = call i32 @MPI_Barrier(i32 1140850688)
   ret void
 }
 
