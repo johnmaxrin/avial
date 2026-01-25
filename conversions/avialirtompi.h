@@ -225,6 +225,8 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                         Value newBuffer2 = ifbuilder.create<memref::AllocOp>(loc, cleanType, dynamicSizes);
 
                         ifbuilder.create<memref::CopyOp>(loc, buffer, newBuffer);
+                        ifbuilder.create<memref::CopyOp>(loc, r1buffer, newBuffer1);
+                        ifbuilder.create<memref::CopyOp>(loc, r2buffer, newBuffer2);
 
 
                         // Convert the subview to canonical buffer. keep a map of subview and canonical buffer.
@@ -269,7 +271,12 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                     {
                         
                         Value gpubuffer = rankMapping.lookupOrNull(task->writes[0]);
-                        rewriter.create<gpu::MemcpyOp>(loc, TypeRange{}, ValueRange{}, gpuBufferMap[gpubuffer], gpubuffer);
+                        ifbuilder.create<gpu::MemcpyOp>(loc, TypeRange{}, ValueRange{}, gpuBufferMap[gpubuffer], gpubuffer);
+                        
+                        // Copy Alloc back to SubView
+                        ifbuilder.create<memref::CopyOp>(loc, gpuBufferMap[gpubuffer], mapping.lookupOrNull(task->writes[0]));
+
+
                     }
                     ifbuilder.create<mlir::scf::YieldOp>(loc); });
 
