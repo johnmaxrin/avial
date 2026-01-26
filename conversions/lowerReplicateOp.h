@@ -208,7 +208,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
                 op.getLoc(),
                 avial::TaskRefType::get(rewriter.getContext()),
                 targetDlti,
-                ValueRange(subViewIns), rewriter.getDenseI64ArrayAttr({0, 0}), ValueRange(subViewOuts), outRanges);
+                ValueRange(subViewIns), rewriter.getDenseI64ArrayAttr({0, 0}), ValueRange(subViewOuts), outRanges, ValueRange{outsVec});
             taskOp->setAttr("name", rewriter.getStringAttr(std::to_string(i)));
 
             mlir::IntegerAttr repIdAttr;

@@ -17,6 +17,8 @@ struct TaskOpInfo
   mlir::Operation *op;
   llvm::SmallVector<mlir::Value> reads;
   llvm::SmallVector<mlir::Value> writes;
+  llvm::SmallVector<mlir::Value> actualBuffer;
+
   llvm::SmallVector<TaskOpInfo *> deps;
   TargetType target;
 
@@ -81,6 +83,9 @@ namespace mlir
 
           for (auto out : task.getOutputs())
             info.writes.push_back(out);
+
+          for(auto actual : task.getOutputs())
+            info.actualBuffer.push_back(actual);
 
           tasks.push_back(std::move(info));
         }

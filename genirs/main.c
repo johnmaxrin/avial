@@ -30,7 +30,7 @@ int main(int argc, char **argv) {
     float *B = (float*) aligned_alloc(64, K*N*sizeof(float));
     float *C = (float*) aligned_alloc(64, M*N*sizeof(float));
 
-    for (int i=0; i<M*K; i++) A[i] = 2.0f;
+    for (int i=0; i<M*K; i++) A[i] = 1.0f;
     for (int i=0; i<K*N; i++) B[i] = 1.0f;
     for (int i=0; i<K*N; i++) C[i] = 0.0f;
 

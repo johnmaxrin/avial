@@ -300,34 +300,40 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
             {
 
                 Value buffer = mapping.lookupOrNull(task->writes[0]);
-                if (!buffer)
-                {
-                    buffer = task->writes[0]; // fallback if not in mapping
-                }
+
+                Value sourceBuffer = buffer;
+
+                while (auto subviewOp = sourceBuffer.getDefiningOp<memref::SubViewOp>())
+                    sourceBuffer = subviewOp.getSource();
+                
+
+                llvm::errs() << "DEBUG\n";
 
                 auto taskOp = dyn_cast<mlir::avial::TaskOp>(task->op);
                 llvm::ArrayRef outRanges = taskOp.getOutRanges();
 
-                // SmallVector<OpFoldResult> offsets = {
-                //     rewriter.getIndexAttr(outRanges[0]), // for dim 0 // Get the 667
-                //     rewriter.getIndexAttr(0)             // for dim 1 (start at 0)
-                // };
+                SmallVector<OpFoldResult> offsets = {
+                    rewriter.getIndexAttr(outRanges[0]), // for dim 0 // Get the 667
+                    rewriter.getIndexAttr(0)             // for dim 1 (start at 0)
+                };
 
-                // SmallVector<OpFoldResult> sizes = {
-                //     rewriter.getIndexAttr((outRanges[1] - outRanges[0]) * 1000), // TODO: Use memref to get the shape.
-                //     rewriter.getIndexAttr(1000)};
+                SmallVector<OpFoldResult> sizes = {
+                    rewriter.getIndexAttr((outRanges[1] - outRanges[0]) * 1000), // TODO: Use memref to get the shape.
+                    rewriter.getIndexAttr(1000)};
 
-                // SmallVector<OpFoldResult> strides = {
-                //     rewriter.getIndexAttr(1), // dim 0
-                //     rewriter.getIndexAttr(1)  // dim 1
-                // };
+                SmallVector<OpFoldResult> strides = {
+                    rewriter.getIndexAttr(1), // dim 0
+                    rewriter.getIndexAttr(1)  // dim 1
+                };
 
-                // Value subBuffer = rewriter.create<memref::SubViewOp>(
-                //     loc,
-                //     buffer, // full buffer
-                //     offsets,
-                //     sizes,
-                //     strides);
+                Value subBuffer = rewriter.create<memref::SubViewOp>(
+                    loc,
+                    sourceBuffer,
+                    offsets,
+                    sizes,
+                    strides);
+
+                llvm::errs() << "DEBUG2\n";
 
                 auto cond = rewriter.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), zero.getResult());
                 auto ifOp = rewriter.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, cond, true);
@@ -344,12 +350,13 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                 auto recvOp = innerThenBuilder.create<mlir::mpi::RecvOp>(
                     loc,
                     retVal,                       // return type
-                    buffer,                       // buffer
+                    subBuffer,                       // buffer
                     tag.getResult(),              // tag
                     taskIdModNodes->getResult(0), // source rank
                     comm->getResult(0)            // communicator
                 );
 
+                llvm::errs() << "DEBUG3\n";
                 // Else Send
                 auto elsetaskIDOp = elseBuilder.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(taskId));
                 auto elsetaskIdModNodes = elseBuilder.create<mlir::arith::RemSIOp>(loc, elsetaskIDOp->getResult(0), getNodes->getResult(1));
@@ -360,7 +367,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                 auto sendOp = elseinnerThenBuilder.create<mlir::mpi::SendOp>(
                     loc,
                     retVal,            // return type
-                    buffer,            // buffer
+                    subBuffer,            // buffer
                     tag.getResult(),   // tag
                     zero,              // dest rank
                     comm->getResult(0) // communicator
@@ -377,6 +384,8 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         rewriter.create<mpi::Barrier>(loc, retVal, comm->getResult(0));
         rewriter.create<func::ReturnOp>(loc);
         rewriter.eraseOp(op);
+
+        llvm::errs() << "DEBUG3\n";
 
         return success();
     }
