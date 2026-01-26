@@ -3,7 +3,7 @@
 using namespace mlir;
 using namespace mlir::avial;
 
-void mlir::avial::TaskOp::build(OpBuilder &builder, OperationState &state, TaskRefType resType, mlir::Attribute target, ::mlir::ValueRange inputs, mlir::DenseI64ArrayAttr inpRanges, ::mlir::ValueRange outputs, mlir::DenseI64ArrayAttr outRanges,
+void mlir::avial::TaskOp::build(OpBuilder &builder, OperationState &state, TaskRefType resType, mlir::Attribute target, ::mlir::ValueRange inputs, mlir::DenseI64ArrayAttr inpRanges, ::mlir::ValueRange outputs, mlir::DenseI64ArrayAttr outRanges, mlir::ValueRange actualBuffers,
                                 function_ref<void(OpBuilder &, Location, mlir::Value, mlir::ValueRange)> bodyBuilder)
 {
   state.addTypes(resType);
@@ -16,7 +16,8 @@ void mlir::avial::TaskOp::build(OpBuilder &builder, OperationState &state, TaskR
 
   state.addOperands(inputs);
   state.addOperands(outputs);
-  ::llvm::copy(::llvm::ArrayRef<int32_t>({static_cast<int32_t>(inputs.size()), static_cast<int32_t>(outputs.size())}), state.getOrAddProperties<Properties>().operandSegmentSizes.begin());
+  state.addOperands(actualBuffers);
+  ::llvm::copy(::llvm::ArrayRef<int32_t>({static_cast<int32_t>(inputs.size()), static_cast<int32_t>(outputs.size()), static_cast<int32_t>(actualBuffers.size())}), state.getOrAddProperties<Properties>().operandSegmentSizes.begin());
 
   Region *region = state.addRegion();
   Block *block = new Block();

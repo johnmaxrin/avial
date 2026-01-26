@@ -691,112 +691,169 @@ define void @matmul(i32 %0, i32 %1, i32 %2, ptr %3, ptr %4, i64 %5, i64 %6, i64 
 
 493:                                              ; preds = %406, %403
   %494 = call i32 @MPI_Barrier(i32 1140850688)
-  %495 = icmp eq i32 %49, 0
-  br i1 %495, label %496, label %507
+  %495 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 0
+  %496 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 1
+  %497 = insertvalue { ptr, ptr, i64 } poison, ptr %495, 0
+  %498 = insertvalue { ptr, ptr, i64 } %497, ptr %496, 1
+  %499 = insertvalue { ptr, ptr, i64 } %498, i64 0, 2
+  %500 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 2
+  %501 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 3, 0
+  %502 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 3, 1
+  %503 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 4, 0
+  %504 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 4, 1
+  %505 = extractvalue { ptr, ptr, i64 } %499, 0
+  %506 = extractvalue { ptr, ptr, i64 } %499, 1
+  %507 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %505, 0
+  %508 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %507, ptr %506, 1
+  %509 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %508, i64 0, 2
+  %510 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %509, i64 334000, 3, 0
+  %511 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %510, i64 1000, 4, 0
+  %512 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %511, i64 1000, 3, 1
+  %513 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %512, i64 1, 4, 1
+  %514 = icmp eq i32 %49, 0
+  br i1 %514, label %515, label %526
 
-496:                                              ; preds = %493
-  %497 = srem i32 0, %52
-  %498 = icmp ne i32 %497, 0
-  br i1 %498, label %499, label %506
+515:                                              ; preds = %493
+  %516 = srem i32 0, %52
+  %517 = icmp ne i32 %516, 0
+  br i1 %517, label %518, label %525
 
-499:                                              ; preds = %496
-  %500 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %109, 1
-  %501 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %109, 2
-  %502 = getelementptr float, ptr %500, i64 %501
-  %503 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %109, 3, 0
-  %504 = trunc i64 %503 to i32
-  %505 = call i32 @MPI_Recv(ptr %502, i32 %504, i32 1275069450, i32 %497, i32 0, i32 1140850688, ptr inttoptr (i64 1 to ptr))
-  br label %506
+518:                                              ; preds = %515
+  %519 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %513, 1
+  %520 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %513, 2
+  %521 = getelementptr float, ptr %519, i64 %520
+  %522 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %513, 3, 0
+  %523 = trunc i64 %522 to i32
+  %524 = call i32 @MPI_Recv(ptr %521, i32 %523, i32 1275069450, i32 %516, i32 0, i32 1140850688, ptr inttoptr (i64 1 to ptr))
+  br label %525
 
-506:                                              ; preds = %499, %496, %510, %507
-  br label %517
+525:                                              ; preds = %518, %515, %529, %526
+  br label %536
 
-507:                                              ; preds = %493
-  %508 = srem i32 0, %52
-  %509 = icmp eq i32 %49, %508
-  br i1 %509, label %510, label %506
+526:                                              ; preds = %493
+  %527 = srem i32 0, %52
+  %528 = icmp eq i32 %49, %527
+  br i1 %528, label %529, label %525
 
-510:                                              ; preds = %507
-  %511 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %109, 1
-  %512 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %109, 2
-  %513 = getelementptr float, ptr %511, i64 %512
-  %514 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %109, 3, 0
-  %515 = trunc i64 %514 to i32
-  %516 = call i32 @MPI_Send(ptr %513, i32 %515, i32 1275069450, i32 0, i32 0, i32 1140850688)
-  br label %506
+529:                                              ; preds = %526
+  %530 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %513, 1
+  %531 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %513, 2
+  %532 = getelementptr float, ptr %530, i64 %531
+  %533 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %513, 3, 0
+  %534 = trunc i64 %533 to i32
+  %535 = call i32 @MPI_Send(ptr %532, i32 %534, i32 1275069450, i32 0, i32 0, i32 1140850688)
+  br label %525
 
-517:                                              ; preds = %506
-  %518 = icmp eq i32 %49, 0
-  br i1 %518, label %519, label %530
+536:                                              ; preds = %525
+  %537 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 0
+  %538 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 1
+  %539 = insertvalue { ptr, ptr, i64 } poison, ptr %537, 0
+  %540 = insertvalue { ptr, ptr, i64 } %539, ptr %538, 1
+  %541 = insertvalue { ptr, ptr, i64 } %540, i64 0, 2
+  %542 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 2
+  %543 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 3, 0
+  %544 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 3, 1
+  %545 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 4, 0
+  %546 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 4, 1
+  %547 = extractvalue { ptr, ptr, i64 } %541, 0
+  %548 = extractvalue { ptr, ptr, i64 } %541, 1
+  %549 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %547, 0
+  %550 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %549, ptr %548, 1
+  %551 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %550, i64 334000, 2
+  %552 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %551, i64 333000, 3, 0
+  %553 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %552, i64 1000, 4, 0
+  %554 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %553, i64 1000, 3, 1
+  %555 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %554, i64 1, 4, 1
+  %556 = icmp eq i32 %49, 0
+  br i1 %556, label %557, label %568
 
-519:                                              ; preds = %517
-  %520 = srem i32 1, %52
-  %521 = icmp ne i32 %520, 0
-  br i1 %521, label %522, label %529
+557:                                              ; preds = %536
+  %558 = srem i32 1, %52
+  %559 = icmp ne i32 %558, 0
+  br i1 %559, label %560, label %567
 
-522:                                              ; preds = %519
-  %523 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %166, 1
-  %524 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %166, 2
-  %525 = getelementptr float, ptr %523, i64 %524
-  %526 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %166, 3, 0
-  %527 = trunc i64 %526 to i32
-  %528 = call i32 @MPI_Recv(ptr %525, i32 %527, i32 1275069450, i32 %520, i32 0, i32 1140850688, ptr inttoptr (i64 1 to ptr))
-  br label %529
+560:                                              ; preds = %557
+  %561 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %555, 1
+  %562 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %555, 2
+  %563 = getelementptr float, ptr %561, i64 %562
+  %564 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %555, 3, 0
+  %565 = trunc i64 %564 to i32
+  %566 = call i32 @MPI_Recv(ptr %563, i32 %565, i32 1275069450, i32 %558, i32 0, i32 1140850688, ptr inttoptr (i64 1 to ptr))
+  br label %567
 
-529:                                              ; preds = %522, %519, %533, %530
-  br label %540
+567:                                              ; preds = %560, %557, %571, %568
+  br label %578
 
-530:                                              ; preds = %517
-  %531 = srem i32 1, %52
-  %532 = icmp eq i32 %49, %531
-  br i1 %532, label %533, label %529
+568:                                              ; preds = %536
+  %569 = srem i32 1, %52
+  %570 = icmp eq i32 %49, %569
+  br i1 %570, label %571, label %567
 
-533:                                              ; preds = %530
-  %534 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %166, 1
-  %535 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %166, 2
-  %536 = getelementptr float, ptr %534, i64 %535
-  %537 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %166, 3, 0
-  %538 = trunc i64 %537 to i32
-  %539 = call i32 @MPI_Send(ptr %536, i32 %538, i32 1275069450, i32 0, i32 0, i32 1140850688)
-  br label %529
+571:                                              ; preds = %568
+  %572 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %555, 1
+  %573 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %555, 2
+  %574 = getelementptr float, ptr %572, i64 %573
+  %575 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %555, 3, 0
+  %576 = trunc i64 %575 to i32
+  %577 = call i32 @MPI_Send(ptr %574, i32 %576, i32 1275069450, i32 0, i32 0, i32 1140850688)
+  br label %567
 
-540:                                              ; preds = %529
-  %541 = icmp eq i32 %49, 0
-  br i1 %541, label %542, label %553
+578:                                              ; preds = %567
+  %579 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 0
+  %580 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 1
+  %581 = insertvalue { ptr, ptr, i64 } poison, ptr %579, 0
+  %582 = insertvalue { ptr, ptr, i64 } %581, ptr %580, 1
+  %583 = insertvalue { ptr, ptr, i64 } %582, i64 0, 2
+  %584 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 2
+  %585 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 3, 0
+  %586 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 3, 1
+  %587 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 4, 0
+  %588 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %31, 4, 1
+  %589 = extractvalue { ptr, ptr, i64 } %583, 0
+  %590 = extractvalue { ptr, ptr, i64 } %583, 1
+  %591 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %589, 0
+  %592 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %591, ptr %590, 1
+  %593 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %592, i64 667000, 2
+  %594 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %593, i64 333000, 3, 0
+  %595 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %594, i64 1000, 4, 0
+  %596 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %595, i64 1000, 3, 1
+  %597 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %596, i64 1, 4, 1
+  %598 = icmp eq i32 %49, 0
+  br i1 %598, label %599, label %610
 
-542:                                              ; preds = %540
-  %543 = srem i32 2, %52
-  %544 = icmp ne i32 %543, 0
-  br i1 %544, label %545, label %552
+599:                                              ; preds = %578
+  %600 = srem i32 2, %52
+  %601 = icmp ne i32 %600, 0
+  br i1 %601, label %602, label %609
 
-545:                                              ; preds = %542
-  %546 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %223, 1
-  %547 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %223, 2
-  %548 = getelementptr float, ptr %546, i64 %547
-  %549 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %223, 3, 0
-  %550 = trunc i64 %549 to i32
-  %551 = call i32 @MPI_Recv(ptr %548, i32 %550, i32 1275069450, i32 %543, i32 0, i32 1140850688, ptr inttoptr (i64 1 to ptr))
-  br label %552
+602:                                              ; preds = %599
+  %603 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %597, 1
+  %604 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %597, 2
+  %605 = getelementptr float, ptr %603, i64 %604
+  %606 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %597, 3, 0
+  %607 = trunc i64 %606 to i32
+  %608 = call i32 @MPI_Recv(ptr %605, i32 %607, i32 1275069450, i32 %600, i32 0, i32 1140850688, ptr inttoptr (i64 1 to ptr))
+  br label %609
 
-552:                                              ; preds = %545, %542, %556, %553
-  br label %563
+609:                                              ; preds = %602, %599, %613, %610
+  br label %620
 
-553:                                              ; preds = %540
-  %554 = srem i32 2, %52
-  %555 = icmp eq i32 %49, %554
-  br i1 %555, label %556, label %552
+610:                                              ; preds = %578
+  %611 = srem i32 2, %52
+  %612 = icmp eq i32 %49, %611
+  br i1 %612, label %613, label %609
 
-556:                                              ; preds = %553
-  %557 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %223, 1
-  %558 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %223, 2
-  %559 = getelementptr float, ptr %557, i64 %558
-  %560 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %223, 3, 0
-  %561 = trunc i64 %560 to i32
-  %562 = call i32 @MPI_Send(ptr %559, i32 %561, i32 1275069450, i32 0, i32 0, i32 1140850688)
-  br label %552
+613:                                              ; preds = %610
+  %614 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %597, 1
+  %615 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %597, 2
+  %616 = getelementptr float, ptr %614, i64 %615
+  %617 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %597, 3, 0
+  %618 = trunc i64 %617 to i32
+  %619 = call i32 @MPI_Send(ptr %616, i32 %618, i32 1275069450, i32 0, i32 0, i32 1140850688)
+  br label %609
 
-563:                                              ; preds = %552
-  %564 = call i32 @MPI_Barrier(i32 1140850688)
+620:                                              ; preds = %609
+  %621 = call i32 @MPI_Barrier(i32 1140850688)
   ret void
 }
 
