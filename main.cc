@@ -182,10 +182,12 @@ int main(int argc, char *argv[])
 
     if (dhirToMPI)
     {
+        pm.addPass(createSelectiveGPUConversionPass());
         pm.addPass(mlir::avial::createConvertAvialIRToMPIPass());
 
         // GPU Related lowering
-        pm.nest<func::FuncOp>().addPass(createGpuMapParallelLoopsPass());
+
+        //pm.nest<func::FuncOp>().addPass(createGpuMapParallelLoopsPass());
         pm.addPass(mlir::createConvertParallelLoopToGpuPass());
         pm.addPass(createGpuKernelOutliningPass());
 

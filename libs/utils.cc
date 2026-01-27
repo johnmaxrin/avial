@@ -40,7 +40,22 @@ void attachDLTISpec(mlir::ModuleOp module, mlir::MLIRContext *context, SystemTop
         builder.getI32IntegerAttr(node.gpus.size()));
 
     // You can add more, e.g., gpu_arch_list, etc.
+    SmallVector<mlir::Attribute> gpuArchs;
+    SmallVector<mlir::Attribute> gpuIDs;
 
+    for (auto &gpu : node.gpus)
+    {
+      gpuArchs.push_back(builder.getStringAttr(gpu.arch));
+      gpuIDs.push_back(builder.getI32IntegerAttr(gpu.id));
+    }
+
+    auto gpuArch = mlir::DataLayoutEntryAttr::get(
+        builder.getStringAttr("gpu_arch"), builder.getArrayAttr(gpuArchs)
+      );
+
+      auto gpuId = mlir::DataLayoutEntryAttr::get(
+        builder.getStringAttr("gpu_id"), builder.getArrayAttr(gpuIDs)
+      );
     // Assemble this node's TargetDeviceSpecAttr
     auto nodeAttr = mlir::TargetDeviceSpecAttr::get(
         context,
@@ -48,7 +63,10 @@ void attachDLTISpec(mlir::ModuleOp module, mlir::MLIRContext *context, SystemTop
          archEntry,
          costEntry,
          nodeIDEntry,
-         gpuCountEntry});
+         gpuCountEntry,
+         gpuArch,
+         gpuId
+        });
 
     deviceAttrs.push_back(nodeAttr);
   }

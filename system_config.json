@@ -16,7 +16,7 @@
     "node2": {
       "cpu_arch": "x86_64",
       "gpus": [
-        { "id": 0, "arch": "nvidia-sm_90", "model": "H100" }
+        { "id": 0, "arch": "sm_61", "model": "H100" }
       ]
     }
   }

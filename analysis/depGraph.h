@@ -32,9 +32,10 @@ TargetType getTargetTypeFromAttr(mlir::Attribute attr)
 
   if(!attr) return TargetType::CPU;
 
+
   if(auto dltiAttr = mlir::dyn_cast<mlir::TargetDeviceSpecAttr>(attr)){
-    auto strAttr = mlir::dyn_cast<mlir::StringAttr>(dltiAttr.getEntries()[0].getValue());
-    return (strAttr.getValue().str().compare("gpu")) ? TargetType::CPU : TargetType::GPU;
+    auto gpucntAttr = mlir::dyn_cast<mlir::IntegerAttr>(dltiAttr.getEntries()[4].getValue());
+    return (gpucntAttr.getInt() > 0 ? TargetType::GPU : TargetType::CPU);
   }
 
 
@@ -68,6 +69,7 @@ namespace mlir
             allocs.push_back(alloc);
         }
 
+        llvm::errs() << "DEBUG\n";
         for (TaskOp task : schedule.getBody().getOps<TaskOp>())
         {
 

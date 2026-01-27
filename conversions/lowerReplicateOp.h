@@ -57,21 +57,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
 
         auto deviceVec = extractTargetDeviceSpecs(llvm::dyn_cast<mlir::ModuleOp>(module));
 
-        for (auto targetSpec : deviceVec)
-            targetSpec.dump();
-
-        auto &replicateRegion = op.getRegion();
-        auto &replicateBody = replicateRegion.front();
-
-        auto archAttr = rewriter.getStringAttr("arch"); // Use the Module Attrs
-        auto archVal = rewriter.getStringAttr("sm_90");
-
-        auto typAttr = rewriter.getStringAttr("type");
-        auto typVal = rewriter.getStringAttr("gpu");
-
-        auto entry1 = mlir::DataLayoutEntryAttr::get(archAttr, archVal);
-        auto entry2 = mlir::DataLayoutEntryAttr::get(typAttr, typVal);
-        auto targetDlti = mlir::TargetDeviceSpecAttr::get(op.getContext(), {entry2, entry1});
+        
 
         int64_t constupperBound = 0;
         mlir::scf::ForOp outerFor = nullptr;
@@ -207,7 +193,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
             auto taskOp = rewriter.create<avial::TaskOp>(
                 op.getLoc(),
                 avial::TaskRefType::get(rewriter.getContext()),
-                targetDlti,
+                deviceVec[i],
                 ValueRange(subViewIns), rewriter.getDenseI64ArrayAttr({0, 0}), ValueRange(subViewOuts), outRanges, ValueRange{outsVec});
             taskOp->setAttr("name", rewriter.getStringAttr(std::to_string(i)));
 
