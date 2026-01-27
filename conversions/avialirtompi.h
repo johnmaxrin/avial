@@ -28,9 +28,13 @@
 #include "mlir/IR/PatternMatch.h"
 #include "llvm/Support/Casting.h"
 
+#include "mlir/Conversion/SCFToGPU/SCFToGPUPass.h"
+
+
 #include "analysis/depGraph.h"
 
 #include "mlir/Dialect/DLTI/DLTI.h"
+
 
 // Dialects
 #include "mlir/Dialect/MPI/IR/MPI.h"
@@ -42,6 +46,134 @@ static mlir::SmallVector<mlir::Value> materializeOpFoldResults(mlir::ConversionP
 
 using namespace mlir;
 using namespace avial;
+
+#include "mlir/Dialect/GPU/Transforms/ParallelLoopMapper.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
+
+namespace {
+
+// Copy these from the ParallelLoopMapper.cpp since they're in anonymous namespace
+enum MappingLevel { MapGrid = 0, MapBlock = 1, Sequential = 2 };
+enum class MappingPolicy { OutermostFirst, InnermostFirst };
+
+static constexpr int kNumHardwareIds = 3;
+
+static MappingLevel &operator++(MappingLevel &mappingLevel) {
+  if (mappingLevel < Sequential) {
+    mappingLevel = static_cast<MappingLevel>(mappingLevel + 1);
+  }
+  return mappingLevel;
+}
+
+static mlir::gpu::Processor getHardwareIdForMapping(MappingLevel level, int dimension) {
+  if (dimension >= kNumHardwareIds || level == Sequential)
+    return mlir::gpu::Processor::Sequential;
+
+  switch (level) {
+  case MapGrid:
+    switch (dimension) {
+    case 0: return mlir::gpu::Processor::BlockX;
+    case 1: return mlir::gpu::Processor::BlockY;
+    case 2: return mlir::gpu::Processor::BlockZ;
+    default: return mlir::gpu::Processor::Sequential;
+    }
+  case MapBlock:
+    switch (dimension) {
+    case 0: return mlir::gpu::Processor::ThreadX;
+    case 1: return mlir::gpu::Processor::ThreadY;
+    case 2: return mlir::gpu::Processor::ThreadZ;
+    default: return mlir::gpu::Processor::Sequential;
+    }
+  default:
+    return mlir::gpu::Processor::Sequential;
+  }
+}
+
+static void mapParallelOp(mlir::scf::ParallelOp parallelOp, 
+                          MappingLevel mappingLevel = MapGrid,
+                          MappingPolicy mappingPolicy = MappingPolicy::OutermostFirst) {
+  // Do not try to add a mapping to already mapped loops or nested loops.
+  if (parallelOp->getAttr(mlir::gpu::getMappingAttrName()) ||
+      ((mappingLevel == MapGrid) && parallelOp->getParentOfType<mlir::scf::ParallelOp>()))
+    return;
+
+  const int numLoops = static_cast<int>(parallelOp.getNumLoops());
+  const int loopsToMap = std::min(numLoops, kNumHardwareIds);
+
+  mlir::MLIRContext *ctx = parallelOp.getContext();
+  mlir::Builder b(ctx);
+  llvm::SmallVector<mlir::gpu::ParallelLoopDimMappingAttr, 4> attrs;
+  attrs.reserve(numLoops);
+
+  for (int i = 0; i < numLoops; ++i) {
+    int hwMapping = kNumHardwareIds;
+    if (i < loopsToMap) {
+      hwMapping = (mappingPolicy == MappingPolicy::OutermostFirst)
+                      ? i
+                      : (loopsToMap - 1 - i);
+    }
+
+    attrs.push_back(b.getAttr<mlir::gpu::ParallelLoopDimMappingAttr>(
+        getHardwareIdForMapping(mappingLevel, hwMapping), 
+        b.getDimIdentityMap(),
+        b.getDimIdentityMap()));
+  }
+  
+  (void)mlir::gpu::setMappingAttr(parallelOp, attrs);
+  
+  ++mappingLevel;
+  // Parallel loop operations are immediately nested
+  for (mlir::Operation &op : *parallelOp.getBody()) {
+    if (auto nested = llvm::dyn_cast<mlir::scf::ParallelOp>(op))
+      mapParallelOp(nested, mappingLevel, mappingPolicy);
+  }
+}
+
+struct SelectiveGPUConversionPass
+    : public mlir::PassWrapper<SelectiveGPUConversionPass, 
+                               mlir::OperationPass<mlir::ModuleOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(SelectiveGPUConversionPass)
+  
+  void runOnOperation() override {
+    mlir::ModuleOp module = getOperation();
+    
+    module.walk([&](TaskOp taskOp) {
+      if (!hasGPU(taskOp)) {
+        return;
+      }
+      
+      // Map parallel loops in this GPU task
+      taskOp.walk([&](mlir::scf::ParallelOp parallelOp) {
+        mapParallelOp(parallelOp, MapGrid, MappingPolicy::OutermostFirst);
+      });
+    });
+  }
+
+private:
+  bool hasGPU(TaskOp taskOp) {
+    auto attr = taskOp->getAttrOfType<mlir::TargetDeviceSpecAttr>("target");
+    if (!attr)
+      return false;
+    
+    if (auto dltiAttr = mlir::dyn_cast<mlir::TargetDeviceSpecAttr>(attr)) {
+      // Safely access the gpu_count entry
+      auto entries = dltiAttr.getEntries();
+      if (entries.size() > 4) {
+        if (auto gpuCntAttr = mlir::dyn_cast<mlir::IntegerAttr>(entries[4].getValue())) {
+          return gpuCntAttr.getInt() > 0;
+        }
+      }
+    }
+    return false;
+  }
+};
+
+} // namespace
+
+std::unique_ptr<mlir::Pass> createSelectiveGPUConversionPass() {
+  return std::make_unique<SelectiveGPUConversionPass>();
+}
 
 struct LowerMPIDialectToLLVMPass
     : public PassWrapper<LowerMPIDialectToLLVMPass, OperationPass<ModuleOp>>
@@ -197,6 +329,8 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                     IRMapping rankMapping = mapping; 
 
                     Value buffer;
+
+
                     if (task->isGPU())
                     {
                         buffer = rankMapping.lookupOrNull(task->writes[0]);
@@ -305,7 +439,6 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
 
                 while (auto subviewOp = sourceBuffer.getDefiningOp<memref::SubViewOp>())
                     sourceBuffer = subviewOp.getSource();
-                
 
                 llvm::errs() << "DEBUG\n";
 
@@ -350,7 +483,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                 auto recvOp = innerThenBuilder.create<mlir::mpi::RecvOp>(
                     loc,
                     retVal,                       // return type
-                    subBuffer,                       // buffer
+                    subBuffer,                    // buffer
                     tag.getResult(),              // tag
                     taskIdModNodes->getResult(0), // source rank
                     comm->getResult(0)            // communicator
@@ -367,7 +500,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                 auto sendOp = elseinnerThenBuilder.create<mlir::mpi::SendOp>(
                     loc,
                     retVal,            // return type
-                    subBuffer,            // buffer
+                    subBuffer,         // buffer
                     tag.getResult(),   // tag
                     zero,              // dest rank
                     comm->getResult(0) // communicator
