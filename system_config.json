@@ -7,11 +7,15 @@
   "nodes": {
     "node0": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [
+
+      ]
     },
     "node1": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [
+
+      ]
     },
     "node2": {
       "cpu_arch": "x86_64",
