@@ -191,6 +191,7 @@ int main(int argc, char *argv[])
         pm.addPass(mlir::createConvertParallelLoopToGpuPass());
         pm.addPass(createGpuKernelOutliningPass());
 
+
         // Attach NVVM target with correct libdevice path
         GpuNVVMAttachTargetOptions gputargetOptions;
         gputargetOptions.chip = "sm_61";
@@ -205,15 +206,22 @@ int main(int argc, char *argv[])
         pm.nest<mlir::gpu::GPUModuleOp>().addPass(createUBToLLVMConversionPass());
 
 
+        // Multi-Core Related Passes
+        pm.addPass(mlir::createConvertSCFToOpenMPPass());
+        
+
+
     }
 
     if (lowerTollvm)
     {
 
-
-        pm.addPass(createSCFToControlFlowPass());
         
+         
 
+
+
+        
         pm.addNestedPass<func::FuncOp>(createGpuAsyncRegionPass());
         pm.addPass(mlir::createGpuDecomposeMemrefsPass());  
         pm.addPass(createGpuToLLVMConversionPass());
@@ -223,6 +231,7 @@ int main(int argc, char *argv[])
         // pm.addPass(mlir::createLowerAffinePass());
 
         pm.addPass(mlir::memref::createExpandStridedMetadataPass());
+        pm.addPass(createSCFToControlFlowPass());
         pm.addPass(createConvertMPItoLLVM());
         pm.addPass(createArithToLLVMConversionPass());
         pm.addPass(mlir::createConvertIndexToLLVMPass());
@@ -235,7 +244,9 @@ int main(int argc, char *argv[])
        
 
 
+        pm.addPass(mlir::createConvertOpenMPToLLVMPass());
         pm.addPass(createFinalizeMemRefToLLVMConversionPass());
+        
         
         pm.addPass(createConvertFuncToLLVMPass());
         pm.addPass(createConvertControlFlowToLLVMPass());
