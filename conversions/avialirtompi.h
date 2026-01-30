@@ -305,6 +305,8 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
             Operation *cloned = rewriter.clone(innerOp, mapping);
         }
 
+        llvm::errs()<<"Size: " << dependencyGraph.levelVector.size() <<"\n";
+
         // Lower the tasks
         for (std::vector<TaskOpInfo *> level : dependencyGraph.levelVector)
         {
