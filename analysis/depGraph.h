@@ -166,7 +166,6 @@ namespace mlir
             allocs.push_back(alloc);
         }
 
-        llvm::errs() << "DEBUG\n";
         for (TaskOp task : schedule.getBody().getOps<TaskOp>())
         {
 
