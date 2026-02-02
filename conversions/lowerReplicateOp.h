@@ -5,6 +5,7 @@
 #include "includes/avialDialect.h"
 #include "includes/avialTypes.h"
 #include "includes/utils.h"
+#include "analysis/arrayPartitionAnalysis.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -56,8 +57,6 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
         // End of InsOutAnalysis
 
         auto deviceVec = extractTargetDeviceSpecs(llvm::dyn_cast<mlir::ModuleOp>(module));
-
-        
 
         int64_t constupperBound = 0;
         mlir::scf::ForOp outerFor = nullptr;
@@ -125,6 +124,8 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
             // Create Subviews and add It to local Mappings.
             for (auto in : insVec)
             {
+                
+
                 auto memrefType = dyn_cast<MemRefType>(in.getType());
                 if (memrefType && memrefType.getRank() > 0)
                 {

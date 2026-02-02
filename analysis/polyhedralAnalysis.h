@@ -102,3 +102,6 @@ namespace mlir
        } 
     }
 }
+
+
+// Create an analysis to figure out the if we need to split an array of not to be sent to different nodes. 
