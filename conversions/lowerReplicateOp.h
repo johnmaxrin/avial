@@ -219,6 +219,48 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
                 if (mlir::isa<mlir::scf::ForOp>(cloned))
                 {
                     scf::ForOp outerFor = mlir::dyn_cast<mlir::scf::ForOp>(cloned);
+                    // FIXED: Find all memrefs that are written to in this loop
+                    llvm::SmallPtrSet<Value, 4> writtenMemrefs;
+                
+                    outerFor.walk([&](mlir::memref::LoadOp storeOp) {
+                        writtenMemrefs.insert(storeOp.getMemRef());
+                    });
+                
+                // Analyze each output memref
+                for (Value memref : writtenMemrefs) {
+                    llvm::errs() << "=== Analyzing memref ===\n";
+                    
+                    // Create analysis with the forOp as the root
+                    ArrayPartitioningAnalysis analysis(outerFor);
+                    auto partitionInfo = analysis.analyzeArray(memref);
+                    
+                    // Print memref type for debugging
+                    if (auto memrefType = dyn_cast<mlir::MemRefType>(memref.getType())) {
+                        llvm::errs() << "Memref type: ";
+                        memrefType.print(llvm::errs());
+                        llvm::errs() << "\n";
+                    }
+                    
+                    switch (partitionInfo.strategy)
+                    {
+                    case ArrayPartitioningInfo::NO_PARTITION:
+                        llvm::errs() << "Replicating array - no partitioning needed\n";
+                        break;
+
+                    case ArrayPartitioningInfo::ROW_PARTITION:
+                        llvm::errs() << "Partitioning by rows (dimension 0)\n";
+                        break;
+
+                    case ArrayPartitioningInfo::COL_PARTITION:
+                        llvm::errs() << "Partitioning by columns (dimension 1)\n";
+                        break;
+
+                    
+                    }
+
+                    
+                }
+
                     auto ub = outerFor.getUpperBound().getDefiningOp();
                     auto lb = outerFor.getLowerBound().getDefiningOp();
                     if (mlir::isa<mlir::arith::ConstantIndexOp>(ub))
@@ -280,6 +322,7 @@ namespace mlir
 
                 targetReplicateOp.addLegalDialect<mlir::arith::ArithDialect>();
                 targetReplicateOp.addLegalDialect<mlir::scf::SCFDialect>();
+                targetReplicateOp.addLegalDialect<mlir::affine::AffineDialect>();
                 targetReplicateOp.addLegalOp<mlir::avial::TaskOp>();
                 targetReplicateOp.addIllegalOp<avial::ReplicateOp>();
                 targetReplicateOp.addLegalOp<mlir::avial::YieldOp>();

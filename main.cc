@@ -178,7 +178,9 @@ int main(int argc, char *argv[])
         pm.addPass(mlir::avial::createConvertStdToAvialPass());
 
     if (lowerReplicate)
+    {
         pm.addPass(mlir::avial::createLowerReplicateOpPass());
+    }
 
     if (dhirToMPI)
     {
