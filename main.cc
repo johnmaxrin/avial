@@ -109,6 +109,7 @@ int main(int argc, char *argv[])
     registry.insert<mlir::affine::AffineDialect>();
     registry.insert<mlir::math::MathDialect>();
     registry.insert<mlir::omp::OpenMPDialect>();
+    registry.insert<mlir::mpi::MPIDialect>();  
 
     MLIRContext context;
     context.allowUnregisteredDialects();

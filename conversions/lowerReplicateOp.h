@@ -66,6 +66,9 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
             if (mlir::isa<mlir::scf::ForOp>(innerOp))
             {
                 outerFor = mlir::dyn_cast<mlir::scf::ForOp>(innerOp);
+
+                // Array Partition Analysis
+
                 if (mlir::isa<mlir::arith::ConstantIndexOp>(outerFor.getUpperBound().getDefiningOp()))
                 {
                     auto constUB = mlir::dyn_cast<mlir::arith::ConstantIndexOp>(outerFor.getUpperBound().getDefiningOp());
@@ -88,6 +91,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
 
         int64_t ub = constupperBound;
         int64_t num_devices = deviceVec.size();
+        llvm::SmallVector<ArrayPartitioningInfo> arrayPartitionInfoVec;
 
         int64_t total_iters = ub;
         int64_t base_chunk = total_iters / num_devices;
@@ -103,6 +107,30 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
             llvm::remove_if(insVec, [&](mlir::Value v)
                             { return outsSet.contains(v); }),
             insVec.end());
+
+        // Array Partition Analysis
+        for (auto &innerOp : op.getBody().front().getOperations())
+        {
+            if (mlir::isa<mlir::scf::ForOp>(innerOp))
+            {
+                outerFor = mlir::dyn_cast<mlir::scf::ForOp>(innerOp);
+
+                // Analyze each output memref
+                for (Value memref : insVec)
+                {
+                    ArrayPartitioningAnalysis analysis(outerFor);
+                    auto partitionInfo = analysis.analyzeArray(memref);
+                    arrayPartitionInfoVec.push_back(partitionInfo);
+                }
+
+                for (Value memref : outsVec)
+                {
+                    ArrayPartitioningAnalysis analysis(outerFor);
+                    auto partitionInfo = analysis.analyzeArray(memref);
+                    arrayPartitionInfoVec.push_back(partitionInfo);
+                }
+            }
+        }
 
         llvm::SmallVector<mlir::Value> subViewIns;
         llvm::SmallVector<mlir::Value> subViewOuts;
@@ -122,40 +150,50 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
             // TODO:  Take this device's DLTI. So that we can generate gpu.alloc() correctly.
 
             // Create Subviews and add It to local Mappings.
-            for (auto in : insVec)
+            for (int i = 0; i < insVec.size(); ++i)
             {
-                
+                auto in = insVec[i];
+                auto partitionInfo = arrayPartitionInfoVec[i];
 
-                auto memrefType = dyn_cast<MemRefType>(in.getType());
-                if (memrefType && memrefType.getRank() > 0)
+                if (partitionInfo.strategy == partitionInfo.ROW_PARTITION)
                 {
-                    // Create subview for input (if it's split along first dimension)
-                    auto shape = memrefType.getShape();
-
-                    SmallVector<OpFoldResult> offsets, sizes, strides;
-
-                    offsets.push_back(rewriter.getIndexAttr(start));
-                    for (size_t d = 1; d < shape.size(); ++d)
+                    auto memrefType = dyn_cast<MemRefType>(in.getType());
+                    if (memrefType && memrefType.getRank() > 0)
                     {
-                        offsets.push_back(rewriter.getIndexAttr(0));
+                        // Create subview for input (if it's split along first dimension)
+                        auto shape = memrefType.getShape();
+
+                        SmallVector<OpFoldResult> offsets, sizes, strides;
+
+                        offsets.push_back(rewriter.getIndexAttr(start));
+                        for (size_t d = 1; d < shape.size(); ++d)
+                        {
+                            offsets.push_back(rewriter.getIndexAttr(0));
+                        }
+
+                        sizes.push_back(rewriter.getIndexAttr(chunk));
+                        for (size_t d = 1; d < shape.size(); ++d)
+                        {
+                            sizes.push_back(rewriter.getIndexAttr(shape[d]));
+                        }
+
+                        for (size_t d = 0; d < shape.size(); ++d)
+                        {
+                            strides.push_back(rewriter.getIndexAttr(1));
+                        }
+
+                        auto subview = rewriter.create<memref::SubViewOp>(
+                            op.getLoc(), in, offsets, sizes, strides);
+
+                        subViewIns.push_back(subview);
+                        mapping.map(in, subview);
                     }
-
-                    sizes.push_back(rewriter.getIndexAttr(chunk));
-                    for (size_t d = 1; d < shape.size(); ++d)
-                    {
-                        sizes.push_back(rewriter.getIndexAttr(shape[d]));
-                    }
-
-                    for (size_t d = 0; d < shape.size(); ++d)
-                    {
-                        strides.push_back(rewriter.getIndexAttr(1));
-                    }
-
-                    auto subview = rewriter.create<memref::SubViewOp>(
-                        op.getLoc(), in, offsets, sizes, strides);
-
-                    subViewIns.push_back(subview);
-                    mapping.map(in, subview);
+                }
+                else
+                {
+                    llvm::errs() << "No Patition!\n";
+                    mapping.map(in,in);
+                    subViewIns.push_back(in);
                 }
             }
 
@@ -219,47 +257,6 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
                 if (mlir::isa<mlir::scf::ForOp>(cloned))
                 {
                     scf::ForOp outerFor = mlir::dyn_cast<mlir::scf::ForOp>(cloned);
-                    // FIXED: Find all memrefs that are written to in this loop
-                    llvm::SmallPtrSet<Value, 4> writtenMemrefs;
-                
-                    outerFor.walk([&](mlir::memref::LoadOp storeOp) {
-                        writtenMemrefs.insert(storeOp.getMemRef());
-                    });
-                
-                // Analyze each output memref
-                for (Value memref : writtenMemrefs) {
-                    llvm::errs() << "=== Analyzing memref ===\n";
-                    
-                    // Create analysis with the forOp as the root
-                    ArrayPartitioningAnalysis analysis(outerFor);
-                    auto partitionInfo = analysis.analyzeArray(memref);
-                    
-                    // Print memref type for debugging
-                    if (auto memrefType = dyn_cast<mlir::MemRefType>(memref.getType())) {
-                        llvm::errs() << "Memref type: ";
-                        memrefType.print(llvm::errs());
-                        llvm::errs() << "\n";
-                    }
-                    
-                    switch (partitionInfo.strategy)
-                    {
-                    case ArrayPartitioningInfo::NO_PARTITION:
-                        llvm::errs() << "Replicating array - no partitioning needed\n";
-                        break;
-
-                    case ArrayPartitioningInfo::ROW_PARTITION:
-                        llvm::errs() << "Partitioning by rows (dimension 0)\n";
-                        break;
-
-                    case ArrayPartitioningInfo::COL_PARTITION:
-                        llvm::errs() << "Partitioning by columns (dimension 1)\n";
-                        break;
-
-                    
-                    }
-
-                    
-                }
 
                     auto ub = outerFor.getUpperBound().getDefiningOp();
                     auto lb = outerFor.getLowerBound().getDefiningOp();
