@@ -400,7 +400,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                             ifbuilder.create<memref::CopyOp>(loc, buffer, newBuffer);
                             
                             auto gpuAlloc = ifbuilder.create<gpu::AllocOp>(loc, TypeRange(newBuffer), 
-                                                                        ValueRange{}, ValueRange{}, ValueRange{});
+                                                                        ValueRange{}, dynamicSizes, ValueRange{});
                             Value gpuBuffer = gpuAlloc.getMemref();
                             ifbuilder.create<gpu::MemcpyOp>(loc, TypeRange{}, ValueRange{}, gpuBuffer, newBuffer);
                             
@@ -437,7 +437,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                             ifbuilder.create<memref::CopyOp>(loc, buffer, newBuffer);
                             
                             auto gpuAlloc = ifbuilder.create<gpu::AllocOp>(loc, TypeRange(newBuffer), 
-                                                                        ValueRange{}, ValueRange{}, ValueRange{});
+                                                                        ValueRange{}, dynamicSizes, ValueRange{});
                             Value gpuBuffer = gpuAlloc.getMemref();
                             ifbuilder.create<gpu::MemcpyOp>(loc, TypeRange{}, ValueRange{}, gpuBuffer, newBuffer);
                             
@@ -498,49 +498,78 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
             taskId = 0;
             for (auto task : level)
             {
-                for (auto writeOp : task->writes)
-                {
-                    Value buffer = mapping.lookupOrNull(writeOp);
-                    
+                Value buffer = mapping.lookupOrNull(task->writes[0]);
 
-                    auto cond = rewriter.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), zero.getResult());
-                    auto ifOp = rewriter.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, cond, true);
-                    OpBuilder thenBuilder = ifOp.getThenBodyBuilder(rewriter.getListener()); // Rank = 0
-                    OpBuilder elseBuilder = ifOp.getElseBodyBuilder(rewriter.getListener()); // Rank != 0
+                Value sourceBuffer = buffer;
 
-                    // If Zero; Receive.
-                    auto taskIDOp = thenBuilder.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(taskId));
-                    auto taskIdModNodes = thenBuilder.create<mlir::arith::RemSIOp>(loc, taskIDOp->getResult(0), getNodes->getResult(1));
-                    auto innercond = thenBuilder.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::ne, zero.getResult(), taskIdModNodes.getResult());
-                    auto innerIf = thenBuilder.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, innercond, false);
-                    auto innerThenBuilder = innerIf.getThenBodyBuilder(thenBuilder.getListener()); // Task doesn't belong to Rank 0
+                while (auto subviewOp = sourceBuffer.getDefiningOp<memref::SubViewOp>())
+                    sourceBuffer = subviewOp.getSource();
 
-                    auto recvOp = innerThenBuilder.create<mlir::mpi::RecvOp>(
-                        loc,
-                        retVal,                       // return type
-                        buffer,                    // buffer
-                        tag.getResult(),              // tag
-                        taskIdModNodes->getResult(0), // source rank
-                        comm->getResult(0)            // communicator
-                    );
+                llvm::errs() << "DEBUG\n";
 
-                    llvm::errs() << "DEBUG3\n";
-                    // Else Send
-                    auto elsetaskIDOp = elseBuilder.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(taskId));
-                    auto elsetaskIdModNodes = elseBuilder.create<mlir::arith::RemSIOp>(loc, elsetaskIDOp->getResult(0), getNodes->getResult(1));
-                    auto elsecond = elseBuilder.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), elsetaskIdModNodes.getResult());
-                    auto elseinnerIf = elseBuilder.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, elsecond, false);
-                    auto elseinnerThenBuilder = elseinnerIf.getThenBodyBuilder(elseBuilder.getListener()); // Task belongs to this rank
+                auto taskOp = dyn_cast<mlir::avial::TaskOp>(task->op);
+                llvm::ArrayRef outRanges = taskOp.getOutRanges();
 
-                    auto sendOp = elseinnerThenBuilder.create<mlir::mpi::SendOp>(
-                        loc,
-                        retVal,            // return type
-                        buffer,         // buffer
-                        tag.getResult(),   // tag
-                        zero,              // dest rank
-                        comm->getResult(0) // communicator
-                    );
-                }
+                SmallVector<OpFoldResult> offsets = {
+                    rewriter.getIndexAttr(outRanges[0]), // for dim 0 // Get the 667
+                    rewriter.getIndexAttr(0)             // for dim 1 (start at 0)
+                };
+
+                SmallVector<OpFoldResult> sizes = {
+                    rewriter.getIndexAttr((outRanges[1] - outRanges[0]) * 1000), // TODO: Use memref to get the shape.
+                    rewriter.getIndexAttr(1000)};
+
+                SmallVector<OpFoldResult> strides = {
+                    rewriter.getIndexAttr(1), // dim 0
+                    rewriter.getIndexAttr(1)  // dim 1
+                };
+
+                Value subBuffer = rewriter.create<memref::SubViewOp>(
+                    loc,
+                    sourceBuffer,
+                    offsets,
+                    sizes,
+                    strides);
+
+                llvm::errs() << "DEBUG2\n";
+
+                auto cond = rewriter.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), zero.getResult());
+                auto ifOp = rewriter.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, cond, true);
+                OpBuilder thenBuilder = ifOp.getThenBodyBuilder(rewriter.getListener()); // Rank = 0
+                OpBuilder elseBuilder = ifOp.getElseBodyBuilder(rewriter.getListener()); // Rank != 0
+
+                // If Zero; Receive.
+                auto taskIDOp = thenBuilder.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(taskId));
+                auto taskIdModNodes = thenBuilder.create<mlir::arith::RemSIOp>(loc, taskIDOp->getResult(0), getNodes->getResult(1));
+                auto innercond = thenBuilder.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::ne, zero.getResult(), taskIdModNodes.getResult());
+                auto innerIf = thenBuilder.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, innercond, false);
+                auto innerThenBuilder = innerIf.getThenBodyBuilder(thenBuilder.getListener()); // Task doesn't belong to Rank 0
+
+                auto recvOp = innerThenBuilder.create<mlir::mpi::RecvOp>(
+                    loc,
+                    retVal,                       // return type
+                    subBuffer,                    // buffer
+                    tag.getResult(),              // tag
+                    taskIdModNodes->getResult(0), // source rank
+                    comm->getResult(0)            // communicator
+                );
+
+                llvm::errs() << "DEBUG3\n";
+                // Else Send
+                auto elsetaskIDOp = elseBuilder.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(taskId));
+                auto elsetaskIdModNodes = elseBuilder.create<mlir::arith::RemSIOp>(loc, elsetaskIDOp->getResult(0), getNodes->getResult(1));
+                auto elsecond = elseBuilder.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), elsetaskIdModNodes.getResult());
+                auto elseinnerIf = elseBuilder.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, elsecond, false);
+                auto elseinnerThenBuilder = elseinnerIf.getThenBodyBuilder(elseBuilder.getListener()); // Task belongs to this rank
+
+                auto sendOp = elseinnerThenBuilder.create<mlir::mpi::SendOp>(
+                    loc,
+                    retVal,            // return type
+                    subBuffer,         // buffer
+                    tag.getResult(),   // tag
+                    zero,              // dest rank
+                    comm->getResult(0) // communicator
+                ); 
 
                 ++taskId;
             }
@@ -555,6 +584,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         rewriter.eraseOp(op);
 
         llvm::errs() << "DEBUG3\n";
+        module.dump();
 
         return success();
     }
