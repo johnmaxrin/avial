@@ -97,16 +97,12 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
         int64_t base_chunk = total_iters / num_devices;
         int64_t remainder = total_iters % num_devices;
 
-        llvm::SmallVector<mlir::Value> insVec(insoutAnalysis.ins.begin(),
-                                              insoutAnalysis.ins.end());
-        llvm::SmallVector<mlir::Value> outsVec(insoutAnalysis.outs.begin(),
-                                               insoutAnalysis.outs.end());
+        llvm::SmallVector<mlir::Value> insVec(op.getReads().begin(),
+                                              op.getReads().end());
+        llvm::SmallVector<mlir::Value> outsVec(op.getWrites().begin(),
+                                               op.getWrites().end());
 
-        llvm::SmallPtrSet<mlir::Value, 8> outsSet(outsVec.begin(), outsVec.end());
-        insVec.erase(
-            llvm::remove_if(insVec, [&](mlir::Value v)
-                            { return outsSet.contains(v); }),
-            insVec.end());
+        
 
         // Array Partition Analysis
         for (auto &innerOp : op.getBody().front().getOperations())
@@ -149,6 +145,8 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
 
             // TODO:  Take this device's DLTI. So that we can generate gpu.alloc() correctly.
 
+            llvm::errs() << "Size:"<< insVec.size()<<"\n";
+
             // Create Subviews and add It to local Mappings.
             for (int i = 0; i < insVec.size(); ++i)
             {
@@ -187,11 +185,12 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
 
                         subViewIns.push_back(subview);
                         mapping.map(in, subview);
+
+                        llvm::errs() << "Hi\n";
                     }
                 }
                 else
                 {
-                    llvm::errs() << "No Patition!\n";
                     mapping.map(in,in);
                     subViewIns.push_back(in);
                 }

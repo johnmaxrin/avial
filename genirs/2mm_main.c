@@ -64,7 +64,7 @@ int main()
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     if (rank == 0)
     {
-        printf("Sample results from D hi:\n");
+        printf("Sample results from D:\n");
         for (int i = 0; i < 4 && i < ni; i++)
         {
             for (int j = 0; j < 4 && j < nl; j++)

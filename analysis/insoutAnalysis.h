@@ -67,4 +67,57 @@ struct InsOutsAnalysis
             os << "\n";
         }
     }
+
+    // Create a function that will return all reads and writes inside a
+    // certain Op. Say Affine.for
+    // If a memref is in both read and write, it only appears in write
+    // Returns: result[0] = reads (ins), result[1] = writes (outs)
+    static llvm::SmallVector<llvm::SmallVector<mlir::Value>> getInsandOut(mlir::Operation *op)
+    {
+        llvm::SmallVector<llvm::SmallVector<mlir::Value>> result(2);
+        llvm::SmallDenseSet<mlir::Value> insSet;
+        llvm::SmallDenseSet<mlir::Value> outsSet;
+
+        // Walk through all nested operations
+        op->walk([&](mlir::Operation *nestedOp)
+                 {
+      // Check for affine load operations (reads)
+      if (auto affineLoad = mlir::dyn_cast<mlir::affine::AffineLoadOp>(nestedOp)) {
+        insSet.insert(affineLoad.getMemRef());
+      }
+      // Check for affine store operations (writes)
+      else if (auto affineStore = mlir::dyn_cast<mlir::affine::AffineStoreOp>(nestedOp)) {
+        outsSet.insert(affineStore.getMemRef());
+      }
+      // Check for memref load operations (reads)
+      else if (auto memrefLoad = mlir::dyn_cast<mlir::memref::LoadOp>(nestedOp)) {
+        insSet.insert(memrefLoad.getMemRef());
+      }
+      // Check for memref store operations (writes)
+      else if (auto memrefStore = mlir::dyn_cast<mlir::memref::StoreOp>(nestedOp)) {
+        outsSet.insert(memrefStore.getMemRef());
+      } });
+
+        // If a memref is in both read and write, keep it only in write
+        // Remove from insSet any memref that is also in outsSet
+        llvm::SmallVector<mlir::Value> toRemove;
+        for (auto val : insSet)
+        {
+            if (outsSet.contains(val))
+            {
+                toRemove.push_back(val);
+            }
+        }
+
+        for (auto val : toRemove)
+        {
+            insSet.erase(val);
+        }
+
+        // Convert sets to vectors
+        result[0].assign(insSet.begin(), insSet.end());
+        result[1].assign(outsSet.begin(), outsSet.end());
+
+        return result;
+    }
 };

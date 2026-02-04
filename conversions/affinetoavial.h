@@ -86,8 +86,10 @@ namespace mlir
                 {
 
                     affine::AffineForOp forOp = mlir::dyn_cast<affine::AffineForOp>(op);
+                    auto insouts = InsOutsAnalysis::getInsandOut(forOp);
+
                     builder.setInsertionPoint(forOp);
-                    auto replicateOp = builder.create<mlir::avial::ReplicateOp>(forOp.getLoc());
+                    auto replicateOp = builder.create<mlir::avial::ReplicateOp>(forOp.getLoc(), insouts[0], insouts[1]);
                     replicateOp->setAttr("replicateID", builder.getI64IntegerAttr(repId));
 
                     mlir::Region &replicateRegion = replicateOp.getBodyRegion();
