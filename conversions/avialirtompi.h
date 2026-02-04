@@ -583,8 +583,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         rewriter.create<func::ReturnOp>(loc);
         rewriter.eraseOp(op);
 
-        llvm::errs() << "DEBUG3\n";
-        module.dump();
+        
 
         return success();
     }
