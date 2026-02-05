@@ -14,6 +14,8 @@
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 
 #include "analysis/insoutAnalysis.h"
+#include "analysis/broadcastAnalysis.h"
+
 
 using namespace mlir;
 
@@ -51,8 +53,8 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
             Add Desc
         */
 
-        InsOutsAnalysis insoutAnalysis(schOp);
-        insoutAnalysis.print(llvm::errs());
+        // InsOutsAnalysis insoutAnalysis(schOp);
+        // insoutAnalysis.print(llvm::errs());
 
         // End of InsOutAnalysis
 
@@ -91,7 +93,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
 
         int64_t ub = constupperBound;
         int64_t num_devices = deviceVec.size();
-        llvm::SmallVector<ArrayPartitioningInfo> arrayPartitionInfoVec;
+        llvm::SmallVector<mlir::avial::ArrayPartitioningInfo> arrayPartitionInfoVec;
 
         int64_t total_iters = ub;
         int64_t base_chunk = total_iters / num_devices;
@@ -114,14 +116,14 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
                 // Analyze each output memref
                 for (Value memref : insVec)
                 {
-                    ArrayPartitioningAnalysis analysis(outerFor);
+                    mlir::avial::ArrayPartitioningAnalysis analysis(outerFor);
                     auto partitionInfo = analysis.analyzeArray(memref);
                     arrayPartitionInfoVec.push_back(partitionInfo);
                 }
 
                 for (Value memref : outsVec)
                 {
-                    ArrayPartitioningAnalysis analysis(outerFor);
+                    mlir::avial::ArrayPartitioningAnalysis analysis(outerFor);
                     auto partitionInfo = analysis.analyzeArray(memref);
                     arrayPartitionInfoVec.push_back(partitionInfo);
                 }
@@ -145,7 +147,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
 
             // TODO:  Take this device's DLTI. So that we can generate gpu.alloc() correctly.
 
-            llvm::errs() << "Size:"<< insVec.size()<<"\n";
+            bool needBroadcast = false;
 
             // Create Subviews and add It to local Mappings.
             for (int i = 0; i < insVec.size(); ++i)
@@ -196,6 +198,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
                 }
             }
 
+            needBroadcast = false;
             for (auto out : outsVec)
             {
                 auto memrefType = cast<MemRefType>(out.getType());
@@ -225,8 +228,22 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
 
                 subViewOuts.push_back(subview);
                 mapping.map(out, subview);
+             
+                if(mlir::avial::doesOutputNeedBroadcast(op,out))
+                    needBroadcast = true;
+
             }
 
+
+
+            // Check if this task's output is being used somewhere? after this task.
+            // If yes, check if that access needs partitoning or not. If no partition,
+            // then we have  to broadcast, so that all nodes will get the processed data. 
+            
+
+        
+
+            
             mlir::DenseI64ArrayAttr outRanges = rewriter.getDenseI64ArrayAttr({start, end});
             auto taskOp = rewriter.create<avial::TaskOp>(
                 op.getLoc(),
@@ -234,6 +251,12 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
                 deviceVec[i],
                 ValueRange(subViewIns), rewriter.getDenseI64ArrayAttr({0, 0}), ValueRange(subViewOuts), outRanges, ValueRange{outsVec});
             taskOp->setAttr("name", rewriter.getStringAttr(std::to_string(i)));
+
+            // Broadcast Stuff
+            if(needBroadcast)
+                taskOp->setAttr("needBroadcast",rewriter.getBoolAttr(true));
+            else
+                taskOp->setAttr("needBroadcast",rewriter.getBoolAttr(false));
 
             mlir::IntegerAttr repIdAttr;
             if (auto attr = op->getAttrOfType<mlir::IntegerAttr>("replicateID"))

@@ -34,6 +34,8 @@
 
 #include "mlir/Dialect/DLTI/DLTI.h"
 
+#include "includes/utils.h"
+
 // Dialects
 #include "mlir/Dialect/MPI/IR/MPI.h"
 
@@ -344,6 +346,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         for (std::vector<TaskOpInfo *> level : dependencyGraph.levelVector)
         {
             llvm::DenseMap<Value, Value> gpuBufferMap;
+            llvm::SmallVector<Value> toBroadcast;
             int taskId = 0;
             for (auto task : level)
             {
@@ -496,6 +499,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
             auto tag = rewriter.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(0));
 
             taskId = 0;
+
             for (auto task : level)
             {
                 Value buffer = mapping.lookupOrNull(task->writes[0]);
@@ -533,6 +537,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
 
                 llvm::errs() << "DEBUG2\n";
 
+                // Default Communication.
                 auto cond = rewriter.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), zero.getResult());
                 auto ifOp = rewriter.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, cond, true);
                 OpBuilder thenBuilder = ifOp.getThenBodyBuilder(rewriter.getListener()); // Rank = 0
@@ -569,10 +574,35 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                     tag.getResult(),   // tag
                     zero,              // dest rank
                     comm->getResult(0) // communicator
-                ); 
+                );
+
+                // Boadcast Communication.
+                // if needBoroadcast, collect the memref to an array.
+                // After the level, just broadcast.
+                BoolAttr needBoradcast = mlir::dyn_cast<mlir::BoolAttr>(taskOp->getAttr("needBroadcast"));
+                if (needBoradcast.getValue())
+                    toBroadcast.push_back(subBuffer);
 
                 ++taskId;
             }
+
+            // Do the Broadcast. Rank 0 sends. Remaing receives.
+            // add all the 0th dimension of subbuffers in the tobroadcast array
+            //  create a subview with sum of all dimensions and
+            // do the communication.
+            generateBroadcastCommunication(
+                rewriter,
+                loc,
+                toBroadcast,
+                rank.getResult(0),
+                zero.getResult(),
+                comm->getResult(0),
+                retVal,
+                tag.getResult(),
+                getNodes->getResult(1) // Number of ranks
+            );
+
+            toBroadcast.clear();
 
             // ----- Comm end ----- //
         }
@@ -582,8 +612,6 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         rewriter.create<mpi::Barrier>(loc, retVal, comm->getResult(0));
         rewriter.create<func::ReturnOp>(loc);
         rewriter.eraseOp(op);
-
-        
 
         return success();
     }

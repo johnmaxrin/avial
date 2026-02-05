@@ -1,3 +1,6 @@
+#ifndef ARRAYPARTITION_ANALYSIS_H
+#define ARRAYPARTITION_ANALYSIS_H
+
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -218,3 +221,5 @@ namespace mlir
 
     } // namespace avial
 } // namespace mlir
+
+#endif
