@@ -1,4 +1,4 @@
-Computation completed in 3173.9433 seconds
+Computation completed in 884.9958 seconds
 
 ========================================
 VERIFICATION at Rank 0
@@ -14,31 +14,10 @@ For all-ones input, expected C[i][j] = 2*alpha*M + beta*C_init
                                       = 3001.20
 
 Checking C matrix values...
-Rank 0: ERROR in C[334][666]: expected 3001.199951, got 2329.199951 (diff=672.000000)
-Rank 0: ERROR in C[335][666]: expected 3001.199951, got 2329.199951 (diff=672.000000)
-Rank 0: ERROR in C[336][666]: expected 3001.199951, got 2329.199951 (diff=672.000000)
-Rank 0: ERROR in C[337][666]: expected 3001.199951, got 2329.199951 (diff=672.000000)
-Rank 0: ERROR in C[338][666]: expected 3001.199951, got 2329.199951 (diff=672.000000)
-Rank 0: ERROR in C[339][666]: expected 3001.199951, got 2329.199951 (diff=672.000000)
-Rank 0: ERROR in C[340][666]: expected 3001.199951, got 2329.199951 (diff=672.000000)
-Rank 0: ERROR in C[341][666]: expected 3001.199951, got 2329.199951 (diff=672.000000)
-Rank 0: ERROR in C[342][666]: expected 3001.199951, got 2329.199951 (diff=672.000000)
-Rank 0: ERROR in C[343][666]: expected 3001.199951, got 2329.199951 (diff=672.000000)
-Rank 0: ... and 333323 more errors in C
-✗ C matrix has 333333 ERRORS (tolerance 0.010000)
+✓ C matrix is CORRECT (within tolerance 0.010000)
 
 Checking if C is symmetric...
-  Symmetry error at C[0][667]=3001.199951 vs C[667][0]=1.200000 (diff=3000.000000)
-  Symmetry error at C[0][668]=3001.199951 vs C[668][0]=1.200000 (diff=3000.000000)
-  Symmetry error at C[0][669]=3001.199951 vs C[669][0]=1.200000 (diff=3000.000000)
-  Symmetry error at C[0][670]=3001.199951 vs C[670][0]=1.200000 (diff=3000.000000)
-  Symmetry error at C[0][671]=3001.199951 vs C[671][0]=1.200000 (diff=3000.000000)
-  Symmetry error at C[0][672]=3001.199951 vs C[672][0]=1.200000 (diff=3000.000000)
-  Symmetry error at C[0][673]=3001.199951 vs C[673][0]=1.200000 (diff=3000.000000)
-  Symmetry error at C[0][674]=3001.199951 vs C[674][0]=1.200000 (diff=3000.000000)
-  Symmetry error at C[0][675]=3001.199951 vs C[675][0]=1.200000 (diff=3000.000000)
-  Symmetry error at C[0][676]=3001.199951 vs C[676][0]=1.200000 (diff=3000.000000)
-✗ C matrix has 222443 symmetry violations
+✓ C matrix is SYMMETRIC
 
 ========================================
 SAMPLE OUTPUT
@@ -53,7 +32,6 @@ Rank 0: C (result) (1000x1000) sample:
   ...
 
 ========================================
-RESULT: ✗ TESTS FAILED
-  Errors in C: 333333
-  Symmetry violations: 222443
+RESULT: ✓ ALL TESTS PASSED
+  C matrix is correct and symmetric
 ========================================
