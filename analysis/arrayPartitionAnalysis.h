@@ -16,9 +16,9 @@ namespace mlir
         {
             enum PartitioningStrategy
             {
-                NO_PARTITION,    // Replicate
-                ROW_PARTITION,   // Split by rows
-                COL_PARTITION,   // Split by columns
+                NO_PARTITION,  // Replicate
+                ROW_PARTITION, // Split by rows
+                COL_PARTITION, // Split by columns
             };
 
             PartitioningStrategy strategy;
@@ -43,40 +43,42 @@ namespace mlir
                 llvm::SmallVector<Operation *> stores;
 
                 // Affine loads/stores
-                rootOp->walk([&](mlir::affine::AffineLoadOp loadOp) {
+                rootOp->walk([&](mlir::affine::AffineLoadOp loadOp)
+                             {
                     if (loadOp.getMemRef() == memref)
-                        loads.push_back(loadOp.getOperation());
-                });
+                        loads.push_back(loadOp.getOperation()); });
 
-                rootOp->walk([&](mlir::affine::AffineStoreOp storeOp) {
+                rootOp->walk([&](mlir::affine::AffineStoreOp storeOp)
+                             {
                     if (storeOp.getMemRef() == memref)
-                        stores.push_back(storeOp.getOperation());
-                });
+                        stores.push_back(storeOp.getOperation()); });
 
                 // Regular memref loads/stores
-                rootOp->walk([&](mlir::memref::LoadOp loadOp) {
+                rootOp->walk([&](mlir::memref::LoadOp loadOp)
+                             {
                     if (loadOp.getMemRef() == memref)
-                        loads.push_back(loadOp.getOperation());
-                });
+                        loads.push_back(loadOp.getOperation()); });
 
-                rootOp->walk([&](mlir::memref::StoreOp storeOp) {
+                rootOp->walk([&](mlir::memref::StoreOp storeOp)
+                             {
                     if (storeOp.getMemRef() == memref)
-                        stores.push_back(storeOp.getOperation());
-                });
+                        stores.push_back(storeOp.getOperation()); });
 
                 bool isInput = stores.empty();
                 bool isOutput = !stores.empty();
 
                 auto memrefType = dyn_cast<mlir::MemRefType>(memref.getType());
-                if (!memrefType || memrefType.getRank() != 2) {
+                if (!memrefType || memrefType.getRank() != 2)
+                {
                     info.strategy = ArrayPartitioningInfo::NO_PARTITION;
                     return info;
                 }
 
                 // Find the outermost loop (affine or scf)
                 Value outerIV = findOutermostLoopIV(loads, stores);
-                
-                if (!outerIV) {
+
+                if (!outerIV)
+                {
                     info.strategy = ArrayPartitioningInfo::NO_PARTITION;
                     return info;
                 }
@@ -84,30 +86,64 @@ namespace mlir
                 // Check which dimension uses the outer IV
                 int partitionDim = -1;
 
-                if (isOutput && !stores.empty()) {
+                if (isOutput && !stores.empty())
+                {
                     partitionDim = getDimensionForIV(stores[0], outerIV);
-                } else if (isInput && !loads.empty()) {
+                }
+                else if (isInput && !loads.empty())
+                {
                     partitionDim = getDimensionForIV(loads[0], outerIV);
+                }
+
+                if (partitionDim != -1)
+                {
+                    // Check all other accesses to ensure they use the same pattern
+                    auto checkConsistency = [&](const llvm::SmallVector<Operation *> &ops)
+                    {
+                        for (Operation *op : ops)
+                        {
+                            int dim = getDimensionForIV(op, outerIV);
+                            if (dim != partitionDim)
+                            {
+                                return false; // Inconsistent!
+                            }
+                        }
+                        return true;
+                    };
+
+                    if (!checkConsistency(loads) || !checkConsistency(stores))
+                    {
+                        partitionDim = -1; // Fall back to NO_PARTITION
+                        llvm::errs() << "→ Inconsistent access pattern detected\n";
+                    }
                 }
 
                 llvm::errs() << "=== Analysis ===\n";
                 llvm::errs() << "Is input: " << isInput << ", Is output: " << isOutput << "\n";
                 llvm::errs() << "Partition dimension: " << partitionDim << "\n";
 
-                if (partitionDim == 0) {
+                if (partitionDim == 0)
+                {
                     info.strategy = ArrayPartitioningInfo::ROW_PARTITION;
                     info.partitionDimension = 0;
                     llvm::errs() << "→ ROW_PARTITION\n";
-                } else if (partitionDim == 1) {
-                    if (isInput) {
+                }
+                else if (partitionDim == 1)
+                {
+                    if (isInput)
+                    {
                         info.strategy = ArrayPartitioningInfo::NO_PARTITION;
                         llvm::errs() << "→ REPLICATE (column-accessed input)\n";
-                    } else {
+                    }
+                    else
+                    {
                         info.strategy = ArrayPartitioningInfo::COL_PARTITION;
                         info.partitionDimension = 1;
                         llvm::errs() << "→ COL_PARTITION\n";
                     }
-                } else {
+                }
+                else
+                {
                     info.strategy = ArrayPartitioningInfo::NO_PARTITION;
                     llvm::errs() << "→ NO_PARTITION\n";
                 }
@@ -120,14 +156,14 @@ namespace mlir
 
             // Find the outermost loop IV (works for both affine and scf loops)
             Value findOutermostLoopIV(llvm::SmallVector<Operation *> &loads,
-                                       llvm::SmallVector<Operation *> &stores)
+                                      llvm::SmallVector<Operation *> &stores)
             {
                 Operation *accessOp = nullptr;
                 if (!loads.empty())
                     accessOp = loads[0];
                 else if (!stores.empty())
                     accessOp = stores[0];
-                
+
                 if (!accessOp)
                     return Value();
 
@@ -135,19 +171,27 @@ namespace mlir
                 Operation *op = accessOp;
 
                 // Walk up to find the outermost loop
-                while (op) {
-                    if (auto affineFor = dyn_cast<mlir::affine::AffineForOp>(op)) {
+                while (op)
+                {
+                    if (auto affineFor = dyn_cast<mlir::affine::AffineForOp>(op))
+                    {
                         outermostIV = affineFor.getInductionVar();
                         op = op->getParentOp();
-                    } else if (auto scfFor = dyn_cast<mlir::scf::ForOp>(op)) {
+                    }
+                    else if (auto scfFor = dyn_cast<mlir::scf::ForOp>(op))
+                    {
                         outermostIV = scfFor.getInductionVar();
                         op = op->getParentOp();
-                    } else if (auto scfParallel = dyn_cast<mlir::scf::ParallelOp>(op)) {
+                    }
+                    else if (auto scfParallel = dyn_cast<mlir::scf::ParallelOp>(op))
+                    {
                         // For parallel, use the first IV
                         if (!scfParallel.getInductionVars().empty())
                             outermostIV = scfParallel.getInductionVars()[0];
                         op = op->getParentOp();
-                    } else {
+                    }
+                    else
+                    {
                         op = op->getParentOp();
                     }
                 }
@@ -161,28 +205,36 @@ namespace mlir
                 llvm::SmallVector<Value> indices;
 
                 // Extract indices based on operation type
-                if (auto affineLoad = dyn_cast<mlir::affine::AffineLoadOp>(memOp)) {
+                if (auto affineLoad = dyn_cast<mlir::affine::AffineLoadOp>(memOp))
+                {
                     indices.append(affineLoad.getMapOperands().begin(),
-                                  affineLoad.getMapOperands().end());
-                } else if (auto affineStore = dyn_cast<mlir::affine::AffineStoreOp>(memOp)) {
+                                   affineLoad.getMapOperands().end());
+                }
+                else if (auto affineStore = dyn_cast<mlir::affine::AffineStoreOp>(memOp))
+                {
                     indices.append(affineStore.getMapOperands().begin(),
-                                  affineStore.getMapOperands().end());
-                } else if (auto load = dyn_cast<mlir::memref::LoadOp>(memOp)) {
+                                   affineStore.getMapOperands().end());
+                }
+                else if (auto load = dyn_cast<mlir::memref::LoadOp>(memOp))
+                {
                     indices.append(load.getIndices().begin(),
-                                  load.getIndices().end());
-                } else if (auto store = dyn_cast<mlir::memref::StoreOp>(memOp)) {
+                                   load.getIndices().end());
+                }
+                else if (auto store = dyn_cast<mlir::memref::StoreOp>(memOp))
+                {
                     indices.append(store.getIndices().begin(),
-                                  store.getIndices().end());
+                                   store.getIndices().end());
                 }
 
                 // Find which dimension uses the target IV
-                for (int dim = 0; dim < indices.size(); ++dim) {
+                for (int dim = 0; dim < indices.size(); ++dim)
+                {
                     Value idx = indices[dim];
-                    
+
                     // Direct match
                     if (idx == targetIV)
                         return dim;
-                    
+
                     // Check if it's derived from the IV (through arith ops)
                     if (isDerivedFromValue(idx, targetIV))
                         return dim;
@@ -198,12 +250,14 @@ namespace mlir
                     return true;
 
                 // Check if it's an arithmetic operation using the source
-                if (auto defOp = derived.getDefiningOp()) {
-                    for (Value operand : defOp->getOperands()) {
+                if (auto defOp = derived.getDefiningOp())
+                {
+                    for (Value operand : defOp->getOperands())
+                    {
                         if (operand == source)
                             return true;
                         // Recursive check (limit depth to avoid infinite loops)
-                        if (operand.getDefiningOp() && 
+                        if (operand.getDefiningOp() &&
                             isDerivedFromValue(operand, source))
                             return true;
                     }
