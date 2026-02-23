@@ -74,7 +74,7 @@ int main(int argc, char **argv) {
     int rank=0, size=0;
     
     
-    int M = 1000, K = 1000, N = 1000;
+    int M = 10000, K = 10000, N = 10000;
     float *A = (float*) aligned_alloc(64, M*K*sizeof(float));
     float *B = (float*) aligned_alloc(64, K*N*sizeof(float));
     float *C = (float*) aligned_alloc(64, M*N*sizeof(float));
