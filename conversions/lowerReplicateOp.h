@@ -59,7 +59,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
         // End of InsOutAnalysis
 
         auto deviceVec = extractTargetDeviceSpecs(llvm::dyn_cast<mlir::ModuleOp>(module));
-
+        llvm::errs() << "Device Count: "<< deviceVec.size();
         int64_t constupperBound = 0;
         mlir::scf::ForOp outerFor = nullptr;
 

@@ -214,6 +214,7 @@ omp.par.exit:                                     ; preds = %omp_parallel
   call void @mgpuMemcpy(ptr %177, ptr %167, i64 1332000, ptr %176)
   call void @mgpuStreamSynchronize(ptr %176)
   call void @mgpuStreamDestroy(ptr %176)
+<<<<<<< HEAD
   %178 = call ptr @malloc(i64 1332000)
   %179 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %102, 3, 0
   %180 = mul i64 %179, 1
@@ -247,6 +248,41 @@ omp.par.exit:                                     ; preds = %omp_parallel
   %203 = getelementptr float, ptr null, i64 %202
   %204 = ptrtoint ptr %203 to i64
   call void @mgpuMemcpy(ptr %201, ptr %192, i64 %204, ptr %197)
+=======
+  %178 = mul i64 %13, 1000
+  %179 = getelementptr float, ptr null, i64 %178
+  %180 = ptrtoint ptr %179 to i64
+  %181 = call ptr @malloc(i64 %180)
+  %182 = mul i64 %13, 1
+  %183 = mul i64 %182, %14
+  %184 = mul i64 %183, 4
+  %185 = getelementptr float, ptr %11, i64 %12
+  call void @llvm.memcpy.p0.p0.i64(ptr %181, ptr %185, i64 %184, i1 false)
+  %186 = call ptr @mgpuStreamCreate()
+  %187 = mul i64 %13, 1000
+  %188 = getelementptr float, ptr null, i64 %187
+  %189 = ptrtoint ptr %188 to i64
+  %190 = call ptr @mgpuMemAlloc(i64 %189, ptr %186, i8 0)
+  %191 = mul i64 %13, 1000
+  %192 = getelementptr float, ptr null, i64 %191
+  %193 = ptrtoint ptr %192 to i64
+  call void @mgpuMemcpy(ptr %190, ptr %181, i64 %193, ptr %186)
+  call void @mgpuStreamSynchronize(ptr %186)
+  call void @mgpuStreamDestroy(ptr %186)
+  %194 = call ptr @malloc(i64 1332000)
+  %195 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %102, 3, 0
+  %196 = mul i64 %195, 1
+  %197 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %102, 3, 1
+  %198 = mul i64 %196, %197
+  %199 = mul i64 %198, 4
+  %200 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %102, 1
+  %201 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %102, 2
+  %202 = getelementptr float, ptr %200, i64 %201
+  call void @llvm.memcpy.p0.p0.i64(ptr %194, ptr %202, i64 %199, i1 false)
+  %203 = call ptr @mgpuStreamCreate()
+  %204 = call ptr @mgpuMemAlloc(i64 1332000, ptr %203, i8 0)
+  call void @mgpuMemcpy(ptr %204, ptr %194, i64 1332000, ptr %203)
+>>>>>>> 0920839270064ffad0692e53a08c3dab224c8f34
   %205 = alloca %0, align 8
   %206 = alloca ptr, i64 24, align 8
   %207 = getelementptr inbounds nuw %0, ptr %205, i32 0, i32 0
@@ -290,11 +326,19 @@ omp.par.exit:                                     ; preds = %omp_parallel
   %226 = getelementptr ptr, ptr %206, i32 9
   store ptr %225, ptr %226, align 8
   %227 = getelementptr inbounds nuw %0, ptr %205, i32 0, i32 10
+<<<<<<< HEAD
   store ptr %188, ptr %227, align 8
   %228 = getelementptr ptr, ptr %206, i32 10
   store ptr %227, ptr %228, align 8
   %229 = getelementptr inbounds nuw %0, ptr %205, i32 0, i32 11
   store ptr %188, ptr %229, align 8
+=======
+  store ptr %204, ptr %227, align 8
+  %228 = getelementptr ptr, ptr %206, i32 10
+  store ptr %227, ptr %228, align 8
+  %229 = getelementptr inbounds nuw %0, ptr %205, i32 0, i32 11
+  store ptr %204, ptr %229, align 8
+>>>>>>> 0920839270064ffad0692e53a08c3dab224c8f34
   %230 = getelementptr ptr, ptr %206, i32 11
   store ptr %229, ptr %230, align 8
   %231 = getelementptr inbounds nuw %0, ptr %205, i32 0, i32 12
@@ -318,11 +362,19 @@ omp.par.exit:                                     ; preds = %omp_parallel
   %240 = getelementptr ptr, ptr %206, i32 16
   store ptr %239, ptr %240, align 8
   %241 = getelementptr inbounds nuw %0, ptr %205, i32 0, i32 17
+<<<<<<< HEAD
   store ptr %201, ptr %241, align 8
   %242 = getelementptr ptr, ptr %206, i32 17
   store ptr %241, ptr %242, align 8
   %243 = getelementptr inbounds nuw %0, ptr %205, i32 0, i32 18
   store ptr %201, ptr %243, align 8
+=======
+  store ptr %190, ptr %241, align 8
+  %242 = getelementptr ptr, ptr %206, i32 17
+  store ptr %241, ptr %242, align 8
+  %243 = getelementptr inbounds nuw %0, ptr %205, i32 0, i32 18
+  store ptr %190, ptr %243, align 8
+>>>>>>> 0920839270064ffad0692e53a08c3dab224c8f34
   %244 = getelementptr ptr, ptr %206, i32 18
   store ptr %243, ptr %244, align 8
   %245 = getelementptr inbounds nuw %0, ptr %205, i32 0, i32 19
@@ -347,10 +399,17 @@ omp.par.exit:                                     ; preds = %omp_parallel
   store ptr %253, ptr %254, align 8
   %255 = load ptr, ptr @matmul_kernel_module, align 8
   %256 = call ptr @mgpuModuleGetFunction(ptr %255, ptr @matmul_kernel_matmul_kernel_name)
+<<<<<<< HEAD
   call void @mgpuLaunchKernel(ptr %256, i64 333, i64 1, i64 1, i64 1, i64 1, i64 1, i32 0, ptr %197, ptr %206, ptr null, i64 24)
   call void @mgpuMemcpy(ptr %167, ptr %177, i64 1332000, ptr %197)
   call void @mgpuStreamSynchronize(ptr %197)
   call void @mgpuStreamDestroy(ptr %197)
+=======
+  call void @mgpuLaunchKernel(ptr %256, i64 333, i64 1, i64 1, i64 1, i64 1, i64 1, i32 0, ptr %203, ptr %206, ptr null, i64 24)
+  call void @mgpuMemcpy(ptr %167, ptr %177, i64 1332000, ptr %203)
+  call void @mgpuStreamSynchronize(ptr %203)
+  call void @mgpuStreamDestroy(ptr %203)
+>>>>>>> 0920839270064ffad0692e53a08c3dab224c8f34
   %257 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %121, 1
   %258 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %121, 2
   %259 = getelementptr float, ptr %257, i64 %258
@@ -378,6 +437,7 @@ omp.par.exit:                                     ; preds = %omp_parallel
   call void @mgpuMemcpy(ptr %274, ptr %264, i64 1332000, ptr %273)
   call void @mgpuStreamSynchronize(ptr %273)
   call void @mgpuStreamDestroy(ptr %273)
+<<<<<<< HEAD
   %275 = call ptr @malloc(i64 1332000)
   %276 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %140, 3, 0
   %277 = mul i64 %276, 1
@@ -411,6 +471,41 @@ omp.par.exit:                                     ; preds = %omp_parallel
   %300 = getelementptr float, ptr null, i64 %299
   %301 = ptrtoint ptr %300 to i64
   call void @mgpuMemcpy(ptr %298, ptr %289, i64 %301, ptr %294)
+=======
+  %275 = mul i64 %13, 1000
+  %276 = getelementptr float, ptr null, i64 %275
+  %277 = ptrtoint ptr %276 to i64
+  %278 = call ptr @malloc(i64 %277)
+  %279 = mul i64 %13, 1
+  %280 = mul i64 %279, %14
+  %281 = mul i64 %280, 4
+  %282 = getelementptr float, ptr %11, i64 %12
+  call void @llvm.memcpy.p0.p0.i64(ptr %278, ptr %282, i64 %281, i1 false)
+  %283 = call ptr @mgpuStreamCreate()
+  %284 = mul i64 %13, 1000
+  %285 = getelementptr float, ptr null, i64 %284
+  %286 = ptrtoint ptr %285 to i64
+  %287 = call ptr @mgpuMemAlloc(i64 %286, ptr %283, i8 0)
+  %288 = mul i64 %13, 1000
+  %289 = getelementptr float, ptr null, i64 %288
+  %290 = ptrtoint ptr %289 to i64
+  call void @mgpuMemcpy(ptr %287, ptr %278, i64 %290, ptr %283)
+  call void @mgpuStreamSynchronize(ptr %283)
+  call void @mgpuStreamDestroy(ptr %283)
+  %291 = call ptr @malloc(i64 1332000)
+  %292 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %140, 3, 0
+  %293 = mul i64 %292, 1
+  %294 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %140, 3, 1
+  %295 = mul i64 %293, %294
+  %296 = mul i64 %295, 4
+  %297 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %140, 1
+  %298 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %140, 2
+  %299 = getelementptr float, ptr %297, i64 %298
+  call void @llvm.memcpy.p0.p0.i64(ptr %291, ptr %299, i64 %296, i1 false)
+  %300 = call ptr @mgpuStreamCreate()
+  %301 = call ptr @mgpuMemAlloc(i64 1332000, ptr %300, i8 0)
+  call void @mgpuMemcpy(ptr %301, ptr %291, i64 1332000, ptr %300)
+>>>>>>> 0920839270064ffad0692e53a08c3dab224c8f34
   %302 = alloca %1, align 8
   %303 = alloca ptr, i64 24, align 8
   %304 = getelementptr inbounds nuw %1, ptr %302, i32 0, i32 0
@@ -454,11 +549,19 @@ omp.par.exit:                                     ; preds = %omp_parallel
   %323 = getelementptr ptr, ptr %303, i32 9
   store ptr %322, ptr %323, align 8
   %324 = getelementptr inbounds nuw %1, ptr %302, i32 0, i32 10
+<<<<<<< HEAD
   store ptr %285, ptr %324, align 8
   %325 = getelementptr ptr, ptr %303, i32 10
   store ptr %324, ptr %325, align 8
   %326 = getelementptr inbounds nuw %1, ptr %302, i32 0, i32 11
   store ptr %285, ptr %326, align 8
+=======
+  store ptr %301, ptr %324, align 8
+  %325 = getelementptr ptr, ptr %303, i32 10
+  store ptr %324, ptr %325, align 8
+  %326 = getelementptr inbounds nuw %1, ptr %302, i32 0, i32 11
+  store ptr %301, ptr %326, align 8
+>>>>>>> 0920839270064ffad0692e53a08c3dab224c8f34
   %327 = getelementptr ptr, ptr %303, i32 11
   store ptr %326, ptr %327, align 8
   %328 = getelementptr inbounds nuw %1, ptr %302, i32 0, i32 12
@@ -482,11 +585,19 @@ omp.par.exit:                                     ; preds = %omp_parallel
   %337 = getelementptr ptr, ptr %303, i32 16
   store ptr %336, ptr %337, align 8
   %338 = getelementptr inbounds nuw %1, ptr %302, i32 0, i32 17
+<<<<<<< HEAD
   store ptr %298, ptr %338, align 8
   %339 = getelementptr ptr, ptr %303, i32 17
   store ptr %338, ptr %339, align 8
   %340 = getelementptr inbounds nuw %1, ptr %302, i32 0, i32 18
   store ptr %298, ptr %340, align 8
+=======
+  store ptr %287, ptr %338, align 8
+  %339 = getelementptr ptr, ptr %303, i32 17
+  store ptr %338, ptr %339, align 8
+  %340 = getelementptr inbounds nuw %1, ptr %302, i32 0, i32 18
+  store ptr %287, ptr %340, align 8
+>>>>>>> 0920839270064ffad0692e53a08c3dab224c8f34
   %341 = getelementptr ptr, ptr %303, i32 18
   store ptr %340, ptr %341, align 8
   %342 = getelementptr inbounds nuw %1, ptr %302, i32 0, i32 19
@@ -511,10 +622,17 @@ omp.par.exit:                                     ; preds = %omp_parallel
   store ptr %350, ptr %351, align 8
   %352 = load ptr, ptr @matmul_kernel_0_module, align 8
   %353 = call ptr @mgpuModuleGetFunction(ptr %352, ptr @matmul_kernel_0_matmul_kernel_name)
+<<<<<<< HEAD
   call void @mgpuLaunchKernel(ptr %353, i64 333, i64 1, i64 1, i64 1, i64 1, i64 1, i32 0, ptr %294, ptr %303, ptr null, i64 24)
   call void @mgpuMemcpy(ptr %264, ptr %274, i64 1332000, ptr %294)
   call void @mgpuStreamSynchronize(ptr %294)
   call void @mgpuStreamDestroy(ptr %294)
+=======
+  call void @mgpuLaunchKernel(ptr %353, i64 333, i64 1, i64 1, i64 1, i64 1, i64 1, i32 0, ptr %300, ptr %303, ptr null, i64 24)
+  call void @mgpuMemcpy(ptr %264, ptr %274, i64 1332000, ptr %300)
+  call void @mgpuStreamSynchronize(ptr %300)
+  call void @mgpuStreamDestroy(ptr %300)
+>>>>>>> 0920839270064ffad0692e53a08c3dab224c8f34
   %354 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %159, 1
   %355 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %159, 2
   %356 = getelementptr float, ptr %354, i64 %355
