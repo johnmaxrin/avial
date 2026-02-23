@@ -98,6 +98,17 @@ def ReplicateOp : Op<AvialDialect, "replicate", [AttrSizedOperandSegments, Singl
   let regions = (region SizedRegion<1> : $body); 
 }
 
+def FixedPointOp : Op<AvialDialect, "fixedpoint", [AttrSizedOperandSegments, SingleBlockImplicitTerminator<"YieldOp">]>
+{
+  let summary = "Fixed Point"; 
+  let arguments = (ins
+                   Variadic<AnyType>: $reads,
+                   Variadic<AnyType>: $writes
+                    );
+
+  let regions = (region SizedRegion<1> : $body); 
+}
+
 
 def YieldOp : Op<AvialDialect, "yield", [Terminator]>
 {
