@@ -28,3 +28,10 @@ def LowerReplicateOpPass : Pass<"lower-replicate-op">
   let summary = "Lower Avial Dialects to Avial";
   let dependentDialects = ["mlir::avial::AvialDialect"];
 }
+
+
+def LowerConvergeOpPass : Pass<"lower-converge-op">
+{
+  let summary = "Lower Converge Op; Basically enable broadcast flag at the end of last set of tasks";
+  let dependentDialects = ["mlir::avial::AvialDialect"];
+}
