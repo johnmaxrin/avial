@@ -109,7 +109,7 @@ namespace mlir
             }
             
             // Helper function to wrap independent loops with ReplicateOp
-            void wrapIndependentLoopsInFixedPoint(mlir::affine::AffineForOp outerLoop, 
+            void wrapIndependentLoopsInConverge(mlir::affine::AffineForOp outerLoop, 
                                                    mlir::OpBuilder &builder, 
                                                    int &repId)
             {
@@ -166,7 +166,7 @@ namespace mlir
                 mlir::OpBuilder builder(context);
 
                 llvm::SmallVector<mlir::Operation *, 4> toReplicateVector;
-                llvm::SmallVector<mlir::Operation *, 4> toFixedPointVector;
+                llvm::SmallVector<mlir::Operation *, 4> toConvergeVector;
                 
                 module->walk<mlir::WalkOrder::PreOrder>([&](mlir::Operation *op)
                 {
@@ -207,9 +207,9 @@ namespace mlir
                                         }
                                     }
                                     
-                                    // Wrap with FixedPointOp if there are parallelizable inner loops
+                                    // Wrap with ConvergeOp if there are parallelizable inner loops
                                     if(hasParallelizableInner)
-                                        toFixedPointVector.push_back(forOp);
+                                        toConvergeVector.push_back(forOp);
                                 }
                                 else if (outerDep == 0) // No dependence in outer loop
                                 {
@@ -246,25 +246,25 @@ namespace mlir
                     ++repId;
                 }
 
-                // Create FixedPointOp for loops with dependencies
+                // Create ConvergeOp for loops with dependencies
                 int taskId = 1;
-                for (auto op : toFixedPointVector)
+                for (auto op : toConvergeVector)
                 {
                     affine::AffineForOp forOp = mlir::dyn_cast<affine::AffineForOp>(op);
                     
                     // FIRST: Wrap independent inner loops with ReplicateOp
-                    // This must be done BEFORE creating FixedPointOp
-                    wrapIndependentLoopsInFixedPoint(forOp, builder, repId);
+                    // This must be done BEFORE creating ConvergeOp
+                    wrapIndependentLoopsInConverge(forOp, builder, repId);
                     
-                    // NOW: Create the FixedPointOp and move the outer loop into it
+                    // NOW: Create the ConvergeOp and move the outer loop into it
                     auto insouts = InsOutsAnalysis::getInsandOut(forOp);
 
                     builder.setInsertionPoint(forOp);
-                    auto fixedPointOp = builder.create<mlir::avial::FixedPointOp>(forOp.getLoc(), insouts[0], insouts[1]);
-                    fixedPointOp->setAttr("fixedPointID", builder.getI64IntegerAttr(taskId));
+                    auto convergeOp = builder.create<mlir::avial::ConvergeOp>(forOp.getLoc(), insouts[0], insouts[1]);
+                    convergeOp->setAttr("ConvergeID", builder.getI64IntegerAttr(taskId));
 
-                    mlir::Region &fixedPointRegion = fixedPointOp.getBodyRegion();
-                    mlir::Block *newBlock = builder.createBlock(&fixedPointRegion);
+                    mlir::Region &ConvergeRegion = convergeOp.getBodyRegion();
+                    mlir::Block *newBlock = builder.createBlock(&ConvergeRegion);
 
                     forOp->moveBefore(newBlock, newBlock->end());
                     builder.setInsertionPointToEnd(newBlock);

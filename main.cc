@@ -35,6 +35,7 @@
 
 #include "conversions/avialirtompi.h"
 #include "conversions/lowerReplicateOp.h"
+#include "conversions/lowerConvergeOp.h"
 #include "conversions/affinetoavial.h"
 #include "conversions/stdtoavial.h"
 
@@ -80,6 +81,11 @@ static llvm::cl::opt<bool> lowerReplicate(
     llvm::cl::desc("Enable replicate operation lowering"),
     llvm::cl::init(false));
 
+static llvm::cl::opt<bool> lowerConverge(
+    "lower-converge",
+    llvm::cl::desc("Enable converge operation lowering"),
+    llvm::cl::init(false));
+
 static llvm::cl::opt<bool> affineTodhir(
     "affine-to-dhir",
     llvm::cl::desc("Enable Affine to DHIR conversion"),
@@ -109,7 +115,7 @@ int main(int argc, char *argv[])
     registry.insert<mlir::affine::AffineDialect>();
     registry.insert<mlir::math::MathDialect>();
     registry.insert<mlir::omp::OpenMPDialect>();
-    registry.insert<mlir::mpi::MPIDialect>();  
+    registry.insert<mlir::mpi::MPIDialect>();
 
     MLIRContext context;
     context.allowUnregisteredDialects();
@@ -183,6 +189,11 @@ int main(int argc, char *argv[])
         pm.addPass(mlir::avial::createLowerReplicateOpPass());
     }
 
+    if(lowerConverge)
+    {
+        pm.addPass(mlir::avial::createLowerConvergeOpPass());
+    }
+
     if (dhirToMPI)
     {
         pm.addPass(createSelectiveGPUConversionPass());
@@ -190,10 +201,9 @@ int main(int argc, char *argv[])
 
         // GPU Related lowering
 
-        //pm.nest<func::FuncOp>().addPass(createGpuMapParallelLoopsPass());
+        // pm.nest<func::FuncOp>().addPass(createGpuMapParallelLoopsPass());
         pm.addPass(mlir::createConvertParallelLoopToGpuPass());
         pm.addPass(createGpuKernelOutliningPass());
-
 
         // Attach NVVM target with correct libdevice path
         GpuNVVMAttachTargetOptions gputargetOptions;
@@ -208,28 +218,17 @@ int main(int argc, char *argv[])
         pm.nest<mlir::gpu::GPUModuleOp>().addPass(createConvertIndexToLLVMPass());
         pm.nest<mlir::gpu::GPUModuleOp>().addPass(createUBToLLVMConversionPass());
 
-
         // Multi-Core Related Passes
         pm.addPass(mlir::createConvertSCFToOpenMPPass());
-        
-
-
     }
 
     if (lowerTollvm)
     {
 
-        
-         
-
-
-
-        
         pm.addNestedPass<func::FuncOp>(createGpuAsyncRegionPass());
-        pm.addPass(mlir::createGpuDecomposeMemrefsPass());  
+        pm.addPass(mlir::createGpuDecomposeMemrefsPass());
         pm.addPass(createGpuToLLVMConversionPass());
-        
-        
+
         pm.addPass(createConvertNVVMToLLVMPass());
         // pm.addPass(mlir::createLowerAffinePass());
 
@@ -243,14 +242,10 @@ int main(int argc, char *argv[])
 
         pm.addPass(createConvertToLLVMPass());
         pm.addPass(createGpuModuleToBinaryPass());
-    
-       
-
 
         pm.addPass(mlir::createConvertOpenMPToLLVMPass());
         pm.addPass(createFinalizeMemRefToLLVMConversionPass());
-        
-        
+
         pm.addPass(createConvertFuncToLLVMPass());
         pm.addPass(createConvertControlFlowToLLVMPass());
         pm.addPass(mlir::createReconcileUnrealizedCastsPass());
