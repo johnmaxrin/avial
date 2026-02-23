@@ -95,37 +95,16 @@ int main(int argc, char **argv) {
     MPI_Comm_size(MPI_COMM_WORLD, &size);
     MPI_Barrier(MPI_COMM_WORLD);
     
-    // printf("[%d] Buffer: %p\n",rank, C);
-
-    // printf("Rank %d: After matmul, C[0]=%f, C[334000]=%f, C[667000]=%f\n", 
-    //        rank, C[0], C[334000], C[667000]);
     
-    // // Count non-zero elements
-    // int nonzero_count = 0;
-    // for (int i = 0; i < M*N; i++) {
-    //     if (C[i] != 0.0f) nonzero_count++;
-    // }
-    // printf("Rank %d: Total non-zero elements = %d\n", rank, nonzero_count);
-    
-    // // Show first non-zero and last non-zero
-    // int first_nonzero = -1, last_nonzero = -1;
-    // for (int i = 0; i < M*N; i++) {
-    //     if (C[i] != 0.0f) {
-    //         if (first_nonzero == -1) first_nonzero = i;
-    //         last_nonzero = i;
-    //     }
-    // }
-    // printf("Rank %d: First non-zero at %d, Last non-zero at %d\n", 
-    //        rank, first_nonzero, last_nonzero);
 
     if(rank == 0)
     {
         for(int i=0; i<M*N; ++i)
         {
-            if(C[i] != 1000.00f)
-                printf("%f", C[i]);
+                printf("%f\n", C[i]);
         }
     }
+
 
 
     free(A);
