@@ -4,6 +4,7 @@
 #include "includes/avialDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "includes/avialOps.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 
 enum class TargetType
 {
@@ -20,6 +21,9 @@ struct TaskOpInfo
 
   llvm::SmallVector<TaskOpInfo *> deps;
   TargetType target;
+  
+  int64_t repId;  // Which replicate this task came from
+  bool insideLoop;  // Whether this task is inside a loop
 
   bool isGPU() const { return target == TargetType::GPU; }
   bool isCPU() const { return target == TargetType::CPU; }
@@ -148,31 +152,44 @@ namespace mlir
     struct DependencyGraph
     {
       std::vector<TaskOpInfo> tasks;
-      // std::vector<TargetOp> targets;
       std::vector<mlir::memref::AllocaOp> allocs;
-
       std::vector<std::vector<TaskOpInfo *>> levelVector;
+      
+      bool hasLoop;  // Whether tasks are inside a loop
+      mlir::scf::ForOp forLoop;  // The loop containing tasks (if any)
 
       void build(avial::ScheduleOp schedule)
       {
         llvm::errs() << "-- Building task dependency graph\n";
 
-        // for(TargetOp target: schedule.getBody().getOps<TargetOp>())
-        //   targets.push_back(target);
+        hasLoop = false;
+        
+        // Check if tasks are inside a for loop
+        schedule.getBody().walk([&](mlir::scf::ForOp loop) {
+          hasLoop = true;
+          forLoop = loop;
+          llvm::errs() << "Found tasks inside scf.for loop\n";
+        });
 
+        // Collect allocations
         for (memref::AllocaOp alloc : schedule.getBody().getOps<memref::AllocaOp>())
         {
           if (alloc->getParentOp() == schedule)
             allocs.push_back(alloc);
         }
 
-        for (TaskOp task : schedule.getBody().getOps<TaskOp>())
-        {
-
+        // Collect all tasks (they may be inside a loop)
+        schedule.getBody().walk([&](TaskOp task) {
           TaskOpInfo info;
           info.target = getTargetTypeFromAttr(task->getAttr("target"));
-
           info.op = task.getOperation();
+          info.insideLoop = hasLoop;
+          
+          // Get repId
+          auto repIdAttr = task->getAttrOfType<mlir::IntegerAttr>("repId");
+          info.repId = repIdAttr ? repIdAttr.getInt() : -1;
+          
+          // Get inputs and outputs
           for (auto in : task.getInputs())
             info.reads.push_back(in);
 
@@ -183,91 +200,162 @@ namespace mlir
             info.actualBuffer.push_back(actual);
 
           tasks.push_back(std::move(info));
-        }
+        });
+        
+        llvm::errs() << "Collected " << tasks.size() << " tasks\n";
 
-        // Build the dependency Graph.
+        // Build the dependency graph
+        buildDependencies();
+      }
+      
+      void buildDependencies()
+      {
+        llvm::errs() << "-- Analyzing task dependencies\n";
+        
         for (size_t i = 0; i < tasks.size(); ++i)
         {
           for (size_t j = i + 1; j < tasks.size(); ++j)
           {
             bool depends = false;
-            auto repIdI = tasks[i].op->getAttrOfType<mlir::IntegerAttr>("repId");
-            auto repIdJ = tasks[j].op->getAttrOfType<mlir::IntegerAttr>("repId");
+            
+            int64_t repIdI = tasks[i].repId;
+            int64_t repIdJ = tasks[j].repId;
 
-            // Skip if same repId (same iteration/replica)
-            if (repIdI.getInt() == repIdJ.getInt())
-              continue;
+            llvm::errs() << "\nChecking dependency: Task " << i << " (repId=" << repIdI 
+                         << ") -> Task " << j << " (repId=" << repIdJ << ")\n";
 
-            // Check Read-After-Write (RAW): task[j] reads what task[i] writes
-            for (auto outi : tasks[i].writes)
+            // Dependency rules based on repId and loop context
+            if (hasLoop)
             {
-              for (auto inj : tasks[j].reads)
+              // Tasks are inside a loop - different rules apply
+              
+              if (repIdI == repIdJ)
               {
-                if (memoryAccessesConflict(outi, inj))
+                // Same repId means same replicate (iteration)
+                // These tasks can execute in parallel within the same iteration
+                llvm::errs() << "  Same repId - no dependency (parallel within iteration)\n";
+                continue;
+              }
+              else
+              {
+                // Different repId means different replicates
+                // Check for loop-carried dependencies
+                
+                // If repIdI < repIdJ, task i executes before task j in each iteration
+                // Need to check if j depends on i's output from the SAME iteration
+                
+                depends = checkMemoryDependency(tasks[i], tasks[j]);
+                
+                if (depends)
                 {
-                  llvm::errs() << "RAW dependency detected\n";
-                  depends = true;
-                  break;
+                  llvm::errs() << "  Loop-carried dependency detected (repId " 
+                               << repIdI << " -> " << repIdJ << ")\n";
                 }
               }
+            }
+            else
+            {
+              // Tasks are NOT inside a loop
+              // Standard sequential dependency checking
+              
+              if (repIdI == repIdJ)
+              {
+                // Same repId - these are from the same replicate, no dependency
+                llvm::errs() << "  Same repId - no dependency\n";
+                continue;
+              }
+              
+              depends = checkMemoryDependency(tasks[i], tasks[j]);
+              
               if (depends)
-                break;
-            }
-
-            // Check Write-After-Write (WAW): both tasks write to same/overlapping location
-            if (!depends)
-            {
-              for (auto outi : tasks[i].writes)
               {
-                for (auto outj : tasks[j].writes)
-                {
-                  if (memoryAccessesConflict(outi, outj))
-                  {
-                    llvm::errs() << "WAW dependency detected\n";
-                    depends = true;
-                    break;
-                  }
-                }
-                if (depends)
-                  break;
-              }
-            }
-
-            // Check Write-After-Read (WAR): task[j] writes what task[i] reads
-            if (!depends)
-            {
-              for (auto ini : tasks[i].reads)
-              {
-                for (auto outj : tasks[j].writes)
-                {
-                  if (memoryAccessesConflict(ini, outj))
-                  {
-                    llvm::errs() << "WAR dependency detected\n";
-                    depends = true;
-                    break;
-                  }
-                }
-                if (depends)
-                  break;
+                llvm::errs() << "  Sequential dependency detected\n";
               }
             }
 
             if (depends)
             {
-              llvm::errs() << "Task J (dependent)\n";
-              llvm::errs() << tasks[j].op->getAttr("repId") << "\n";
-              llvm::errs() << "Task I (must execute first)\n";
-              llvm::errs() << tasks[i].op->getAttr("repId") << "\n";
-
               tasks[j].deps.push_back(&tasks[i]);
+              
+              auto nameAttrI = tasks[i].op->getAttrOfType<mlir::StringAttr>("name");
+              auto nameAttrJ = tasks[j].op->getAttrOfType<mlir::StringAttr>("name");
+              std::string nameI = nameAttrI ? nameAttrI.getValue().str() : "unnamed";
+              std::string nameJ = nameAttrJ ? nameAttrJ.getValue().str() : "unnamed";
+              
+              llvm::errs() << "  ✓ Dependency: " << nameI << " (repId=" << repIdI 
+                           << ") -> " << nameJ << " (repId=" << repIdJ << ")\n";
             }
           }
         }
       }
+      
+      bool checkMemoryDependency(TaskOpInfo &taskI, TaskOpInfo &taskJ)
+      {
+        // Check Read-After-Write (RAW): task j reads what task i writes
+        for (auto outi : taskI.writes)
+        {
+          for (auto inj : taskJ.reads)
+          {
+            if (memoryAccessesConflict(outi, inj))
+            {
+              llvm::errs() << "    RAW dependency detected\n";
+              return true;
+            }
+          }
+        }
+
+        // Check Write-After-Write (WAW): both tasks write to same/overlapping location
+        for (auto outi : taskI.writes)
+        {
+          for (auto outj : taskJ.writes)
+          {
+            if (memoryAccessesConflict(outi, outj))
+            {
+              llvm::errs() << "    WAW dependency detected\n";
+              return true;
+            }
+          }
+        }
+
+        // Check Write-After-Read (WAR): task j writes what task i reads
+        for (auto ini : taskI.reads)
+        {
+          for (auto outj : taskJ.writes)
+          {
+            if (memoryAccessesConflict(ini, outj))
+            {
+              llvm::errs() << "    WAR dependency detected\n";
+              return true;
+            }
+          }
+        }
+        
+        return false;
+      }
 
       void printDiGraph()
       {
+        llvm::errs() << "\n-- Task Dependency Graph (DOT format) --\n";
         llvm::errs() << "digraph TaskGraph {\n";
+        llvm::errs() << "  rankdir=LR;\n";
+        llvm::errs() << "  node [shape=box];\n";
+        
+        // Add node labels with repId information
+        for (auto &task : tasks)
+        {
+          auto nameAttr = task.op->getAttrOfType<mlir::StringAttr>("name");
+          std::string name = nameAttr ? nameAttr.getValue().str() : "unnamed";
+          
+          std::string label = name + "\\nrepId=" + std::to_string(task.repId);
+          std::string color = task.isGPU() ? "lightblue" : "lightgray";
+          
+          llvm::errs() << "  \"" << name << "_" << task.repId << "\" [label=\"" 
+                       << label << "\", style=filled, fillcolor=" << color << "];\n";
+        }
+        
+        llvm::errs() << "\n";
+        
+        // Add edges for dependencies
         for (auto &task : tasks)
         {
           auto nameAttr = task.op->getAttrOfType<mlir::StringAttr>("name");
@@ -275,35 +363,67 @@ namespace mlir
 
           for (auto *dep : task.deps)
           {
-            auto nameAttr = dep->op->getAttrOfType<mlir::StringAttr>("name");
-            std::string depName = nameAttr ? nameAttr.getValue().str() : "unnamed";
-            llvm::errs() << "  \"" << depName << "\" -> \"" << name << "\";\n";
+            auto depNameAttr = dep->op->getAttrOfType<mlir::StringAttr>("name");
+            std::string depName = depNameAttr ? depNameAttr.getValue().str() : "unnamed";
+            
+            llvm::errs() << "  \"" << depName << "_" << dep->repId << "\" -> \"" 
+                         << name << "_" << task.repId << "\";\n";
           }
         }
+        
+        // Add subgraph clusters for each repId
+        std::map<int64_t, std::vector<TaskOpInfo*>> repIdGroups;
+        for (auto &task : tasks)
+        {
+          repIdGroups[task.repId].push_back(&task);
+        }
+        
+        llvm::errs() << "\n  // Replicate groups\n";
+        for (auto &[repId, taskList] : repIdGroups)
+        {
+          llvm::errs() << "  subgraph cluster_rep" << repId << " {\n";
+          llvm::errs() << "    label=\"Replicate " << repId << "\";\n";
+          llvm::errs() << "    style=dashed;\n";
+          
+          for (auto *task : taskList)
+          {
+            auto nameAttr = task->op->getAttrOfType<mlir::StringAttr>("name");
+            std::string name = nameAttr ? nameAttr.getValue().str() : "unnamed";
+            llvm::errs() << "    \"" << name << "_" << task->repId << "\";\n";
+          }
+          
+          llvm::errs() << "  }\n";
+        }
+        
         llvm::errs() << "}\n";
+        llvm::errs() << "-- End Task Dependency Graph --\n\n";
       }
 
       void schedule()
       {
+        llvm::errs() << "-- Scheduling tasks using topological sort\n";
+        
         std::map<TaskOpInfo *, int> inDegree;
         std::map<TaskOpInfo *, int> outDegree;
         std::set<TaskOpInfo *> scheduled;
 
+        // Initialize in-degree and out-degree
         for (auto &task : tasks)
         {
           outDegree[&task] = 0;
-          inDegree[&task] = 0;
-
           inDegree[&task] = task.deps.size();
-          for (auto &dep : task.deps)
+          
+          for (auto *dep : task.deps)
             outDegree[dep]++;
         }
 
-        int cnt = 0;
-        while (true)
+        // Topological sort with level-by-level scheduling
+        int level = 0;
+        while (scheduled.size() < tasks.size())
         {
           std::vector<TaskOpInfo *> currentLevel;
 
+          // Find all tasks with in-degree 0 (ready to execute)
           for (TaskOpInfo &task : tasks)
           {
             if (inDegree[&task] == 0 && !scheduled.count(&task))
@@ -312,25 +432,44 @@ namespace mlir
             }
           }
 
-          if (scheduled.size() == tasks.size())
+          if (currentLevel.empty() && scheduled.size() < tasks.size())
+          {
+            llvm::errs() << "ERROR: Cycle detected in dependency graph!\n";
             break;
+          }
 
+          llvm::errs() << "Level " << level << ": " << currentLevel.size() << " tasks\n";
+          
+          // Print tasks in this level
+          for (auto *t : currentLevel)
+          {
+            auto nameAttr = t->op->getAttrOfType<mlir::StringAttr>("name");
+            std::string name = nameAttr ? nameAttr.getValue().str() : "unnamed";
+            llvm::errs() << "  - Task " << name << " (repId=" << t->repId << ")\n";
+          }
+
+          // Mark tasks as scheduled and update in-degrees
           for (auto *t : currentLevel)
           {
             scheduled.insert(t);
+            
+            // Decrease in-degree of dependent tasks
             for (auto &task : tasks)
             {
               if (std::find(task.deps.begin(), task.deps.end(), t) != task.deps.end())
+              {
                 inDegree[&task]--;
+              }
             }
           }
 
           levelVector.push_back(currentLevel);
+          level++;
         }
+        
+        llvm::errs() << "Scheduling complete: " << level << " levels\n";
       }
     };
 
   }
 }
-
-

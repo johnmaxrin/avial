@@ -269,6 +269,7 @@ static SmallVector<Value> materializeOpFoldResults(ConversionPatternRewriter &re
     return values;
 }
 
+
 struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
 {
     using OpConversionPattern::OpConversionPattern;
@@ -316,10 +317,10 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
 
         rewriter.setInsertionPointToEnd(block);
 
-        for (auto op : dependencyGraph.allocs)
+        for (auto allocOp : dependencyGraph.allocs)
         {
-            auto newOp = rewriter.clone(*op.getOperation());
-            op.getResult().replaceAllUsesWith(newOp->getResult(0));
+            auto newOp = rewriter.clone(*allocOp.getOperation());
+            allocOp.getResult().replaceAllUsesWith(newOp->getResult(0));
         }
 
         // MPI Boilerplate
@@ -331,49 +332,87 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
 
         // End of MPI Boilerplate
 
-        // Clone all variables
+        // Check if there's a scf.for loop wrapping the tasks
+        mlir::scf::ForOp outerLoop = nullptr;
         for (auto &innerOp : op.getBodyRegion().front().getOperations())
         {
-            if (mlir::isa<mlir::avial::TaskOp>(innerOp) || mlir::isa<mlir::avial::YieldOp>(innerOp))
+            if (auto forOp = mlir::dyn_cast<mlir::scf::ForOp>(innerOp))
+            {
+                outerLoop = forOp;
+                llvm::errs() << "Found scf.for loop wrapping tasks\n";
+                break;
+            }
+        }
+
+        // Clone constants and non-task, non-loop operations
+        for (auto &innerOp : op.getBodyRegion().front().getOperations())
+        {
+            if (mlir::isa<mlir::avial::TaskOp>(innerOp) || 
+                mlir::isa<mlir::avial::YieldOp>(innerOp) || 
+                mlir::isa<mlir::scf::ForOp>(innerOp))
                 continue;
 
             Operation *cloned = rewriter.clone(innerOp, mapping);
         }
 
+        // If there's a loop, clone it and set insertion point inside
+        mlir::scf::ForOp newForOp = nullptr;
+        if (outerLoop)
+        {
+            llvm::errs() << "Cloning scf.for loop structure\n";
+            
+            // Map loop bounds
+            Value lowerBound = mapping.lookupOrDefault(outerLoop.getLowerBound());
+            Value upperBound = mapping.lookupOrDefault(outerLoop.getUpperBound());
+            Value step = mapping.lookupOrDefault(outerLoop.getStep());
+            
+            // Create new loop
+            newForOp = rewriter.create<mlir::scf::ForOp>(loc, lowerBound, upperBound, step);
+            
+            // Map the induction variable
+            mapping.map(outerLoop.getInductionVar(), newForOp.getInductionVar());
+            
+            // Clone operations inside the loop (subviews, constants, etc.) EXCEPT tasks
+            Block *loopBody = newForOp.getBody();
+            rewriter.setInsertionPointToStart(loopBody);
+            
+            for (auto &loopOp : outerLoop.getBody()->getOperations())
+            {
+                if (mlir::isa<mlir::scf::YieldOp>(loopOp) || mlir::isa<mlir::avial::TaskOp>(loopOp))
+                    continue;
+                
+                Operation *clonedOp = rewriter.clone(loopOp, mapping);
+            }
+            
+            // Set insertion point at the END of loop body, before the yield
+            // This is where we'll insert task execution and communication
+            rewriter.setInsertionPoint(loopBody->getTerminator());
+            
+            llvm::errs() << "Insertion point set inside loop body\n";
+        }
+
         llvm::errs() << "Size: " << dependencyGraph.levelVector.size() << "\n";
 
-        // Lower the tasks
+        // Lower the tasks (they will be inserted at current insertion point)
         for (std::vector<TaskOpInfo *> level : dependencyGraph.levelVector)
         {
             llvm::DenseMap<Value, Value> gpuBufferMap;
             llvm::SmallVector<Value> toBroadcast;
             int taskId = 0;
+            
             for (auto task : level)
             {
-                // Lower
-                // Assigned Node
-
                 auto taskIDOp = rewriter.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(taskId));
                 auto taskIdModNodes = rewriter.create<mlir::arith::RemSIOp>(loc, taskIDOp->getResult(0), getNodes->getResult(1));
                 auto cond = rewriter.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), taskIdModNodes.getResult());
-                rewriter.create<mlir::scf::IfOp>(loc, cond, [&](OpBuilder &ifbuilder, Location loc)
-                                                 {
-                    // Add Task Args to IfOp Mappings
                 
-                    
+                rewriter.create<mlir::scf::IfOp>(loc, cond, [&](OpBuilder &ifbuilder, Location loc)
+                {
                     Block &taskBlock = task->op->getRegion(0).front(); 
-                    Block *thenBlock = ifbuilder.getBlock();
-
                     IRMapping rankMapping = mapping; 
-
-                    Value buffer;
-
 
                     if (task->isGPU())
                     {
-                        llvm::errs() << "Write Size: " << task->writes.size() << "\n";
-                        llvm::errs() << "Read Size: " << task->reads.size() << "\n";
-                        
                         // Process all writes
                         for (auto writeOp : task->writes)
                         {
@@ -396,7 +435,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                             auto cleanType = MemRefType::get(
                                 subviewType.getShape(),
                                 subviewType.getElementType(),
-                                MemRefLayoutAttrInterface{}, // default/identity layout
+                                MemRefLayoutAttrInterface{},
                                 subviewType.getMemorySpace());
                                 
                             Value newBuffer = ifbuilder.create<memref::AllocOp>(loc, cleanType, dynamicSizes);
@@ -433,7 +472,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                             auto cleanType = MemRefType::get(
                                 subviewType.getShape(),
                                 subviewType.getElementType(),
-                                MemRefLayoutAttrInterface{}, // default/identity layout
+                                MemRefLayoutAttrInterface{},
                                 subviewType.getMemorySpace());
                                 
                             Value newBuffer = ifbuilder.create<memref::AllocOp>(loc, cleanType, dynamicSizes);
@@ -456,44 +495,32 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                         Operation *clonedOp = ifbuilder.clone(op, rankMapping);
                     } 
 
-                    
-                    // buffer.replaceAllUsesWith(gpuBufferMap[buffer]);
-                    // Check if the task is a part of the replicate model or standalone task. if it is replicate model then
-                    // check the attributes for range of shared varialbe, if not, just communicate the value to root. 
-                    
-
-                if(task->isGPU())
-                {
-                    // Process all writes - copy back from GPU to host
-                    for (auto writeOp : task->writes)
+                    if(task->isGPU())
                     {
-                        Value gpuBuffer = rankMapping.lookupOrNull(writeOp);
-                        if (!gpuBuffer)
-                            continue;
+                        // Process all writes - copy back from GPU to host
+                        for (auto writeOp : task->writes)
+                        {
+                            Value gpuBuffer = rankMapping.lookupOrNull(writeOp);
+                            if (!gpuBuffer)
+                                continue;
+                                
+                            ifbuilder.create<gpu::MemcpyOp>(loc, TypeRange{}, ValueRange{}, 
+                                                            gpuBufferMap[gpuBuffer], gpuBuffer);
                             
-                        // Copy from GPU buffer to host buffer
-                        ifbuilder.create<gpu::MemcpyOp>(loc, TypeRange{}, ValueRange{}, 
-                                                        gpuBufferMap[gpuBuffer], gpuBuffer);
-                        
-                        // Copy from host buffer back to original subview
-                        ifbuilder.create<memref::CopyOp>(loc, gpuBufferMap[gpuBuffer], 
-                                                        mapping.lookupOrNull(writeOp));
+                            ifbuilder.create<memref::CopyOp>(loc, gpuBufferMap[gpuBuffer], 
+                                                            mapping.lookupOrNull(writeOp));
+                        }
                     }
-                }
 
-                    ifbuilder.create<mlir::scf::YieldOp>(loc); });
+                    ifbuilder.create<mlir::scf::YieldOp>(loc);
+                });
 
                 ++taskId;
             }
 
             rewriter.create<mpi::Barrier>(loc, retVal, comm->getResult(0));
 
-            // ----- Comm begin for sending the processed data ----- //
-            // Send data to rank 0
-            // if not rank zero send to rank 0
-            // You can get the out set and share all outsets!
-            // else receive from all ranks
-
+            // Communication code
             auto one = rewriter.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(1));
             auto zero = rewriter.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(0));
             auto tag = rewriter.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(0));
@@ -502,117 +529,125 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
 
             for (auto task : level)
             {
-                Value buffer = mapping.lookupOrNull(task->writes[0]);
-
-                Value sourceBuffer = buffer;
-
-                while (auto subviewOp = sourceBuffer.getDefiningOp<memref::SubViewOp>())
-                    sourceBuffer = subviewOp.getSource();
-
-                llvm::errs() << "DEBUG\n";
-
                 auto taskOp = dyn_cast<mlir::avial::TaskOp>(task->op);
                 llvm::ArrayRef outRanges = taskOp.getOutRanges();
+                
+                // Get the base buffer from mapping (now subviews are in mapping!)
+                Value buffer = mapping.lookupOrNull(task->writes[0]);
+                
+                if (!buffer) {
+                    llvm::errs() << "ERROR: Buffer not found in mapping\n";
+                    return failure();
+                }
 
-                SmallVector<OpFoldResult> offsets = {
-                    rewriter.getIndexAttr(outRanges[0]), // for dim 0 // Get the 667
-                    rewriter.getIndexAttr(0)             // for dim 1 (start at 0)
-                };
+                Value sourceBuffer = buffer;
+                
+                // Unwrap subviews to get base buffer
+                while (auto defOp = sourceBuffer.getDefiningOp())
+                {
+                    if (auto subviewOp = mlir::dyn_cast<memref::SubViewOp>(defOp))
+                        sourceBuffer = subviewOp.getSource();
+                    else
+                        break;
+                }
 
-                SmallVector<OpFoldResult> sizes = {
-                    rewriter.getIndexAttr((outRanges[1] - outRanges[0]) * 1000), // TODO: Use memref to get the shape.
-                    rewriter.getIndexAttr(1000)};
+                auto sourceType = cast<MemRefType>(sourceBuffer.getType());
+                int64_t sourceRank = sourceType.getRank();
 
-                SmallVector<OpFoldResult> strides = {
-                    rewriter.getIndexAttr(1), // dim 0
-                    rewriter.getIndexAttr(1)  // dim 1
-                };
+                SmallVector<OpFoldResult> offsets;
+                SmallVector<OpFoldResult> sizes;
+                SmallVector<OpFoldResult> strides;
+                
+                if (sourceRank == 1)
+                {
+                    offsets.push_back(rewriter.getIndexAttr(outRanges[0]));
+                    sizes.push_back(rewriter.getIndexAttr(outRanges[1] - outRanges[0]));
+                    strides.push_back(rewriter.getIndexAttr(1));
+                }
+                else if(sourceRank == 2)
+                {
+                    offsets = {
+                        rewriter.getIndexAttr(outRanges[0]),
+                        rewriter.getIndexAttr(0)
+                    };
+                    sizes = {
+                        rewriter.getIndexAttr((outRanges[1] - outRanges[0]) * 1000),
+                        rewriter.getIndexAttr(1000)
+                    };
+                    strides = {
+                        rewriter.getIndexAttr(1),
+                        rewriter.getIndexAttr(1)
+                    };
+                }
+                else
+                {
+                    llvm::errs() << "[Error] Unsupported Memref rank\n";
+                    return failure();
+                }
 
                 Value subBuffer = rewriter.create<memref::SubViewOp>(
-                    loc,
-                    sourceBuffer,
-                    offsets,
-                    sizes,
-                    strides);
+                    loc, sourceBuffer, offsets, sizes, strides);
 
-                llvm::errs() << "DEBUG2\n";
-
-                // Default Communication.
+                // Default Communication
                 auto cond = rewriter.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), zero.getResult());
                 auto ifOp = rewriter.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, cond, true);
-                OpBuilder thenBuilder = ifOp.getThenBodyBuilder(rewriter.getListener()); // Rank = 0
-                OpBuilder elseBuilder = ifOp.getElseBodyBuilder(rewriter.getListener()); // Rank != 0
+                OpBuilder thenBuilder = ifOp.getThenBodyBuilder(rewriter.getListener());
+                OpBuilder elseBuilder = ifOp.getElseBodyBuilder(rewriter.getListener());
 
-                // If Zero; Receive.
+                // Receive
                 auto taskIDOp = thenBuilder.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(taskId));
                 auto taskIdModNodes = thenBuilder.create<mlir::arith::RemSIOp>(loc, taskIDOp->getResult(0), getNodes->getResult(1));
                 auto innercond = thenBuilder.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::ne, zero.getResult(), taskIdModNodes.getResult());
                 auto innerIf = thenBuilder.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, innercond, false);
-                auto innerThenBuilder = innerIf.getThenBodyBuilder(thenBuilder.getListener()); // Task doesn't belong to Rank 0
+                auto innerThenBuilder = innerIf.getThenBodyBuilder(thenBuilder.getListener());
 
                 auto recvOp = innerThenBuilder.create<mlir::mpi::RecvOp>(
-                    loc,
-                    retVal,                       // return type
-                    subBuffer,                    // buffer
-                    tag.getResult(),              // tag
-                    taskIdModNodes->getResult(0), // source rank
-                    comm->getResult(0)            // communicator
-                );
+                    loc, retVal, subBuffer, tag.getResult(), taskIdModNodes->getResult(0), comm->getResult(0));
 
-                llvm::errs() << "DEBUG3\n";
-                // Else Send
+                // Send
                 auto elsetaskIDOp = elseBuilder.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(taskId));
                 auto elsetaskIdModNodes = elseBuilder.create<mlir::arith::RemSIOp>(loc, elsetaskIDOp->getResult(0), getNodes->getResult(1));
                 auto elsecond = elseBuilder.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), elsetaskIdModNodes.getResult());
                 auto elseinnerIf = elseBuilder.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, elsecond, false);
-                auto elseinnerThenBuilder = elseinnerIf.getThenBodyBuilder(elseBuilder.getListener()); // Task belongs to this rank
+                auto elseinnerThenBuilder = elseinnerIf.getThenBodyBuilder(elseBuilder.getListener());
 
                 auto sendOp = elseinnerThenBuilder.create<mlir::mpi::SendOp>(
-                    loc,
-                    retVal,            // return type
-                    subBuffer,         // buffer
-                    tag.getResult(),   // tag
-                    zero,              // dest rank
-                    comm->getResult(0) // communicator
-                );
+                    loc, retVal, subBuffer, tag.getResult(), zero, comm->getResult(0));
 
-                // Boadcast Communication.
-                // if needBoroadcast, collect the memref to an array.
-                // After the level, just broadcast.
-                BoolAttr needBoradcast = mlir::dyn_cast<mlir::BoolAttr>(taskOp->getAttr("needBroadcast"));
-                if (needBoradcast.getValue())
+                // Broadcast
+                BoolAttr needBroadcast = mlir::dyn_cast<mlir::BoolAttr>(taskOp->getAttr("needBroadcast"));
+                if (needBroadcast && needBroadcast.getValue())
                     toBroadcast.push_back(subBuffer);
 
                 ++taskId;
             }
 
-            // Do the Broadcast. Rank 0 sends. Remaing receives.
-            // add all the 0th dimension of subbuffers in the tobroadcast array
-            //  create a subview with sum of all dimensions and
-            // do the communication.
             generateBroadcastCommunication(
-                rewriter,
-                loc,
-                toBroadcast,
-                rank.getResult(0),
-                zero.getResult(),
-                comm->getResult(0),
-                retVal,
-                tag.getResult(),
-                getNodes->getResult(1) // Number of ranks
-            );
+                rewriter, loc, toBroadcast, rank.getResult(0), zero.getResult(),
+                comm->getResult(0), retVal, tag.getResult(), getNodes->getResult(1));
 
             toBroadcast.clear();
-
-            // ----- Comm end ----- //
         }
 
-        // End of Lowering the tasks
+        // If we created a loop, close it
+        if (newForOp)
+        {
+            // Insertion point is already before the loop's yield, so we're good
+            llvm::errs() << "Loop structure complete\n";
+            // Set insertion point after the loop for final barrier and return
+            rewriter.setInsertionPointAfter(newForOp.getOperation());
+        }
+        else
+        {
+            // No loop case - insertion point is already at end of block
+            llvm::errs() << "No loop - continuing at end of block\n";
+        }
 
+        // Final barrier and return (outside the loop or at end of function)
         rewriter.create<mpi::Barrier>(loc, retVal, comm->getResult(0));
         rewriter.create<func::ReturnOp>(loc);
         rewriter.eraseOp(op);
-
+        
         return success();
     }
 };
