@@ -115,12 +115,7 @@ int main(int argc, char *argv[])
     registry.insert<mlir::affine::AffineDialect>();
     registry.insert<mlir::math::MathDialect>();
     registry.insert<mlir::omp::OpenMPDialect>();
-<<<<<<< HEAD
     registry.insert<mlir::mpi::MPIDialect>();
-=======
-    registry.insert<mlir::mpi::MPIDialect>();  
-    registry.insert<mlir::avial::AvialDialect>();
->>>>>>> 0920839270064ffad0692e53a08c3dab224c8f34
 
     MLIRContext context;
     context.allowUnregisteredDialects();
