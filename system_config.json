@@ -12,27 +12,20 @@
       "cpu_arch": "x86_64",
       "gpus": [
 
+
       ]
     },
     "node1": {
       "cpu_arch": "x86_64",
       "gpus": [
-{
-          "id": 0,
-          "arch": "sm_61",
-          "model": "H100"
-        }
+
 
       ]
     },
     "node2": {
       "cpu_arch": "x86_64",
       "gpus": [
-       {
-          "id": 0,
-          "arch": "sm_61",
-          "model": "H100"
-        } 
+
       ]
     } 
   }
