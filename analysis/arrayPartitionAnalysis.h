@@ -7,6 +7,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 
 namespace mlir
 {
@@ -24,6 +25,8 @@ namespace mlir
             PartitioningStrategy strategy;
             Value memref;
             int partitionDimension;
+            int haloLeft;
+            int haloRight;
         };
 
         class ArrayPartitioningAnalysis
@@ -37,6 +40,8 @@ namespace mlir
                 info.memref = memref;
                 info.strategy = ArrayPartitioningInfo::NO_PARTITION;
                 info.partitionDimension = -1;
+                info.haloLeft = 0;
+                info.haloRight = 0;
 
                 // Collect accesses (both affine and regular memref ops)
                 llvm::SmallVector<Operation *> loads;
@@ -137,6 +142,13 @@ namespace mlir
                         info.strategy = ArrayPartitioningInfo::NO_PARTITION;
                         llvm::errs() << "→ NO_PARTITION (1D array, not loop-indexed)\n";
                     }
+
+                    // Check if the loop IV and array access indices match exactly,
+                    // or if there are offsets (e.g. a[i-1], a[i+1] in stencils like Jacobi).
+                    // Compute the min and max offsets across all accesses to determine
+                    // how many halo elements are needed on the left and right boundaries.
+                    // Example: a[i-1], a[i], a[i+1]  →  haloLeft=1, haloRight=1
+                    computeHaloForAccesses(loads, stores, loopIV, info);
                     
                     return info;
                 }
@@ -228,6 +240,278 @@ namespace mlir
 
         private:
             mlir::Operation *rootOp;
+
+            // Extract the constant integer offset of an index expression relative to
+            // a loop IV. Handles the common stencil patterns:
+            //   a[i]     → offset 0   (direct use of IV)
+            //   a[i + c] → offset +c  (addi where one operand is IV)
+            //   a[i - c] → offset -c  (subi where first operand is IV)
+            //   a[c + i] → offset +c  (addi, commuted)
+            // For affine accesses the offset is read directly from the affine map.
+            // Returns true and sets `offset` when the pattern is recognised,
+            // returns false when the index does not involve the IV at all.
+            bool getOffsetFromIV(Value index, Value targetIV, int64_t &offset)
+            {
+                // Direct use: a[i]
+                if (index == targetIV)
+                {
+                    offset = 0;
+                    return true;
+                }
+
+                Operation *defOp = index.getDefiningOp();
+                if (!defOp)
+                    return false;
+
+                // arith.addi  →  i + c  or  c + i
+                if (auto addOp = dyn_cast<mlir::arith::AddIOp>(defOp))
+                {
+                    // Check left operand is IV, right is constant
+                    if (addOp.getLhs() == targetIV)
+                    {
+                        if (auto constOp = dyn_cast<mlir::arith::ConstantIndexOp>(
+                                addOp.getRhs().getDefiningOp()))
+                        {
+                            offset = constOp.value();
+                            return true;
+                        }
+                        if (auto constOp = dyn_cast<mlir::arith::ConstantIntOp>(
+                                addOp.getRhs().getDefiningOp()))
+                        {
+                            offset = constOp.value();
+                            return true;
+                        }
+                    }
+                    // Commuted: c + i
+                    if (addOp.getRhs() == targetIV)
+                    {
+                        if (auto constOp = dyn_cast<mlir::arith::ConstantIndexOp>(
+                                addOp.getLhs().getDefiningOp()))
+                        {
+                            offset = constOp.value();
+                            return true;
+                        }
+                        if (auto constOp = dyn_cast<mlir::arith::ConstantIntOp>(
+                                addOp.getLhs().getDefiningOp()))
+                        {
+                            offset = constOp.value();
+                            return true;
+                        }
+                    }
+                }
+
+                // arith.subi  →  i - c
+                if (auto subOp = dyn_cast<mlir::arith::SubIOp>(defOp))
+                {
+                    if (subOp.getLhs() == targetIV)
+                    {
+                        if (auto constOp = dyn_cast<mlir::arith::ConstantIndexOp>(
+                                subOp.getRhs().getDefiningOp()))
+                        {
+                            offset = -constOp.value();
+                            return true;
+                        }
+                        if (auto constOp = dyn_cast<mlir::arith::ConstantIntOp>(
+                                subOp.getRhs().getDefiningOp()))
+                        {
+                            offset = -constOp.value();
+                            return true;
+                        }
+                    }
+                }
+
+                return false;
+            }
+
+            // For affine load/store ops, extract the offset from the affine map directly.
+            // An affine map like (d0) -> (d0 + 1) has a constant term of +1.
+            // Returns true and sets `offset` on success.
+            bool getAffineOffset(Operation *memOp, Value targetIV, int64_t &offset)
+            {
+                AffineMap map;
+                llvm::SmallVector<Value> operands;
+
+                if (auto affineLoad = dyn_cast<mlir::affine::AffineLoadOp>(memOp))
+                {
+                    map = affineLoad.getAffineMap();
+                    operands.append(affineLoad.getMapOperands().begin(),
+                                    affineLoad.getMapOperands().end());
+                }
+                else if (auto affineStore = dyn_cast<mlir::affine::AffineStoreOp>(memOp))
+                {
+                    map = affineStore.getAffineMap();
+                    operands.append(affineStore.getMapOperands().begin(),
+                                    affineStore.getMapOperands().end());
+                }
+                else
+                {
+                    return false;
+                }
+
+                // Find which operand position corresponds to targetIV
+                int ivPos = -1;
+                for (int i = 0; i < (int)operands.size(); ++i)
+                {
+                    if (operands[i] == targetIV)
+                    {
+                        ivPos = i;
+                        break;
+                    }
+                }
+                if (ivPos < 0)
+                    return false;
+
+                // We only handle single-result maps (1D array → one result expression)
+                if (map.getNumResults() != 1)
+                    return false;
+
+                AffineExpr expr = map.getResult(0);
+
+                // Walk the affine expression to extract:  coeff * d[ivPos] + constant
+                // We handle the simple cases: d0, d0 + c, d0 - c, c + d0
+                int64_t constant = 0;
+                bool foundIV = false;
+
+                std::function<bool(AffineExpr)> extractOffset = [&](AffineExpr e) -> bool
+                {
+                    if (auto dimExpr = dyn_cast<AffineDimExpr>(e))
+                    {
+                        if ((int)dimExpr.getPosition() == ivPos)
+                        {
+                            foundIV = true;
+                            return true;
+                        }
+                        return false; // Different dimension
+                    }
+                    if (auto constExpr = dyn_cast<AffineConstantExpr>(e))
+                    {
+                        constant += constExpr.getValue();
+                        return true;
+                    }
+                    if (auto binExpr = dyn_cast<AffineBinaryOpExpr>(e))
+                    {
+                        if (binExpr.getKind() == AffineExprKind::Add)
+                        {
+                            return extractOffset(binExpr.getLHS()) &&
+                                   extractOffset(binExpr.getRHS());
+                        }
+                        // d0 - c is represented as d0 + (-1 * c) in affine
+                        if (binExpr.getKind() == AffineExprKind::Mul)
+                        {
+                            // Allow negative constant multiplied (for subtraction)
+                            if (auto constExpr = dyn_cast<AffineConstantExpr>(binExpr.getRHS()))
+                            {
+                                if (constExpr.getValue() == -1)
+                                {
+                                    // -1 * something — treat the constant contribution
+                                    if (auto innerConst = dyn_cast<AffineConstantExpr>(
+                                            binExpr.getLHS()))
+                                    {
+                                        constant += -innerConst.getValue();
+                                        return true;
+                                    }
+                                }
+                                // coeff * dim: only accept coeff==1 for now
+                                if (constExpr.getValue() == 1)
+                                    return extractOffset(binExpr.getLHS());
+                            }
+                            if (auto constExpr = dyn_cast<AffineConstantExpr>(binExpr.getLHS()))
+                            {
+                                if (constExpr.getValue() == -1)
+                                {
+                                    if (auto innerConst = dyn_cast<AffineConstantExpr>(
+                                            binExpr.getRHS()))
+                                    {
+                                        constant += -innerConst.getValue();
+                                        return true;
+                                    }
+                                }
+                                if (constExpr.getValue() == 1)
+                                    return extractOffset(binExpr.getRHS());
+                            }
+                        }
+                    }
+                    return false;
+                };
+
+                if (extractOffset(expr) && foundIV)
+                {
+                    offset = constant;
+                    return true;
+                }
+                return false;
+            }
+
+            // Walk all loads and stores for a 1D array, compute the offset of each
+            // index expression relative to the loop IV, and fill in haloLeft / haloRight.
+            //
+            //   offset < 0  →  left halo  (e.g. a[i-1] gives offset -1)
+            //   offset > 0  →  right halo (e.g. a[i+1] gives offset +1)
+            //   offset == 0 →  no halo for this access
+            //
+            // haloLeft  = max(0, -min_offset)
+            // haloRight = max(0,  max_offset)
+            void computeHaloForAccesses(llvm::SmallVector<Operation *> &loads,
+                                        llvm::SmallVector<Operation *> &stores,
+                                        Value loopIV,
+                                        ArrayPartitioningInfo &info)
+            {
+                int64_t minOffset = 0;
+                int64_t maxOffset = 0;
+                bool anyFound = false;
+
+                auto processOp = [&](Operation *memOp)
+                {
+                    int64_t offset = 0;
+                    bool found = false;
+
+                    // Try affine map first (more precise)
+                    if (!found)
+                        found = getAffineOffset(memOp, loopIV, offset);
+
+                    // Fall back to arith op inspection
+                    if (!found)
+                    {
+                        llvm::SmallVector<Value> indices;
+                        if (auto load = dyn_cast<mlir::memref::LoadOp>(memOp))
+                            indices.append(load.getIndices().begin(), load.getIndices().end());
+                        else if (auto store = dyn_cast<mlir::memref::StoreOp>(memOp))
+                            indices.append(store.getIndices().begin(), store.getIndices().end());
+
+                        if (!indices.empty())
+                            found = getOffsetFromIV(indices[0], loopIV, offset);
+                    }
+
+                    if (found)
+                    {
+                        anyFound = true;
+                        minOffset = std::min(minOffset, offset);
+                        maxOffset = std::max(maxOffset, offset);
+                        llvm::errs() << "  Access offset: " << offset << "\n";
+                    }
+                };
+
+                for (Operation *op : loads)  processOp(op);
+                for (Operation *op : stores) processOp(op);
+
+                if (anyFound)
+                {
+                    info.haloLeft  = (int)std::max((int64_t)0, -minOffset);
+                    info.haloRight = (int)std::max((int64_t)0,  maxOffset);
+
+                    llvm::errs() << "Halo: left=" << info.haloLeft
+                                 << ", right=" << info.haloRight << "\n";
+
+                    if (info.haloLeft == 0 && info.haloRight == 0)
+                        llvm::errs() << "→ No halo needed (accesses match loop IV exactly)\n";
+                    else
+                    {
+                        info.strategy = ArrayPartitioningInfo::NO_PARTITION;
+                        llvm::errs() << "→ Halo required (stencil pattern detected)\n";
+                        llvm::errs() << "→ No Partition\n";
+                    }
+                }
+            }
 
             // Find the outermost loop IV (works for both affine and scf loops)
             Value findOutermostLoopIV(llvm::SmallVector<Operation *> &loads,
@@ -367,7 +651,7 @@ namespace mlir
                 }
 
                 // Find which dimension uses the target IV
-                for (int dim = 0; dim < indices.size(); ++dim)
+                for (int dim = 0; dim < (int)indices.size(); ++dim)
                 {
                     Value idx = indices[dim];
 
