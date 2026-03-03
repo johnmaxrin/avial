@@ -18,10 +18,6 @@
 
 using namespace mlir;
 
-// Right Now we just have Replicate Op to be lowered to another dhir op.
-// In future, we might need to change the name , if more ops has to be converted to
-// same dhir dialect op but lower abstraction.
-
 struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
 {
     using OpConversionPattern::OpConversionPattern;
@@ -47,34 +43,23 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
             schOp = schOp->getParentOp();
         }
 
-        /*
-            InsOutsAnalysis
-            Add Desc
-        */
-
-        // InsOutsAnalysis insoutAnalysis(schOp);
-        // insoutAnalysis.print(llvm::errs());
-
-        // End of InsOutAnalysis
-
         auto deviceVec = extractTargetDeviceSpecs(llvm::dyn_cast<mlir::ModuleOp>(module));
         llvm::errs() << "Device Count: " << deviceVec.size();
         int64_t constupperBound = 0;
         int64_t constlowerBound = 0;
-        mlir::scf::ForOp outerFor = nullptr;
+        mlir::scf::ForOp outerScfFor = nullptr;
+        mlir::affine::AffineForOp outerAffineFor = nullptr;
 
         for (auto &innerOp : op.getBody().front().getOperations())
         {
             if (mlir::isa<mlir::scf::ForOp>(innerOp))
             {
-                outerFor = mlir::dyn_cast<mlir::scf::ForOp>(innerOp);
+                outerScfFor = mlir::dyn_cast<mlir::scf::ForOp>(innerOp);
 
-                // Array Partition Analysis
-
-                if (mlir::isa<mlir::arith::ConstantIndexOp>(outerFor.getUpperBound().getDefiningOp()))
+                if (mlir::isa<mlir::arith::ConstantIndexOp>(outerScfFor.getUpperBound().getDefiningOp()))
                 {
-                    auto constUB = mlir::dyn_cast<mlir::arith::ConstantIndexOp>(outerFor.getUpperBound().getDefiningOp());
-                    auto constLB = mlir::dyn_cast<mlir::arith::ConstantIndexOp>(outerFor.getLowerBound().getDefiningOp());
+                    auto constUB = mlir::dyn_cast<mlir::arith::ConstantIndexOp>(outerScfFor.getUpperBound().getDefiningOp());
+                    auto constLB = mlir::dyn_cast<mlir::arith::ConstantIndexOp>(outerScfFor.getLowerBound().getDefiningOp());
                     constupperBound = constUB.value();
                     constlowerBound = constLB.value();
                 }
@@ -84,19 +69,60 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
                     return failure();
                 }
             }
+            else if (mlir::isa<mlir::affine::AffineForOp>(innerOp))
+            {
+                outerAffineFor = mlir::dyn_cast<mlir::affine::AffineForOp>(innerOp);
+
+                AffineMap ubMap = outerAffineFor.getUpperBoundMap();
+                AffineMap lbMap = outerAffineFor.getLowerBoundMap();
+
+                if (ubMap.getNumResults() == 1 && ubMap.getNumSymbols() == 0 &&
+                    ubMap.getNumDims() == 0)
+                {
+                    if (auto constExpr = mlir::dyn_cast<AffineConstantExpr>(ubMap.getResult(0)))
+                        constupperBound = constExpr.getValue();
+                    else
+                    {
+                        llvm::errs() << "Error: Not a constant upper bound bro!\n";
+                        return failure();
+                    }
+                }
+                else
+                {
+                    llvm::errs() << "Error: Not a constant upper bound bro!\n";
+                    return failure();
+                }
+
+                if (lbMap.getNumResults() == 1 && lbMap.getNumSymbols() == 0 &&
+                    lbMap.getNumDims() == 0)
+                {
+                    if (auto constExpr = mlir::dyn_cast<AffineConstantExpr>(lbMap.getResult(0)))
+                        constlowerBound = constExpr.getValue();
+                    else
+                    {
+                        llvm::errs() << "Error: Not a constant lower bound bro!\n";
+                        return failure();
+                    }
+                }
+                else
+                {
+                    llvm::errs() << "Error: Not a constant lower bound bro!\n";
+                    return failure();
+                }
+            }
         }
 
         if (!constupperBound)
         {
             llvm::errs() << "Error: Upper Bound cannot be Zero. UB: " << constupperBound << "\n";
-
             return failure();
         }
 
         int64_t ub = constupperBound;
         int64_t lb = constlowerBound;
         int64_t num_devices = deviceVec.size();
-        llvm::SmallVector<mlir::avial::ArrayPartitioningInfo> arrayPartitionInfoVec;
+        llvm::SmallVector<mlir::avial::ArrayPartitioningInfo> arrayPartitionInfoInVec;
+        llvm::SmallVector<mlir::avial::ArrayPartitioningInfo> arrayPartitionInfoOutVec;
 
         int64_t total_iters = ub - lb;
         int64_t base_chunk = total_iters / num_devices;
@@ -109,54 +135,70 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
 
         bool isSingleLoop = false;
 
-        // Find the for loop and determine if it's single or nested
+        bool isStencil = false;
+        if (auto stencilAttr = op->getAttrOfType<StringAttr>("pattern"))
+        {
+            if (stencilAttr.getValue() == "stencil")
+                isStencil = true;
+        }
+
+        // Find the for loop (scf or affine) and determine if it's single or nested
         for (auto &innerOp : op.getBody().front().getOperations())
         {
             if (auto forOp = mlir::dyn_cast<mlir::scf::ForOp>(innerOp))
             {
-                outerFor = forOp;
-
-                // Check if there's a nested for loop
-                isSingleLoop = true; // Assume single loop initially
+                outerScfFor = forOp;
+                isSingleLoop = true;
                 for (auto &nestedOp : forOp.getBody()->getOperations())
                 {
-                    if (mlir::isa<mlir::scf::ForOp>(nestedOp))
+                    if (mlir::isa<mlir::scf::ForOp>(nestedOp) ||
+                        mlir::isa<mlir::affine::AffineForOp>(nestedOp))
                     {
-                        isSingleLoop = false; // Found nested loop - it's 2D
+                        isSingleLoop = false;
                         break;
                     }
                 }
-
-                break; // Only process the first for loop
+                break;
+            }
+            else if (auto affineFor = mlir::dyn_cast<mlir::affine::AffineForOp>(innerOp))
+            {
+                outerAffineFor = affineFor;
+                isSingleLoop = true;
+                for (auto &nestedOp : affineFor.getBody()->getOperations())
+                {
+                    if (mlir::isa<mlir::scf::ForOp>(nestedOp) ||
+                        mlir::isa<mlir::affine::AffineForOp>(nestedOp))
+                    {
+                        isSingleLoop = false;
+                        break;
+                    }
+                }
+                break;
             }
         }
 
-        // Perform array partition analysis if we found a loop
-        if (outerFor)
+        // Use whichever loop op we found as the root for array partition analysis
+        mlir::Operation *outerForOp =
+            outerScfFor ? outerScfFor.getOperation() : outerAffineFor ? outerAffineFor.getOperation()
+                                                                      : nullptr;
+
+        if (outerForOp)
         {
             if (isSingleLoop)
-            {
                 llvm::errs() << "Analyzing 1D array partitioning (single for loop)...\n";
-            }
             else
-            {
                 llvm::errs() << "Analyzing 2D array partitioning (nested for loops)...\n";
-            }
 
-            // Analyze input memrefs
             for (Value memref : insVec)
             {
-                mlir::avial::ArrayPartitioningAnalysis analysis(outerFor);
-                auto partitionInfo = analysis.analyzeArray(memref);
-                arrayPartitionInfoVec.push_back(partitionInfo);
+                mlir::avial::ArrayPartitioningAnalysis analysis(outerForOp);
+                arrayPartitionInfoInVec.push_back(analysis.analyzeArray(memref));
             }
 
-            // Analyze output memrefs
             for (Value memref : outsVec)
             {
-                mlir::avial::ArrayPartitioningAnalysis analysis(outerFor);
-                auto partitionInfo = analysis.analyzeArray(memref);
-                arrayPartitionInfoVec.push_back(partitionInfo);
+                mlir::avial::ArrayPartitioningAnalysis analysis(outerForOp);
+                arrayPartitionInfoOutVec.push_back(analysis.analyzeArray(memref));
             }
         }
         else
@@ -167,10 +209,10 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
         llvm::SmallVector<mlir::Value> subViewIns;
         llvm::SmallVector<mlir::Value> subViewOuts;
 
-        int64_t current = 0;
+        int64_t current = constlowerBound;
         for (int i = 0; i < num_devices; ++i)
         {
-            int64_t chunk = base_chunk + (i < remainder ? 1 : 0); // distribute remainder
+            int64_t chunk = base_chunk + (i < remainder ? 1 : 0);
             int64_t start = current;
             int64_t end = start + chunk;
             current = end;
@@ -179,43 +221,33 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
             PatternRewriter::InsertionGuard guard(rewriter);
             rewriter.setInsertionPoint(op);
 
-            // TODO:  Take this device's DLTI. So that we can generate gpu.alloc() correctly.
-
             bool needBroadcast = false;
 
-            // Create Subviews and add It to local Mappings.
-            for (int i = 0; i < insVec.size(); ++i)
+            for (int i = 0; i < (int)insVec.size(); ++i)
             {
                 auto in = insVec[i];
-                auto partitionInfo = arrayPartitionInfoVec[i];
+                auto partitionInfo = arrayPartitionInfoInVec[i];
 
-                if (partitionInfo.strategy == partitionInfo.ROW_PARTITION)
+                if (partitionInfo.strategy == partitionInfo.ROW_PARTITION && !isStencil)
                 {
                     auto memrefType = dyn_cast<MemRefType>(in.getType());
 
                     if (memrefType && memrefType.getRank() > 0)
                     {
-                        // Create subview for input (if it's split along first dimension)
                         auto shape = memrefType.getShape();
 
                         SmallVector<OpFoldResult> offsets, sizes, strides;
 
-                        offsets.push_back(rewriter.getIndexAttr(start));
+                        offsets.push_back(rewriter.getIndexAttr(std::max<int64_t>(0, start)));
                         for (size_t d = 1; d < shape.size(); ++d)
-                        {
                             offsets.push_back(rewriter.getIndexAttr(0));
-                        }
 
                         sizes.push_back(rewriter.getIndexAttr(chunk));
                         for (size_t d = 1; d < shape.size(); ++d)
-                        {
                             sizes.push_back(rewriter.getIndexAttr(shape[d]));
-                        }
 
                         for (size_t d = 0; d < shape.size(); ++d)
-                        {
                             strides.push_back(rewriter.getIndexAttr(1));
-                        }
 
                         auto subview = rewriter.create<memref::SubViewOp>(
                             op.getLoc(), in, offsets, sizes, strides);
@@ -232,114 +264,159 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
             }
 
             needBroadcast = false;
-            for (auto out : outsVec)
+            for (int i = 0; i < (int)outsVec.size(); ++i)
             {
-                auto memrefType = cast<MemRefType>(out.getType());
-                llvm::errs() << "Memref Type: " << memrefType << "\n";
-                auto shape = memrefType.getShape();
+                auto out = outsVec[i];
+                auto partitionInfo = arrayPartitionInfoOutVec[i];
 
-                SmallVector<OpFoldResult> offsets, sizes, strides;
-
-                offsets.push_back(rewriter.getIndexAttr(start));
-                for (size_t d = 1; d < shape.size(); ++d)
+                if (partitionInfo.strategy == partitionInfo.ROW_PARTITION && !isStencil)
                 {
-                    offsets.push_back(rewriter.getIndexAttr(0));
+                    auto memrefType = cast<MemRefType>(out.getType());
+                    llvm::errs() << "Memref Type: " << memrefType << "\n";
+                    auto shape = memrefType.getShape();
+
+                    SmallVector<OpFoldResult> offsets, sizes, strides;
+
+                    offsets.push_back(rewriter.getIndexAttr(std::max<int64_t>(0, start)));
+                    for (size_t d = 1; d < shape.size(); ++d)
+                        offsets.push_back(rewriter.getIndexAttr(0));
+
+                    sizes.push_back(rewriter.getIndexAttr(chunk));
+                    for (size_t d = 1; d < shape.size(); ++d)
+                        sizes.push_back(rewriter.getIndexAttr(shape[d]));
+
+                    for (size_t d = 0; d < shape.size(); ++d)
+                        strides.push_back(rewriter.getIndexAttr(1));
+
+                    auto subview = rewriter.create<memref::SubViewOp>(
+                        op.getLoc(), out, offsets, sizes, strides);
+
+                    subViewOuts.push_back(subview);
+                    mapping.map(out, subview);
                 }
 
-                // matcing loop and memory access.
-                // Ideally
-                // - Get the loop info
-                // - Get the Mem ref inside loop
-                // - And figure out the subviews
-                // This if else part isn't scalable!
-
-                sizes.push_back(rewriter.getIndexAttr(chunk));
-
-                for (size_t d = 1; d < shape.size(); ++d)
+                else
                 {
-                    sizes.push_back(rewriter.getIndexAttr(shape[d]));
+                    subViewOuts.push_back(out);
+                    mapping.map(out, out);
                 }
-
-                for (size_t d = 0; d < shape.size(); ++d)
-                {
-                    strides.push_back(rewriter.getIndexAttr(1));
-                }
-
-                auto subview = rewriter.create<memref::SubViewOp>(
-                    op.getLoc(), out, offsets, sizes, strides);
-
-                subViewOuts.push_back(subview);
-                mapping.map(out, subview);
 
                 if (mlir::avial::doesOutputNeedBroadcast(op, out))
                     needBroadcast = true;
             }
-
-            // Check if this task's output is being used somewhere? after this task.
-            // If yes, check if that access needs partitoning or not. If no partition,
-            // then we have  to broadcast, so that all nodes will get the processed data.
 
             mlir::DenseI64ArrayAttr outRanges = rewriter.getDenseI64ArrayAttr({start, end});
             auto taskOp = rewriter.create<avial::TaskOp>(
                 op.getLoc(),
                 avial::TaskRefType::get(rewriter.getContext()),
                 deviceVec[i],
-                ValueRange(subViewIns), rewriter.getDenseI64ArrayAttr({0, 0}), ValueRange(subViewOuts), outRanges, ValueRange{outsVec});
+                ValueRange(subViewIns), rewriter.getDenseI64ArrayAttr({0, 0}),
+                ValueRange(subViewOuts), outRanges, ValueRange{outsVec});
             taskOp->setAttr("name", rewriter.getStringAttr(std::to_string(i)));
-
-            // Broadcast Stuff
-            if (needBroadcast)
-                taskOp->setAttr("needBroadcast", rewriter.getBoolAttr(true));
-            else
-                taskOp->setAttr("needBroadcast", rewriter.getBoolAttr(false));
+            taskOp->setAttr("needBroadcast", rewriter.getBoolAttr(needBroadcast));
 
             mlir::IntegerAttr repIdAttr;
             if (auto attr = op->getAttrOfType<mlir::IntegerAttr>("replicateID"))
                 repIdAttr = attr;
             else
                 repIdAttr = rewriter.getI32IntegerAttr(0);
-
             taskOp->setAttr("repId", repIdAttr);
 
             if (taskOp.getRegion().empty())
                 rewriter.createBlock(&taskOp.getRegion());
 
-            // Change insertion point to the start of the new block
             rewriter.setInsertionPointToStart(&taskOp.getRegion().front());
 
-            // Create some ops in the task region
             for (auto &innerOp : op.getRegion().front().without_terminator())
             {
                 auto cloned = rewriter.clone(innerOp, mapping);
-                if (mlir::isa<mlir::scf::ForOp>(cloned))
+
+                // ── scf.for ──────────────────────────────────────────────────
+                if (auto clonedScfFor = mlir::dyn_cast<mlir::scf::ForOp>(cloned))
                 {
-                    scf::ForOp outerFor = mlir::dyn_cast<mlir::scf::ForOp>(cloned);
+                    auto ubOp = clonedScfFor.getUpperBound().getDefiningOp();
+                    auto lbOp = clonedScfFor.getLowerBound().getDefiningOp();
 
-                    auto ub = outerFor.getUpperBound().getDefiningOp();
-                    auto lb = outerFor.getLowerBound().getDefiningOp();
-                    if (mlir::isa<mlir::arith::ConstantIndexOp>(ub))
+                    if (isStencil)
                     {
-                        mlir::arith::ConstantIndexOp constUBIdx = mlir::dyn_cast<mlir::arith::ConstantIndexOp>(ub);
-                        mlir::arith::ConstantIndexOp constLBIdx = mlir::dyn_cast<mlir::arith::ConstantIndexOp>(lb);
+                        if (mlir::isa<mlir::arith::ConstantIndexOp>(ubOp))
+                        {
+                            mlir::dyn_cast<mlir::arith::ConstantIndexOp>(ubOp)
+                                .setValueAttr(rewriter.getIndexAttr(end));
 
-                        constUBIdx.setValueAttr(rewriter.getIndexAttr(chunk));
-                        constLBIdx.setValueAttr(rewriter.getIndexAttr(0));
+                            mlir::dyn_cast<mlir::arith::ConstantIndexOp>(lbOp)
+                                .setValueAttr(rewriter.getIndexAttr(start));
+                        }
+
+                        else
+                        {
+                            llvm::errs() << "Error: Not a constant upper bound!\n";
+                            exit(0);
+                        }
                     }
+                    else
+                    {
+                        if (mlir::isa<mlir::arith::ConstantIndexOp>(ubOp))
+                        {
+                            mlir::dyn_cast<mlir::arith::ConstantIndexOp>(ubOp)
+                                .setValueAttr(rewriter.getIndexAttr(chunk));
 
-                    // Let's create the parallel Op
-                    auto parallelOp = rewriter.create<scf::ParallelOp>(outerFor.getLoc(),
-                                                                       ValueRange{mlir::dyn_cast<mlir::arith::ConstantIndexOp>(lb)},
-                                                                       ValueRange{mlir::dyn_cast<mlir::arith::ConstantIndexOp>(ub)},
-                                                                       ValueRange{outerFor.getStep()},
-                                                                       ValueRange{});
+                            if (i != 0)
+                                mlir::dyn_cast<mlir::arith::ConstantIndexOp>(lbOp)
+                                    .setValueAttr(rewriter.getIndexAttr(0));
+                        }
+                    }
+                    auto parallelOp = rewriter.create<scf::ParallelOp>(
+                        clonedScfFor.getLoc(),
+                        ValueRange{clonedScfFor.getLowerBound()},
+                        ValueRange{clonedScfFor.getUpperBound()},
+                        ValueRange{clonedScfFor.getStep()},
+                        ValueRange{});
 
                     rewriter.setInsertionPointToStart(parallelOp.getBody());
-                    mapping.map(outerFor.getInductionVar(), parallelOp.getInductionVars()[0]);
+                    mapping.map(clonedScfFor.getInductionVar(),
+                                parallelOp.getInductionVars()[0]);
 
-                    for (auto &bodyOp : outerFor.getBody()->without_terminator())
+                    for (auto &bodyOp : clonedScfFor.getBody()->without_terminator())
                         rewriter.clone(bodyOp, mapping);
 
-                    rewriter.eraseOp(outerFor);
+                    rewriter.eraseOp(clonedScfFor);
+                }
+                // ── affine.for ───────────────────────────────────────────────
+                else if (auto clonedAffineFor = mlir::dyn_cast<mlir::affine::AffineForOp>(cloned))
+                {
+                    // Rewrite the bounds to [0, chunk) so each task only sees its slice.
+                    // affine.for bounds live in the AffineMap, not in SSA constants,
+                    // so we replace the maps directly.
+                    clonedAffineFor.setLowerBoundMap(
+                        AffineMap::getConstantMap(0, rewriter.getContext()));
+                    clonedAffineFor.setUpperBoundMap(
+                        AffineMap::getConstantMap(chunk, rewriter.getContext()));
+
+                    // Build an scf.parallel with the same trip count so downstream
+                    // lowering can parallelise it the same way as the scf.for path.
+                    Value zeroVal = rewriter.create<arith::ConstantIndexOp>(
+                        clonedAffineFor.getLoc(), 0);
+                    Value chunkVal = rewriter.create<arith::ConstantIndexOp>(
+                        clonedAffineFor.getLoc(), chunk);
+                    Value stepVal = rewriter.create<arith::ConstantIndexOp>(
+                        clonedAffineFor.getLoc(), clonedAffineFor.getStepAsInt());
+
+                    auto parallelOp = rewriter.create<scf::ParallelOp>(
+                        clonedAffineFor.getLoc(),
+                        ValueRange{zeroVal},
+                        ValueRange{chunkVal},
+                        ValueRange{stepVal},
+                        ValueRange{});
+
+                    rewriter.setInsertionPointToStart(parallelOp.getBody());
+                    mapping.map(clonedAffineFor.getInductionVar(),
+                                parallelOp.getInductionVars()[0]);
+
+                    for (auto &bodyOp : clonedAffineFor.getBody()->without_terminator())
+                        rewriter.clone(bodyOp, mapping);
+
+                    rewriter.eraseOp(clonedAffineFor);
                 }
             }
 
@@ -350,8 +427,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
             subViewOuts.clear();
         }
 
-        rewriter.eraseOp(op); // Erase the old op safely
-
+        rewriter.eraseOp(op);
         return success();
     }
 };
@@ -369,7 +445,6 @@ namespace mlir
 
             void runOnOperation() override
             {
-
                 mlir::MLIRContext *context = &getContext();
                 auto *module = getOperation();
                 ConversionTarget targetReplicateOp(getContext());
@@ -386,11 +461,8 @@ namespace mlir
                 avialpatterns.add<ConvertReplicateOp>(context);
 
                 if (failed(applyPartialConversion(module, targetReplicateOp, std::move(avialpatterns))))
-                {
                     signalPassFailure();
-                }
             }
         };
-
     }
 }

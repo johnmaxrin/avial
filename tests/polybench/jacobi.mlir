@@ -20,7 +20,7 @@ module {
         %12 = arith.truncf %11 : f64 to f32
         affine.store %12, %arg3[%arg5] : memref<?xf32>
       }
-      affine.for %arg5 = 1 to 1000 {
+      affine.for %arg5 = 1 to 999 {
         %0 = affine.load %arg3[%arg5] : memref<?xf32>
         affine.store %0, %arg2[%arg5] : memref<?xf32>
       }

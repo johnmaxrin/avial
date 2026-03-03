@@ -138,15 +138,41 @@ namespace mlir
                 llvm::errs() << "Found " << independentLoops.size() 
                              << " independent inner loops to wrap\n";
                 
+                             
+
                 // Wrap each independent loop with ReplicateOp
                 for (auto forOp : independentLoops)
                 {
                     auto insouts = InsOutsAnalysis::getInsandOut(forOp);
                     
+                    bool isStencil  = false;
+
+                    mlir::avial::ArrayPartitioningAnalysis analysis(forOp);
+                    for(Value in : insouts[0])
+                    {
+                        auto info = analysis.analyzeArray(in);
+                        if(info.haloLeft > 0 || info.haloRight > 0)
+                            isStencil = true;
+                    }
+
+                    for(Value out : insouts[1])
+                    {
+                        auto info = analysis.analyzeArray(out);
+                        if(info.haloLeft > 0 || info.haloRight > 0)
+                            isStencil = true;
+                    }
+
+                    
                     builder.setInsertionPoint(forOp);
                     auto replicateOp = builder.create<mlir::avial::ReplicateOp>(forOp.getLoc(), insouts[0], insouts[1]);
                     replicateOp->setAttr("replicateID", builder.getI64IntegerAttr(repId));
                     
+                    if(isStencil)
+                        replicateOp->setAttr("pattern", builder.getStringAttr("stencil"));
+                    else
+                        replicateOp->setAttr("pattern", builder.getStringAttr("default"));
+                    
+
                     mlir::Region &replicateRegion = replicateOp.getBodyRegion();
                     mlir::Block *newBlock = builder.createBlock(&replicateRegion);
                     
