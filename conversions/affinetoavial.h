@@ -244,6 +244,8 @@ namespace mlir
                                 }
                                 else // outerDep == 2, dependence check failed
                                 {
+                                    // [TODO] Consider it as an Individual task and wrap everything 
+                                    // with task Op. 
                                     llvm::errs() << "Dependence Analysis Failed!\n";
                                     exit(0);    
                                 }
