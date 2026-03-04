@@ -566,13 +566,14 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                 }
                 else if (sourceRank == 2)
                 {
+                    auto shape = sourceType.getShape();
                     offsets = {
                         rewriter.getIndexAttr(outRanges[0]),
                         rewriter.getIndexAttr(0)
                     };
                     sizes = {
-                        rewriter.getIndexAttr((outRanges[1] - outRanges[0]) * 1000),
-                        rewriter.getIndexAttr(1000)
+                        rewriter.getIndexAttr(outRanges[1] - outRanges[0]),
+                        rewriter.getIndexAttr(shape[1])
                     };
                     strides = {
                         rewriter.getIndexAttr(1),
