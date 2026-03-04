@@ -152,7 +152,62 @@ namespace mlir
                     
                     return info;
                 }
-                
+
+                // ===== Handle 3D arrays — partition along outermost dimension (i) =====
+                // For a[i][j][k] we split across i (dimension 0), reusing the same
+                // ROW_PARTITION strategy that the 2D row-partition path uses.
+                if (rank == 3)
+                {
+                    llvm::errs() << "=== 3D Array Analysis ===\n";
+                    llvm::errs() << "Is input: " << isInput << ", Is output: " << isOutput << "\n";
+
+                    // Reuse the existing helper that walks up from the first access
+                    // and returns the outermost loop IV it finds.
+                    Value outerIV = findOutermostLoopIV(loads, stores);
+
+                    if (!outerIV)
+                    {
+                        llvm::errs() << "→ NO_PARTITION (no outermost loop IV found)\n";
+                        info.strategy = ArrayPartitioningInfo::NO_PARTITION;
+                        return info;
+                    }
+
+                    // Verify that every load/store uses the outer IV on dimension 0.
+                    // If any access maps the outer IV to a different dimension we fall
+                    // back to NO_PARTITION to avoid incorrect partitioning.
+                    bool consistentDim0 = true;
+
+                    auto checkDim0 = [&](const llvm::SmallVector<Operation *> &ops) {
+                        for (Operation *op : ops)
+                        {
+                            int dim = getDimensionForIV(op, outerIV);
+                            if (dim != 0)
+                            {
+                                consistentDim0 = false;
+                                llvm::errs() << "  Access uses outer IV on dim " << dim
+                                             << " (expected 0)\n";
+                            }
+                        }
+                    };
+
+                    checkDim0(loads);
+                    checkDim0(stores);
+
+                    if (consistentDim0)
+                    {
+                        info.strategy = ArrayPartitioningInfo::ROW_PARTITION;
+                        info.partitionDimension = 0;
+                        llvm::errs() << "→ ROW_PARTITION (3D array, split across dim 0 / i)\n";
+                    }
+                    else
+                    {
+                        info.strategy = ArrayPartitioningInfo::NO_PARTITION;
+                        llvm::errs() << "→ NO_PARTITION (inconsistent dim-0 access pattern)\n";
+                    }
+
+                    return info;
+                }
+
                 // ===== Handle 2D arrays (nested for loop case) =====
                 if (rank != 2)
                 {
