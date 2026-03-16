@@ -331,7 +331,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
             {
                 auto cloned = rewriter.clone(innerOp, mapping);
 
-                // ── scf.for ──────────────────────────────────────────────────
+                // -- scf.for --
                 if (auto clonedScfFor = mlir::dyn_cast<mlir::scf::ForOp>(cloned))
                 {
                     auto ubOp = clonedScfFor.getUpperBound().getDefiningOp();

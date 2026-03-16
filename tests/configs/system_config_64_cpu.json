@@ -1,0 +1,329 @@
+{
+  "cluster": {
+    "world_size": 64,
+    "node_ids": [
+      "node0",
+      "node1",
+      "node2",
+      "node3",
+      "node4",
+      "node5",
+      "node6",
+      "node7",
+      "node8",
+      "node9",
+      "node10",
+      "node11",
+      "node12",
+      "node13",
+      "node14",
+      "node15",
+      "node16",
+      "node17",
+      "node18",
+      "node19",
+      "node20",
+      "node21",
+      "node22",
+      "node23",
+      "node24",
+      "node25",
+      "node26",
+      "node27",
+      "node28",
+      "node29",
+      "node30",
+      "node31",
+      "node32",
+      "node33",
+      "node34",
+      "node35",
+      "node36",
+      "node37",
+      "node38",
+      "node39",
+      "node40",
+      "node41",
+      "node42",
+      "node43",
+      "node44",
+      "node45",
+      "node46",
+      "node47",
+      "node48",
+      "node49",
+      "node50",
+      "node51",
+      "node52",
+      "node53",
+      "node54",
+      "node55",
+      "node56",
+      "node57",
+      "node58",
+      "node59",
+      "node60",
+      "node61",
+      "node62",
+      "node63"
+    ]
+  },
+  "nodes": {
+    "node0": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node1": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node2": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node3": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node4": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node5": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node6": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node7": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node8": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node9": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node10": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node11": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node12": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node13": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node14": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node15": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node16": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node17": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node18": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node19": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node20": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node21": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node22": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node23": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node24": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node25": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node26": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node27": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node28": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node29": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node30": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node31": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node32": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node33": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node34": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node35": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node36": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node37": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node38": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node39": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node40": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node41": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node42": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node43": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node44": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node45": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node46": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node47": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node48": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node49": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node50": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node51": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node52": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node53": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node54": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node55": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node56": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node57": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node58": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node59": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node60": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node61": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node62": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node63": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    }
+  }
+}
