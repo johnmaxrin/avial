@@ -572,7 +572,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                         rewriter.getIndexAttr(0)
                     };
                     sizes = {
-                        rewriter.getIndexAttr(outRanges[1] - outRanges[0]),
+                        rewriter.getIndexAttr((outRanges[1] - outRanges[0])*10000),
                         rewriter.getIndexAttr(shape[1])
                     };
                     strides = {

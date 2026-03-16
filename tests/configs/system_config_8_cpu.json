@@ -1,0 +1,49 @@
+{
+  "cluster": {
+    "world_size": 8,
+    "node_ids": [
+      "node0",
+      "node1",
+      "node2",
+      "node3",
+      "node4",
+      "node5",
+      "node6",
+      "node7"
+    ]
+  },
+  "nodes": {
+    "node0": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node1": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node2": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node3": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node4": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node5": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node6": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    },
+    "node7": {
+      "cpu_arch": "x86_64",
+      "gpus": []
+    }
+  }
+}

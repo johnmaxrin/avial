@@ -50,7 +50,7 @@ void print_trace() {
 
 // // Intercepting MPI_Recv
 // int MPI_Recv(void *buf, int count, MPI_Datatype datatype, int source, 
-//              int tag, MPI_Comm comm, MPI_Status *status) {
+//              int tag, MPI_Comm comm, MPI_Status *statusr ) {
     
 //     int rank;
 //     PMPI_Comm_rank(comm, &rank);
@@ -74,7 +74,7 @@ int main(int argc, char **argv) {
     int rank=0, size=0;
     
     
-    int M = 10000, K = 10000, N = 10000;
+    int M = 1000, K = 1000, N = 1000;
     float *A = (float*) aligned_alloc(64, M*K*sizeof(float));
     float *B = (float*) aligned_alloc(64, K*N*sizeof(float));
     float *C = (float*) aligned_alloc(64, M*N*sizeof(float));
@@ -84,25 +84,32 @@ int main(int argc, char **argv) {
     for (int i=0; i<K*N; i++) B[i] = 1.0f;
     for (int i=0; i<M*N; i++) C[i] = 0.0f;
     
-    
-    
+    MPI_Init(&argc, &argv);
+
+    double start_time = MPI_Wtime(); 
     matmul(M, N, K,
         A, A, 0, M, K, K, 1,        
         B, B, 0, K, N, N, 1,        
         C, C, 0, M, N, N, 1);
     
-        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    double end_time = MPI_Wtime();
+    double elapsed = end_time - start_time;
+
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
     MPI_Barrier(MPI_COMM_WORLD);
     
     
-
+    double max_elapsed;
+    MPI_Reduce(&elapsed, &max_elapsed, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
     if(rank == 0)
     {
-        for(int i=0; i<M*N; ++i)
-        {
-                printf("%f\n", C[i]);
-        }
+        
+        printf("Matrix multiplication time: %.6f seconds\n", max_elapsed);
+    //     for(int i=0; i<M*N; ++i)
+    //     {
+    //             printf("%f\n", C[i]);
+    //     }
     }
 
 

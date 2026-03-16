@@ -43,44 +43,45 @@ namespace mlir
         struct ConvertAffineToAvialPass : public mlir::avial::impl::ConvertAffineToAvialPassBase<ConvertAffineToAvialPass>
         {
             using ConvertAffineToAvialPassBase::ConvertAffineToAvialPassBase;
-            
+
             // Helper function to check if a loop is independent (considering only its own iterations)
             // This checks the loop in isolation, not in the context of parent loops
             bool isLoopIndependent(mlir::affine::AffineForOp loop)
             {
                 llvm::SmallVector<mlir::Operation *, 4> memOpVector;
-                
+
                 // Collect only memory operations directly within this loop
                 // Do NOT walk into nested loops - we only care about this loop's own dependencies
-                loop.getBody()->walk([&](mlir::Operation *op) {
+                loop.getBody()->walk([&](mlir::Operation *op)
+                                     {
                     if (mlir::isa<mlir::affine::AffineLoadOp>(op) || 
                         mlir::isa<mlir::affine::AffineStoreOp>(op)) {
                         memOpVector.push_back(op);
-                    }
-                });
-                
+                    } });
+
                 // Check for loop-carried dependencies at this loop's level only
                 llvm::SmallVector<mlir::Operation *, 4> forLoopOpVector;
                 forLoopOpVector.push_back(loop.getOperation());
-                
+
                 affine::FlatAffineValueConstraints constraints;
                 affine::getIndexSet(forLoopOpVector, &constraints);
-                
+
                 llvm::errs() << "---- Checking Inner Loop Independence (Isolated) ----\n";
-                
+
                 for (int i = 0; i < memOpVector.size(); ++i)
                 {
                     for (int j = 0; j < memOpVector.size(); ++j)
                     {
-                        if (i == j) continue;
-                        
+                        if (i == j)
+                            continue;
+
                         mlir::affine::MemRefAccess src(memOpVector[i]);
                         mlir::affine::MemRefAccess dst(memOpVector[j]);
                         SmallVector<mlir::affine::DependenceComponent, 2> comps;
-                        
-                        mlir::affine::DependenceResult res = 
+
+                        mlir::affine::DependenceResult res =
                             mlir::affine::checkMemrefAccessDependence(src, dst, 1, &constraints, &comps);
-                        
+
                         if (res.value == mlir::affine::DependenceResult::HasDependence)
                         {
                             if (comps.size() > 0)
@@ -102,19 +103,19 @@ namespace mlir
                         }
                     }
                 }
-                
+
                 llvm::errs() << "No loop-carried dependence found - loop is independent!\n";
                 llvm::errs() << "---- End Checking Inner Loop Independence ----\n";
                 return true; // No loop-carried dependence
             }
-            
+
             // Helper function to wrap independent loops with ReplicateOp
-            void wrapIndependentLoopsInConverge(mlir::affine::AffineForOp outerLoop, 
-                                                   mlir::OpBuilder &builder, 
-                                                   int &repId)
+            void wrapIndependentLoopsInConverge(mlir::affine::AffineForOp outerLoop,
+                                                mlir::OpBuilder &builder,
+                                                int &repId)
             {
                 llvm::SmallVector<mlir::affine::AffineForOp> allInnerLoops;
-                
+
                 // Collect all direct child loops of the outer loop
                 // We need to check them at the same nesting level
                 for (auto &op : outerLoop.getBody()->getOperations())
@@ -124,7 +125,7 @@ namespace mlir
                         allInnerLoops.push_back(innerLoop);
                     }
                 }
-                
+
                 // Now check each inner loop for independence (in isolation)
                 llvm::SmallVector<mlir::affine::AffineForOp> independentLoops;
                 for (auto innerLoop : allInnerLoops)
@@ -134,57 +135,53 @@ namespace mlir
                         independentLoops.push_back(innerLoop);
                     }
                 }
-                
-                llvm::errs() << "Found " << independentLoops.size() 
+
+                llvm::errs() << "Found " << independentLoops.size()
                              << " independent inner loops to wrap\n";
-                
-                             
 
                 // Wrap each independent loop with ReplicateOp
                 for (auto forOp : independentLoops)
                 {
                     auto insouts = InsOutsAnalysis::getInsandOut(forOp);
-                    
-                    bool isStencil  = false;
+
+                    bool isStencil = false;
 
                     mlir::avial::ArrayPartitioningAnalysis analysis(forOp);
-                    for(Value in : insouts[0])
+                    for (Value in : insouts[0])
                     {
                         auto info = analysis.analyzeArray(in);
-                        if(info.haloLeft > 0 || info.haloRight > 0)
+                        if (info.haloLeft > 0 || info.haloRight > 0)
                             isStencil = true;
                     }
 
-                    for(Value out : insouts[1])
+                    for (Value out : insouts[1])
                     {
                         auto info = analysis.analyzeArray(out);
-                        if(info.haloLeft > 0 || info.haloRight > 0)
+                        if (info.haloLeft > 0 || info.haloRight > 0)
                             isStencil = true;
                     }
 
-                    
                     builder.setInsertionPoint(forOp);
                     auto replicateOp = builder.create<mlir::avial::ReplicateOp>(forOp.getLoc(), insouts[0], insouts[1]);
                     replicateOp->setAttr("replicateID", builder.getI64IntegerAttr(repId));
-                    
-                    if(isStencil)
+
+                    if (isStencil)
                         replicateOp->setAttr("pattern", builder.getStringAttr("stencil"));
                     else
                         replicateOp->setAttr("pattern", builder.getStringAttr("default"));
-                    
 
                     mlir::Region &replicateRegion = replicateOp.getBodyRegion();
                     mlir::Block *newBlock = builder.createBlock(&replicateRegion);
-                    
+
                     forOp->moveBefore(newBlock, newBlock->end());
                     builder.setInsertionPointToEnd(newBlock);
                     builder.create<mlir::avial::YieldOp>(builder.getUnknownLoc());
-                    
+
                     llvm::errs() << "Wrapped loop with ReplicateOp (replicateID=" << repId << ")\n";
                     ++repId;
                 }
             }
-            
+
             void runOnOperation() override
             {
                 mlir::MLIRContext *context = &getContext();
@@ -193,9 +190,10 @@ namespace mlir
 
                 llvm::SmallVector<mlir::Operation *, 4> toReplicateVector;
                 llvm::SmallVector<mlir::Operation *, 4> toConvergeVector;
-                
+                llvm::SmallVector<mlir::Operation *, 4> toTaskVector;
+
                 module->walk<mlir::WalkOrder::PreOrder>([&](mlir::Operation *op)
-                {
+                                                        {
                     if (mlir::isa<func::FuncOp>(op))
                     {
                         auto funcOp = mlir::dyn_cast<func::FuncOp>(op);
@@ -236,6 +234,14 @@ namespace mlir
                                     // Wrap with ConvergeOp if there are parallelizable inner loops
                                     if(hasParallelizableInner)
                                         toConvergeVector.push_back(forOp);
+                                    else
+                                    {
+                                        // If it contains dependence at both level, 
+                                        // Wrap the whole loop nest with taskOp.
+                                        toTaskVector.push_back(forOp); 
+                                        llvm::errs() << "---- Wrapping with TaskOp ----\n";
+                                    }
+                                        
                                 }
                                 else if (outerDep == 0) // No dependence in outer loop
                                 {
@@ -251,9 +257,16 @@ namespace mlir
                                 }
                             }
                         }
-                    }
-                });
+                    } });
 
+
+
+                // Generate Individual Tasks
+                for(auto task: toTaskVector)
+                {
+                    
+                }
+                
                 // Create ReplicateOp for fully parallelizable loops
                 int repId = 1;
                 for (auto op : toReplicateVector)
@@ -279,11 +292,11 @@ namespace mlir
                 for (auto op : toConvergeVector)
                 {
                     affine::AffineForOp forOp = mlir::dyn_cast<affine::AffineForOp>(op);
-                    
+
                     // FIRST: Wrap independent inner loops with ReplicateOp
                     // This must be done BEFORE creating ConvergeOp
                     wrapIndependentLoopsInConverge(forOp, builder, repId);
-                    
+
                     // NOW: Create the ConvergeOp and move the outer loop into it
                     auto insouts = InsOutsAnalysis::getInsandOut(forOp);
 
@@ -297,9 +310,10 @@ namespace mlir
                     forOp->moveBefore(newBlock, newBlock->end());
                     builder.setInsertionPointToEnd(newBlock);
                     builder.create<mlir::avial::YieldOp>(builder.getUnknownLoc());
-                    
+
                     ++taskId;
                 }
+
             }
         };
     }

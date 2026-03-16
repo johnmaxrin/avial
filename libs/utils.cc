@@ -117,14 +117,15 @@ llvm::SmallVector<mlir::TargetDeviceSpecAttr> extractTargetDeviceSpecs(ModuleOp 
     return targetSpecVec;
 }
 
-SystemTopology parseSystemConfig()
+SystemTopology parseSystemConfig(llvm::StringRef configFile)
 {
 
     using json = nlohmann::json;
-    std::ifstream f("../system_config.json");
+    std::ifstream f(configFile.str());
     if (!f.is_open())
     {
-        llvm::errs() << "Could not open system_topology.json\n";
+        llvm::errs() << "Could not open "<<configFile.str()<<"\n";
+        exit(0);
     }
 
     json sys_config;

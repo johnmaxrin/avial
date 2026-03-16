@@ -129,7 +129,8 @@ int main(int argc, char **argv)
     // - stride: stride of dimension (usually 1 for contiguous)
 
     // printf("Running Jacobi iteration...\n");
-
+    MPI_Init(&argc, &argv);
+    double start_time = MPI_Wtime(); 
     kernel_jacobi(
         tsteps,     // arg0: tsteps (i32)
         n,          // arg1: n (i32)
@@ -144,6 +145,12 @@ int main(int argc, char **argv)
         (int64_t)n, // arg10: memref B - size
         1           // arg11: memref B - stride
     );
+
+    double end_time = MPI_Wtime();
+    double elapsed = end_time - start_time;
+
+    double max_elapsed;
+    MPI_Reduce(&elapsed, &max_elapsed, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
     int rank;
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -154,10 +161,10 @@ int main(int argc, char **argv)
 
         // Print results
         // printf("Final values (center region):\n");
-        for (int i = 0; i < n; ++i)
-        {
-            printf("%.6f\n",A[i]);
-        }
+        // for (int i = 0; i < n; ++i)
+        // {
+        //     printf("%.6f\n",A[i]);
+        // }
         // printf("\n");
 
         // printf("Final values (Initial region):\n");
@@ -168,7 +175,7 @@ int main(int argc, char **argv)
         // printf("\n");
 
 
-
+        printf("Jacobi() time: %.6f seconds\n", max_elapsed);
 
 
         // Verify boundary conditions

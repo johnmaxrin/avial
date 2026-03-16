@@ -71,6 +71,12 @@ static llvm::cl::opt<std::string> inpFileName(
     llvm::cl::desc("<MLIR Input File>"),
     llvm::cl::Required);
 
+static llvm::cl::opt<std::string> configFileName(
+    llvm::cl::Positional,
+    llvm::cl::desc("<Cluster Config File>"),
+    llvm::cl::Required);
+
+
 static llvm::cl::opt<bool> dhirToMPI(
     "dhir-to-mpi",
     llvm::cl::desc("Enable DHIR to MPI conversion"),
@@ -152,7 +158,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    SystemTopology sys_topo = parseSystemConfig();
+    SystemTopology sys_topo = parseSystemConfig(configFileName);
 
     llvm::SourceMgr sourceMgr;
     sourceMgr.AddNewSourceBuffer(std::move(mlirFile), llvm::SMLoc());

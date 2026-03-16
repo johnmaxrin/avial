@@ -1,10 +1,11 @@
 {
   "cluster": {
-    "world_size": 3,
+    "world_size": 4,
     "node_ids": [
       "node0",
       "node1",
-      "node2"
+      "node2",
+      "node3"
     ]
   },
   "nodes": {
@@ -18,9 +19,11 @@
     },
     "node2": {
       "cpu_arch": "x86_64",
-      "gpus": [
-        
-      ]
+      "gpus": []
+    },
+    "node3": {
+      "cpu_arch": "x86_64",
+      "gpus": []
     }
   }
 }

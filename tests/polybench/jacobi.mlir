@@ -3,7 +3,7 @@ module {
     %c-1_i32 = arith.constant -1 : i32
     %cst = arith.constant 3.333300e-01 : f64
     %c1_i32 = arith.constant 1 : i32
-    affine.for %arg4 = 0 to 500 {
+    affine.for %arg4 = 0 to 10000 {
       affine.for %arg5 = 1 to 999 {
         %0 = arith.index_cast %arg5 : index to i32
         %1 = arith.addi %0, %c-1_i32 : i32
