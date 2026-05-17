@@ -48,6 +48,17 @@ get_property(extension_libs GLOBAL PROPERTY MLIR_EXTENSION_LIBS)
 # add_compile_options(-fsanitize=undefined)
 # add_link_options(-fsanitize=undefined)
 
+find_package(MPI REQUIRED)
+
+add_library(dhir_runtime STATIC
+  libs/buildRankToNodeMap.cc
+)
+
+target_link_libraries(dhir_runtime
+  PUBLIC
+    MPI::MPI_CXX
+)
+
 add_subdirectory(dialect)
 
 set(NO_RTTI "-fno-rtti")

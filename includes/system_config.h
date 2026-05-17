@@ -13,6 +13,7 @@ struct GPUInfo {
 struct NodeInfo {
     std::string cpu_arch;
     std::vector<GPUInfo> gpus;
+    float cost;
 };
 
 struct ClusterInfo {
@@ -37,6 +38,7 @@ inline void from_json(const json& j, GPUInfo& g) {
 inline void from_json(const json& j, NodeInfo& n) {
     n.cpu_arch = j.at("cpu_arch").get<std::string>();
     n.gpus = j.at("gpus").get<std::vector<GPUInfo>>();
+    n.cost = j.value("cost", 1.0f);
 }
 
 inline void from_json(const json& j, ClusterInfo& c) {
