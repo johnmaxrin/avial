@@ -1,0 +1,33 @@
+{
+  "cluster": {
+    "world_size": 4,
+    "node_ids": [
+      "node0",
+      "node1",
+      "node2",
+      "node3"
+    ]
+  },
+  "nodes": {
+    "node0": {
+      "cpu_arch": "x86_64",
+      "gpus": [],
+      "cost": 0.25
+    },
+    "node1": {
+      "cpu_arch": "x86_64",
+      "gpus": [],
+      "cost": 0.90
+    },
+    "node2": {
+      "cpu_arch": "x86_64",
+      "gpus": [],
+      "cost": 1.5
+    },
+    "node3": {
+      "cpu_arch": "x86_64",
+      "gpus": [],
+      "cost": 0.55
+    }
+  }
+}

@@ -23,8 +23,8 @@ void attachDLTISpec(mlir::ModuleOp module, mlir::MLIRContext *context, SystemTop
             builder.getStringAttr("arch"),
             builder.getStringAttr(node.cpu_arch));
 
-        // Optional: cost based on number of GPUs or something else
-        float cost = node.gpus.empty() ? 1.0f : 0.5f;
+        // use cost from cluster config file
+        float cost = node.cost;
         auto costEntry = mlir::DataLayoutEntryAttr::get(
             builder.getStringAttr("cost"),
             builder.getF32FloatAttr(cost));
@@ -117,6 +117,22 @@ llvm::SmallVector<mlir::TargetDeviceSpecAttr> extractTargetDeviceSpecs(ModuleOp 
     return targetSpecVec;
 }
 
+mlir::Attribute getDeviceAttribute(mlir::TargetDeviceSpecAttr deviceSpec, llvm::StringRef key)
+{
+    for (auto entry : deviceSpec.getEntries())
+    {
+        auto dle = mlir::dyn_cast<mlir::DataLayoutEntryAttr>(entry);
+        if (!dle) continue;
+
+        auto attrKey = mlir::dyn_cast<mlir::StringAttr>(dle.getKey());
+        if (!attrKey) continue;
+
+        if (attrKey.getValue() == key) return dle.getValue();
+    }
+
+    return nullptr;
+}
+
 SystemTopology parseSystemConfig(llvm::StringRef configFile)
 {
 
@@ -161,7 +177,7 @@ SystemTopology parseSystemConfig(llvm::StringRef configFile)
 /// @param loc Location for the generated operations
 /// @param toBroadcast Vector of sub-buffers that need to be broadcast
 /// @param rank The rank value (result of MPI rank query)
-/// @param zero Constant zero value
+/// @param rootRank The MPI rank from which data is broadcast
 /// @param comm The MPI communicator
 /// @param retVal Return type for MPI operations
 /// @param tag Tag for MPI operations
@@ -171,7 +187,7 @@ void generateBroadcastCommunication(
     Location loc,
     SmallVectorImpl<Value> &toBroadcast,
     Value rank,
-    Value zero,
+    Value rootRank,
     Value comm,
     mlir::Type retVal,
     Value tag,
@@ -282,13 +298,15 @@ void generateBroadcastCommunication(
     llvm::errs() << "Created combined broadcast buffer\n";
 
     // Generate broadcast communication using Send/Recv
-    // Rank 0 sends to all other ranks, remaining ranks receive from rank 0
+    // The rank corresponding to node0 acts as the broadcast root
+    // The broadcast root sends to all non-root ranks
+    // All other ranks receive from the broadcast root
     auto cond = rewriter.create<arith::CmpIOp>(
         loc,
         rewriter.getI1Type(),
         arith::CmpIPredicate::eq,
         rank,
-        zero);
+        rootRank);
 
     auto ifOp = rewriter.create<mlir::scf::IfOp>(
         loc,
@@ -296,17 +314,13 @@ void generateBroadcastCommunication(
         cond,
         true);
 
-    // Then block: Rank 0 - Send to all other ranks
+    // Then block: Broadcast root - Send to all non-root ranks
     OpBuilder thenBuilder = ifOp.getThenBodyBuilder(rewriter.getListener());
 
     // Get total number of nodes/ranks
-    // Assuming you have getNodes available in context, otherwise pass as parameter
-    // We need to send to ranks 1, 2, 3, ... N-1
-
-    // Create a loop to send to all ranks except rank 0
-    // for (i = 1; i < num_ranks; i++) { send to rank i }
-
-    auto one = thenBuilder.create<arith::ConstantIndexOp>(loc, 1);
+    // Create a loop over all ranks
+    // for (i=0; i < numRanks; i++)
+    auto zeroIndex = thenBuilder.create<arith::ConstantIndexOp>(loc, 0);
     auto step = thenBuilder.create<arith::ConstantIndexOp>(loc, 1);
 
     // Convert numRanks to index type if it's not already
@@ -319,7 +333,7 @@ void generateBroadcastCommunication(
             numRanks);
     }
 
-    auto forOp = thenBuilder.create<scf::ForOp>(loc, one, numRanksIndex, step);
+    auto forOp = thenBuilder.create<scf::ForOp>(loc, zeroIndex, numRanksIndex, step);
     OpBuilder forBuilder(forOp.getBody(), forOp.getBody()->begin());
 
     // Get loop induction variable (target rank)
@@ -331,8 +345,11 @@ void generateBroadcastCommunication(
         rewriter.getI32Type(),
         targetRank);
 
-    // Send to this rank
-    auto sendOp = forBuilder.create<mlir::mpi::SendOp>(
+    // Skip sending to the broadcast root itself
+    auto sendCond = forBuilder.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::ne, targetRankI32, rootRank);
+    auto sendIf = forBuilder.create<scf::IfOp>(loc, mlir::TypeRange{}, sendCond, false);
+    OpBuilder sendBuilder = sendIf.getThenBodyBuilder(forBuilder.getListener());
+    auto sendOp = sendBuilder.create<mlir::mpi::SendOp>(
         loc,
         retVal,          // return type
         broadcastBuffer, // buffer to send
@@ -341,9 +358,9 @@ void generateBroadcastCommunication(
         comm             // communicator
     );
 
-    llvm::errs() << "Generated broadcast sends from rank 0 to all other ranks\n";
+    llvm::errs() << "Generated broadcast sends from broadcast root to all other ranks\n";
 
-    // Else block: Other ranks - Receive from rank 0
+    // Else block: Other ranks - Receive from broadcast root
     OpBuilder elseBuilder = ifOp.getElseBodyBuilder(rewriter.getListener());
 
     auto recvOp = elseBuilder.create<mlir::mpi::RecvOp>(
@@ -351,10 +368,10 @@ void generateBroadcastCommunication(
         retVal,          // return type
         broadcastBuffer, // buffer to receive into
         tag,             // tag
-        zero,            // source rank (0)
+        rootRank,        // source rank (broadcast root)
         comm             // communicator
     );
 
-    llvm::errs() << "Generated broadcast receive for other ranks from rank 0\n";
+    llvm::errs() << "Generated broadcast receive for other ranks from broadcast root\n";
     llvm::errs() << "=== Broadcast Communication Complete ===\n\n";
 }
