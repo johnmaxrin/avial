@@ -23,8 +23,8 @@ void attachDLTISpec(mlir::ModuleOp module, mlir::MLIRContext *context, SystemTop
             builder.getStringAttr("arch"),
             builder.getStringAttr(node.cpu_arch));
 
-        // Optional: cost based on number of GPUs or something else
-        float cost = node.gpus.empty() ? 1.0f : 0.5f;
+        // use cost from cluster config file
+        float cost = node.cost;
         auto costEntry = mlir::DataLayoutEntryAttr::get(
             builder.getStringAttr("cost"),
             builder.getF32FloatAttr(cost));
@@ -115,6 +115,22 @@ llvm::SmallVector<mlir::TargetDeviceSpecAttr> extractTargetDeviceSpecs(ModuleOp 
     }
 
     return targetSpecVec;
+}
+
+mlir::Attribute getDeviceAttribute(mlir::TargetDeviceSpecAttr deviceSpec, llvm::StringRef key)
+{
+    for (auto entry : deviceSpec.getEntries())
+    {
+        auto dle = mlir::dyn_cast<mlir::DataLayoutEntryAttr>(entry);
+        if (!dle) continue;
+
+        auto attrKey = dle.getKey().dyn_cast<mlir::StringAttr>();
+        if (!attrKey) continue;
+
+        if (attrKey.getValue() == key) return dle.getValue();
+    }
+
+    return nullptr;
 }
 
 SystemTopology parseSystemConfig(llvm::StringRef configFile)
