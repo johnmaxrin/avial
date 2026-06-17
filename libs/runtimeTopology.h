@@ -4,6 +4,7 @@
 struct RuntimeNode
 {
     const char *nodeId;
+    const char *cpuArch;
     int gpuCount;
     float cost;
 };

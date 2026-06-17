@@ -138,7 +138,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
                 cost = costAttr.getValue().convertToFloat();
             }
 
-            assert(cost > 0.0f);
+            if (cost <= 0.0f) llvm::report_fatal_error("cost needs to be > 0");
 
             float weight = 1.0f / cost;
             weights.push_back(weight);
@@ -157,6 +157,8 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
 
         // handle remainder iterations by adding 1 iteration to each device till all remainder iterations are assigned
         int64_t remainder = total_iters - assigned_iters;
+        assert(remainder >= 0 && remainder < num_devices && "remainder should be in [0,num_devices)");
+
         for (int i = 0; i < remainder; i++)
         {
             chunk_sizes[i % num_devices]++;
