@@ -276,7 +276,8 @@ static Value createRuntimeTopology(ModuleOp module, ConversionPatternRewriter &r
 
     struct NodeInfo
     {
-        std::string globalName;
+        std::string nodeIdGlobalName;
+        std::string archGlobalName;
         int gpuCount;
         float cost;
     };
@@ -286,7 +287,7 @@ static Value createRuntimeTopology(ModuleOp module, ConversionPatternRewriter &r
     auto ptrTy = LLVM::LLVMPointerType::get(rewriter.getContext());
 
     // create LLVM structs to pass on to buildRankToNodeMap - has to mirror RuntimeNode/RuntimeTopology memory layout expected by runtime library
-    auto runtimeNodeTy = LLVM::LLVMStructType::getLiteral(rewriter.getContext(), {ptrTy, rewriter.getI32Type(), rewriter.getF32Type()});
+    auto runtimeNodeTy = LLVM::LLVMStructType::getLiteral(rewriter.getContext(), {ptrTy, ptrTy, rewriter.getI32Type(), rewriter.getF32Type()});
     auto runtimeTopologyTy = LLVM::LLVMStructType::getLiteral(rewriter.getContext(), {rewriter.getI32Type(), ptrTy});
 
     auto llvmI8Type = IntegerType::get(rewriter.getContext(), 8);
@@ -297,29 +298,45 @@ static Value createRuntimeTopology(ModuleOp module, ConversionPatternRewriter &r
     {
         auto targetSpec = cast<mlir::TargetDeviceSpecAttr>(deviceAttr);
         auto nodeIdAttr = getDeviceAttribute(targetSpec, "node_id");
+        auto archAttr = getDeviceAttribute(targetSpec, "arch");
         auto gpuCountAttr = getDeviceAttribute(targetSpec, "gpu_count");
         auto costAttr = getDeviceAttribute(targetSpec, "cost");
 
-        std::string nodeId = cast<StringAttr>(nodeIdAttr).getValue().str();
-        std::string terminated = nodeId;
-        terminated.push_back('\0');
+        std::string nodeIdTerminated = cast<StringAttr>(nodeIdAttr).getValue().str();
+        nodeIdTerminated.push_back('\0');
 
-        std::string globalName = "node_str_" + std::to_string(nodeIdx);
-        auto stringType = LLVM::LLVMArrayType::get(llvmI8Type, terminated.size());
-        auto stringAttr = StringAttr::get(rewriter.getContext(), StringRef(terminated.data(), terminated.size()));
+        std::string archTerminated = cast<StringAttr>(archAttr).getValue().str();
+        archTerminated.push_back('\0');
 
-        if (!module.lookupSymbol<LLVM::GlobalOp>(globalName))
+        std::string nodeIdGlobalName = "node_str_" + std::to_string(nodeIdx);
+        std::string archGlobalName = "arch_str_" + std::to_string(nodeIdx);
+        auto nodeIdStringType = LLVM::LLVMArrayType::get(llvmI8Type, nodeIdTerminated.size());
+        auto nodeIdStringAttr = StringAttr::get(rewriter.getContext(), StringRef(nodeIdTerminated.data(), nodeIdTerminated.size()));
+        auto archStringType = LLVM::LLVMArrayType::get(llvmI8Type, archTerminated.size());
+        auto archStringAttr = StringAttr::get(rewriter.getContext(), StringRef(archTerminated.data(), archTerminated.size()));
+
+        if (!module.lookupSymbol<LLVM::GlobalOp>(nodeIdGlobalName))
         {
             OpBuilder::InsertionGuard guard(rewriter);
             rewriter.setInsertionPointToStart(module.getBody());
 
             // emit global string constants containing node hostnames
-            rewriter.create<LLVM::GlobalOp>(loc, stringType, true, LLVM::Linkage::Internal, globalName, stringAttr);
+            rewriter.create<LLVM::GlobalOp>(loc, nodeIdStringType, true, LLVM::Linkage::Internal, nodeIdGlobalName, nodeIdStringAttr);
+        }
+
+        if (!module.lookupSymbol<LLVM::GlobalOp>(archGlobalName))
+        {
+            OpBuilder::InsertionGuard guard(rewriter);
+            rewriter.setInsertionPointToStart(module.getBody());
+
+            // emit global string constants containing node cpu arch
+            rewriter.create<LLVM::GlobalOp>(loc, archStringType, true, LLVM::Linkage::Internal, archGlobalName, archStringAttr);
         }
 
         NodeInfo info;
 
-        info.globalName = globalName;
+        info.nodeIdGlobalName = nodeIdGlobalName;
+        info.archGlobalName = archGlobalName;
         info.gpuCount = cast<IntegerAttr>(gpuCountAttr).getInt();
         info.cost = cast<FloatAttr>(costAttr).getValueAsDouble();
 
@@ -336,18 +353,22 @@ static Value createRuntimeTopology(ModuleOp module, ConversionPatternRewriter &r
     Value oneI64 = rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI64Type(), rewriter.getI64IntegerAttr(1));
     Value oneI32 = rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(1));
     Value twoI32 = rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(2));
+    Value threeI32 = rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(3));
 
     // populate RuntimeNode entries from collected topology information
     for (size_t i = 0; i < nodes.size(); i++)
     {
         Value nodeIndex = rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI64Type(), rewriter.getI64IntegerAttr(i));
         Value nodePtr = rewriter.create<LLVM::GEPOp>(loc, ptrTy, runtimeNodeTy, nodeArray, ValueRange{nodeIndex});
-        Value nodeString = rewriter.create<LLVM::AddressOfOp>(loc, ptrTy, nodes[i].globalName);
+        Value nodeString = rewriter.create<LLVM::AddressOfOp>(loc, ptrTy, nodes[i].nodeIdGlobalName);
+        Value archString = rewriter.create<LLVM::AddressOfOp>(loc, ptrTy, nodes[i].archGlobalName);
         Value nodeIdField = rewriter.create<LLVM::GEPOp>(loc, ptrTy, runtimeNodeTy, nodePtr, ValueRange{zeroI64, zeroI32});
-        Value gpuCountField = rewriter.create<LLVM::GEPOp>(loc, ptrTy, runtimeNodeTy, nodePtr, ValueRange{zeroI64, oneI32});
-        Value costField = rewriter.create<LLVM::GEPOp>(loc, ptrTy, runtimeNodeTy, nodePtr, ValueRange{zeroI64, twoI32});
+        Value archField = rewriter.create<LLVM::GEPOp>(loc, ptrTy, runtimeNodeTy, nodePtr, ValueRange{zeroI64, oneI32});
+        Value gpuCountField = rewriter.create<LLVM::GEPOp>(loc, ptrTy, runtimeNodeTy, nodePtr, ValueRange{zeroI64, twoI32});
+        Value costField = rewriter.create<LLVM::GEPOp>(loc, ptrTy, runtimeNodeTy, nodePtr, ValueRange{zeroI64, threeI32});
 
         rewriter.create<LLVM::StoreOp>(loc, nodeString, nodeIdField);
+        rewriter.create<LLVM::StoreOp>(loc, archString, archField);
         rewriter.create<LLVM::StoreOp>(loc, rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(nodes[i].gpuCount)), gpuCountField);
         rewriter.create<LLVM::StoreOp>(loc, rewriter.create<LLVM::ConstantOp>(loc, rewriter.getF32Type(), rewriter.getF32FloatAttr(nodes[i].cost)), costField);
     }

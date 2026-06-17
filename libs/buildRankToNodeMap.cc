@@ -2,70 +2,109 @@
 
 #include <mpi.h>
 
+#include <hwloc.h>
+#include <sys/utsname.h>
+
 #include <cstring>
 #include <cstdio>
+#include <vector>
 
-extern "C" void buildRankToNodeMap(
+struct DiscoveredNode
+{
+    char cpuArch[32];
+    int gpuCount;
+};
+
+static void discoverNode(DiscoveredNode *node)
+{
+    struct utsname sysinfo;
+    uname(&sysinfo);
+
+    strncpy(node->cpuArch, sysinfo.machine, sizeof(node->cpuArch) - 1);
+    node->cpuArch[sizeof(node->cpuArch)-1] = '\0';
+
+    hwloc_topology_t topology;
+    hwloc_topology_init(&topology);
+    // hwloc_topology_set_io_types_filter(topology, HWLOC_TYPE_FILTER_KEEP_IMPORTANT);
+    hwloc_topology_load(topology);
+
+    int gpuCount = 0;
+    hwloc_obj_t obj = nullptr;
+
+    while((obj=hwloc_get_next_obj_by_type(topology, HWLOC_OBJ_PCI_DEVICE, obj)) != nullptr)
+    {
+        if (obj->attr && obj->attr->pcidev.class_id >> 8 == 0x03)
+        {
+            gpuCount++;
+        }
+    }
+
+    node->gpuCount = gpuCount;
+
+    hwloc_topology_destroy(topology);
+}
+
+static bool matchNode(const RuntimeNode &cfg, const DiscoveredNode &local)
+{
+    if (strcmp(cfg.cpuArch, local.cpuArch) != 0) return false;
+    if (cfg.gpuCount != local.gpuCount) return false;
+    return true;
+}
+
+extern "C" void
+buildRankToNodeMap(
     const RuntimeTopology *topology,
     int *rankToNodeMap,
     int *nodeToRankMap)
 {
-    int worldSize;
-
+    int worldRank, worldSize;
+    MPI_Comm_rank(MPI_COMM_WORLD, &worldRank);
     MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
 
     if (worldSize != topology->numNodes)
     {
-        fprintf(stderr, "world size %d does not match configured node count %d\n", worldSize, topology->numNodes);
-        MPI_Abort(MPI_COMM_WORLD, 1);
+        printf("Number of ranks != number of nodes\n");
+        MPI_Abort(MPI_COMM_WORLD, -1);
     }
 
-    for (int i = 0; i < topology->numNodes; i++)
+    DiscoveredNode node;
+    discoverNode(&node);
+
+    std::vector<DiscoveredNode> rankHardware(worldSize);
+    MPI_Gather(&node, sizeof(DiscoveredNode), MPI_BYTE, rankHardware.data(), sizeof(DiscoveredNode), MPI_BYTE, 0, MPI_COMM_WORLD);
+
+    std::vector<int> rankToNode(worldSize, -1);
+    std::vector<int> nodeToRank(topology->numNodes, -1);
+
+    if (worldRank == 0)
     {
-        rankToNodeMap[i] = -1;
-        nodeToRankMap[i] = -1;
-    }
-
-    char hostname[MPI_MAX_PROCESSOR_NAME];
-    int namelen;
-
-    MPI_Get_processor_name(hostname, &namelen);
-
-    int matchedIdx = -1;
-
-    for (int i = 0; i < topology->numNodes; i++)
-    {
-        if (std::strcmp(hostname, topology->nodes[i].nodeId) == 0)
+        for(int r = 0; r < worldSize; r++)
         {
-            matchedIdx = i;
-            break;
+            const auto &info = rankHardware[r];
+
+            for (int n = 0; n < topology->numNodes; n++)
+            {
+                if (nodeToRank[n] != -1) continue;
+
+                if (matchNode(topology->nodes[n], info))
+                {
+                    rankToNode[r] = n;
+                    nodeToRank[n] = r;
+                    break;
+                }
+            }
+
+            if (rankToNode[r] == -1)
+            {
+                printf("No node match for rank %d\n", r);
+                MPI_Abort(MPI_COMM_WORLD, -1);
+            }
         }
     }
 
-    if (matchedIdx == -1)
-    {
-        fprintf(stderr, "hostname %s was not found in the cluster configuration\n", hostname);
-        MPI_Abort(MPI_COMM_WORLD, 1);
-    }
+    MPI_Bcast(rankToNode.data(), worldSize, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(nodeToRank.data(), topology->numNodes, MPI_INT, 0, MPI_COMM_WORLD);
 
-    MPI_Allgather(&matchedIdx, 1, MPI_INT, rankToNodeMap, 1, MPI_INT, MPI_COMM_WORLD);
-
-    for (int r = 0; r < worldSize; r++)
-    {
-        int nodeIdx = rankToNodeMap[r];
-
-        if (nodeIdx < 0 || nodeIdx >= topology->numNodes)
-        {
-            fprintf(stderr, "invalid node index %d nodeIdx from rank %d\n", nodeIdx, r);
-            MPI_Abort(MPI_COMM_WORLD, 1);
-        }
-
-        if (nodeToRankMap[nodeIdx] != -1)
-        {
-            fprintf(stderr, "multiple nodes with hostname %s\n", topology->nodes[nodeIdx].nodeId);
-            MPI_Abort(MPI_COMM_WORLD, 1);
-        }
-
-        nodeToRankMap[nodeIdx] = r;
-    }
+    for (int i = 0; i < worldSize; i++) rankToNodeMap[i] = rankToNode[i];
+    for (int i = 0; i < topology->numNodes; i++) nodeToRankMap[i] = nodeToRank[i];
 }
