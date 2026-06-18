@@ -25,15 +25,18 @@ static void discoverNode(DiscoveredNode *node)
 
     hwloc_topology_t topology;
     hwloc_topology_init(&topology);
-    // hwloc_topology_set_io_types_filter(topology, HWLOC_TYPE_FILTER_KEEP_IMPORTANT);
+    hwloc_topology_set_io_types_filter(topology, HWLOC_TYPE_FILTER_KEEP_IMPORTANT);
     hwloc_topology_load(topology);
 
     int gpuCount = 0;
     hwloc_obj_t obj = nullptr;
 
+    constexpr unsigned PCI_VENDOR_NVIDIA = 0x10de;
+
     while((obj=hwloc_get_next_obj_by_type(topology, HWLOC_OBJ_PCI_DEVICE, obj)) != nullptr)
     {
-        if (obj->attr && obj->attr->pcidev.class_id >> 8 == 0x03)
+        // todo: compute capability isn't verified here. assumes any nvidia gpu is sm61 compatible. verify via CUDA driver API.
+        if (obj->attr && obj->attr->pcidev.class_id >> 8 == 0x03 && obj->attr->pcidev.vendor_id == PCI_VENDOR_NVIDIA)
         {
             gpuCount++;
         }
@@ -52,7 +55,7 @@ static bool matchNode(const RuntimeNode &cfg, const DiscoveredNode &local)
 }
 
 extern "C" void
-buildRankToNodeMap(
+buildRankNodeMaps(
     const RuntimeTopology *topology,
     int *rankToNodeMap,
     int *nodeToRankMap)
