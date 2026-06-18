@@ -286,7 +286,7 @@ static Value createRuntimeTopology(ModuleOp module, ConversionPatternRewriter &r
 
     auto ptrTy = LLVM::LLVMPointerType::get(rewriter.getContext());
 
-    // create LLVM structs to pass on to buildRankToNodeMap - has to mirror RuntimeNode/RuntimeTopology memory layout expected by runtime library
+    // create LLVM structs to pass on to buildRankNodeMaps - has to mirror RuntimeNode/RuntimeTopology memory layout expected by runtime library
     auto runtimeNodeTy = LLVM::LLVMStructType::getLiteral(rewriter.getContext(), {ptrTy, ptrTy, rewriter.getI32Type(), rewriter.getF32Type()});
     auto runtimeTopologyTy = LLVM::LLVMStructType::getLiteral(rewriter.getContext(), {rewriter.getI32Type(), ptrTy});
 
@@ -473,7 +473,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         Value rankMapPtr = rewriter.create<LLVM::IntToPtrOp>(loc, ptrTy, rankMapI64);
         Value nodeMapPtr = rewriter.create<LLVM::IntToPtrOp>(loc, ptrTy, nodeMapI64);
 
-        auto runtimeFunc = module.lookupSymbol<func::FuncOp>("buildRankToNodeMap");
+        auto runtimeFunc = module.lookupSymbol<func::FuncOp>("buildRankNodeMaps");
 
         // declare the runtime helper if it has not been emitted yet
         if (!runtimeFunc)
@@ -482,11 +482,11 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
             rewriter.setInsertionPointToStart(&module.getBodyRegion().front());
 
             auto fnType = rewriter.getFunctionType({topology.getType(), ptrTy, ptrTy}, {});
-            runtimeFunc = rewriter.create<func::FuncOp>(loc, "buildRankToNodeMap", fnType);
+            runtimeFunc = rewriter.create<func::FuncOp>(loc, "buildRankNodeMaps", fnType);
             runtimeFunc.setPrivate();
         }
 
-        // emit a call to the runtime function buildRankToNodeMap
+        // emit a call to the runtime function buildRankNodeMaps
         rewriter.create<func::CallOp>(loc, runtimeFunc, ValueRange{topology, rankMapPtr, nodeMapPtr});
 
         Value rankIndex = rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(), rank.getResult(0));
