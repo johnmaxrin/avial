@@ -269,6 +269,124 @@ static SmallVector<Value> materializeOpFoldResults(ConversionPatternRewriter &re
     return values;
 }
 
+static Value createRuntimeTopology(ModuleOp module, ConversionPatternRewriter &rewriter, Location loc)
+{
+    auto devicesAttr = module->getAttrOfType<ArrayAttr>("avial.target_devices");
+    assert(devicesAttr && "No avial.target_devices attribute found");
+
+    struct NodeInfo
+    {
+        std::string nodeIdGlobalName;
+        std::string archGlobalName;
+        int gpuCount;
+        float cost;
+    };
+
+    SmallVector<NodeInfo> nodes;
+
+    auto ptrTy = LLVM::LLVMPointerType::get(rewriter.getContext());
+
+    // create LLVM structs to pass on to buildRankNodeMaps - has to mirror RuntimeNode/RuntimeTopology memory layout expected by runtime library
+    auto runtimeNodeTy = LLVM::LLVMStructType::getLiteral(rewriter.getContext(), {ptrTy, ptrTy, rewriter.getI32Type(), rewriter.getF32Type()});
+    auto runtimeTopologyTy = LLVM::LLVMStructType::getLiteral(rewriter.getContext(), {rewriter.getI32Type(), ptrTy});
+
+    auto llvmI8Type = IntegerType::get(rewriter.getContext(), 8);
+
+    int nodeIdx = 0;
+
+    for (auto deviceAttr : devicesAttr)
+    {
+        auto targetSpec = cast<mlir::TargetDeviceSpecAttr>(deviceAttr);
+        auto nodeIdAttr = getDeviceAttribute(targetSpec, "node_id");
+        auto archAttr = getDeviceAttribute(targetSpec, "arch");
+        auto gpuCountAttr = getDeviceAttribute(targetSpec, "gpu_count");
+        auto costAttr = getDeviceAttribute(targetSpec, "cost");
+
+        std::string nodeIdTerminated = cast<StringAttr>(nodeIdAttr).getValue().str();
+        nodeIdTerminated.push_back('\0');
+
+        std::string archTerminated = cast<StringAttr>(archAttr).getValue().str();
+        archTerminated.push_back('\0');
+
+        std::string nodeIdGlobalName = "node_str_" + std::to_string(nodeIdx);
+        std::string archGlobalName = "arch_str_" + std::to_string(nodeIdx);
+        auto nodeIdStringType = LLVM::LLVMArrayType::get(llvmI8Type, nodeIdTerminated.size());
+        auto nodeIdStringAttr = StringAttr::get(rewriter.getContext(), StringRef(nodeIdTerminated.data(), nodeIdTerminated.size()));
+        auto archStringType = LLVM::LLVMArrayType::get(llvmI8Type, archTerminated.size());
+        auto archStringAttr = StringAttr::get(rewriter.getContext(), StringRef(archTerminated.data(), archTerminated.size()));
+
+        if (!module.lookupSymbol<LLVM::GlobalOp>(nodeIdGlobalName))
+        {
+            OpBuilder::InsertionGuard guard(rewriter);
+            rewriter.setInsertionPointToStart(module.getBody());
+
+            // emit global string constants containing node hostnames
+            rewriter.create<LLVM::GlobalOp>(loc, nodeIdStringType, true, LLVM::Linkage::Internal, nodeIdGlobalName, nodeIdStringAttr);
+        }
+
+        if (!module.lookupSymbol<LLVM::GlobalOp>(archGlobalName))
+        {
+            OpBuilder::InsertionGuard guard(rewriter);
+            rewriter.setInsertionPointToStart(module.getBody());
+
+            // emit global string constants containing node cpu arch
+            rewriter.create<LLVM::GlobalOp>(loc, archStringType, true, LLVM::Linkage::Internal, archGlobalName, archStringAttr);
+        }
+
+        NodeInfo info;
+
+        info.nodeIdGlobalName = nodeIdGlobalName;
+        info.archGlobalName = archGlobalName;
+        info.gpuCount = cast<IntegerAttr>(gpuCountAttr).getInt();
+        info.cost = cast<FloatAttr>(costAttr).getValueAsDouble();
+
+        nodes.push_back(info);
+        nodeIdx++;
+    }
+
+    // allocate RuntimeNode[] on the stack
+    Value numNodes = rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI64Type(), rewriter.getI64IntegerAttr(nodes.size()));
+    Value nodeArray = rewriter.create<LLVM::AllocaOp>(loc, ptrTy, runtimeNodeTy, numNodes);
+
+    Value zeroI64 = rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI64Type(), rewriter.getI64IntegerAttr(0));
+    Value zeroI32 = rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(0));
+    Value oneI64 = rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI64Type(), rewriter.getI64IntegerAttr(1));
+    Value oneI32 = rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(1));
+    Value twoI32 = rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(2));
+    Value threeI32 = rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(3));
+
+    // populate RuntimeNode entries from collected topology information
+    for (size_t i = 0; i < nodes.size(); i++)
+    {
+        Value nodeIndex = rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI64Type(), rewriter.getI64IntegerAttr(i));
+        Value nodePtr = rewriter.create<LLVM::GEPOp>(loc, ptrTy, runtimeNodeTy, nodeArray, ValueRange{nodeIndex});
+        Value nodeString = rewriter.create<LLVM::AddressOfOp>(loc, ptrTy, nodes[i].nodeIdGlobalName);
+        Value archString = rewriter.create<LLVM::AddressOfOp>(loc, ptrTy, nodes[i].archGlobalName);
+        Value nodeIdField = rewriter.create<LLVM::GEPOp>(loc, ptrTy, runtimeNodeTy, nodePtr, ValueRange{zeroI64, zeroI32});
+        Value archField = rewriter.create<LLVM::GEPOp>(loc, ptrTy, runtimeNodeTy, nodePtr, ValueRange{zeroI64, oneI32});
+        Value gpuCountField = rewriter.create<LLVM::GEPOp>(loc, ptrTy, runtimeNodeTy, nodePtr, ValueRange{zeroI64, twoI32});
+        Value costField = rewriter.create<LLVM::GEPOp>(loc, ptrTy, runtimeNodeTy, nodePtr, ValueRange{zeroI64, threeI32});
+
+        rewriter.create<LLVM::StoreOp>(loc, nodeString, nodeIdField);
+        rewriter.create<LLVM::StoreOp>(loc, archString, archField);
+        rewriter.create<LLVM::StoreOp>(loc, rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(nodes[i].gpuCount)), gpuCountField);
+        rewriter.create<LLVM::StoreOp>(loc, rewriter.create<LLVM::ConstantOp>(loc, rewriter.getF32Type(), rewriter.getF32FloatAttr(nodes[i].cost)), costField);
+    }
+
+    // build RuntimeTopology pointing at the node array
+    Value topology = rewriter.create<LLVM::AllocaOp>(loc, ptrTy, runtimeTopologyTy, oneI64);
+
+    Value numNodesField = rewriter.create<LLVM::GEPOp>(loc, ptrTy, runtimeTopologyTy, topology, ValueRange{zeroI64, zeroI32});
+
+    Value nodesField = rewriter.create<LLVM::GEPOp>(loc, ptrTy, runtimeTopologyTy, topology, ValueRange{zeroI64, oneI32});
+
+    Value numNodesConst = rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(nodes.size()));
+
+    rewriter.create<LLVM::StoreOp>(loc, numNodesConst, numNodesField);
+    rewriter.create<LLVM::StoreOp>(loc, nodeArray, nodesField);
+
+    return topology;
+}
 
 struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
 {
@@ -331,6 +449,54 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         auto getNodes = rewriter.create<mpi::CommSizeOp>(loc, mpi::RetvalType::get(rewriter.getContext()), rewriter.getI32Type(), comm->getResult(0));
 
         // End of MPI Boilerplate
+
+        Value topology = createRuntimeTopology(module, rewriter, loc);
+
+        auto devicesAttr = module->getAttrOfType<ArrayAttr>("avial.target_devices");
+        int numNodes = devicesAttr.size();
+
+        auto mapType = MemRefType::get({numNodes}, rewriter.getI32Type());
+
+        // allocate rank-node mapping tables for runtime initialization
+        Value rankToNodeMap = rewriter.create<memref::AllocOp>(loc, mapType);
+        Value nodeToRankMap = rewriter.create<memref::AllocOp>(loc, mapType);
+
+        auto ptrTy = LLVM::LLVMPointerType::get(rewriter.getContext());
+
+        // extract aligned pointers so we can pass raw pointers instead of a memref descriptor to the runtime function
+        Value rankMapIdxPtr = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(loc, rankToNodeMap);
+        Value nodeMapIdxPtr = rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(loc, nodeToRankMap);
+
+        Value rankMapI64 = rewriter.create<arith::IndexCastOp>(loc, rewriter.getI64Type(), rankMapIdxPtr);
+        Value nodeMapI64 = rewriter.create<arith::IndexCastOp>(loc, rewriter.getI64Type(), nodeMapIdxPtr);
+
+        Value rankMapPtr = rewriter.create<LLVM::IntToPtrOp>(loc, ptrTy, rankMapI64);
+        Value nodeMapPtr = rewriter.create<LLVM::IntToPtrOp>(loc, ptrTy, nodeMapI64);
+
+        auto runtimeFunc = module.lookupSymbol<func::FuncOp>("buildRankNodeMaps");
+
+        // declare the runtime helper if it has not been emitted yet
+        if (!runtimeFunc)
+        {
+            OpBuilder::InsertionGuard guard(rewriter);
+            rewriter.setInsertionPointToStart(&module.getBodyRegion().front());
+
+            auto fnType = rewriter.getFunctionType({topology.getType(), ptrTy, ptrTy}, {});
+            runtimeFunc = rewriter.create<func::FuncOp>(loc, "buildRankNodeMaps", fnType);
+            runtimeFunc.setPrivate();
+        }
+
+        // emit a call to the runtime function buildRankNodeMaps
+        rewriter.create<func::CallOp>(loc, runtimeFunc, ValueRange{topology, rankMapPtr, nodeMapPtr});
+
+        Value rankIndex = rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(), rank.getResult(0));
+        Value rankNode = rewriter.create<memref::LoadOp>(loc, rankToNodeMap, ValueRange{rankIndex});
+
+        // we take target device information from the taskOp rather than relying on ordering in the DLTI attributes
+        DenseMap<Attribute, int> deviceToIndex;
+
+        for (auto [idx, dev] : llvm::enumerate(devicesAttr))
+            deviceToIndex[dev] = idx;
 
         // Check if there's a scf.for loop wrapping the tasks
         mlir::scf::ForOp outerLoop = nullptr;
@@ -398,14 +564,21 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         {
             llvm::DenseMap<Value, Value> gpuBufferMap;
             llvm::SmallVector<Value> toBroadcast;
-            int taskId = 0;
-            
+
             for (auto task : level)
             {
-                auto taskIDOp = rewriter.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(taskId));
-                auto taskIdModNodes = rewriter.create<mlir::arith::RemSIOp>(loc, taskIDOp->getResult(0), getNodes->getResult(1));
-                auto cond = rewriter.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), taskIdModNodes.getResult());
-                
+                auto taskOp = dyn_cast<avial::TaskOp>(task->op);
+                Attribute targetDevice = taskOp.getTarget();
+
+                // if task target device has no matches in the deviceToIndex map, something is broken on our end.
+                // this should not create UB on the users' end
+                assert(deviceToIndex.count(targetDevice) && "Task target device not found in deviceToIndex map");
+
+                int targetNodeIdx = deviceToIndex[targetDevice];
+
+                auto targetNode = rewriter.create<arith::ConstantIntOp>(loc, targetNodeIdx, 32);
+                auto cond = rewriter.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rankNode, targetNode);
+
                 rewriter.create<mlir::scf::IfOp>(loc, cond, [&](OpBuilder &ifbuilder, Location loc)
                 {
                     Block &taskBlock = task->op->getRegion(0).front(); 
@@ -512,30 +685,30 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                         }
                     }
 
-                    ifbuilder.create<mlir::scf::YieldOp>(loc);
-                });
-
-                ++taskId;
+                    ifbuilder.create<mlir::scf::YieldOp>(loc); });
             }
 
             rewriter.create<mpi::Barrier>(loc, retVal, comm->getResult(0));
 
             // Communication code
-            auto one = rewriter.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(1));
-            auto zero = rewriter.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(0));
             auto tag = rewriter.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(0));
-
-            taskId = 0;
 
             for (auto task : level)
             {
                 auto taskOp = dyn_cast<mlir::avial::TaskOp>(task->op);
+                Attribute targetDevice = taskOp.getTarget();
+
+                assert(deviceToIndex.count(targetDevice) && "Task target device not found in deviceToIndex map");
+
+                int targetNodeIdx = deviceToIndex[targetDevice];
+
                 llvm::ArrayRef outRanges = taskOp.getOutRanges();
                 
                 // Get the base buffer from mapping (now subviews are in mapping!)
                 Value buffer = mapping.lookupOrNull(task->writes[0]);
-                
-                if (!buffer) {
+
+                if (!buffer)
+                {
                     llvm::errs() << "ERROR: Buffer not found in mapping\n";
                     return failure();
                 }
@@ -572,7 +745,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                         rewriter.getIndexAttr(0)
                     };
                     sizes = {
-                        rewriter.getIndexAttr((outRanges[1] - outRanges[0])*10000),
+                        rewriter.getIndexAttr((outRanges[1] - outRanges[0])),
                         rewriter.getIndexAttr(shape[1])
                     };
                     strides = {
@@ -611,42 +784,40 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                 Value subBuffer = rewriter.create<memref::SubViewOp>(
                     loc, sourceBuffer, offsets, sizes, strides);
 
-                // Default Communication
-                auto cond = rewriter.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), zero.getResult());
-                auto ifOp = rewriter.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, cond, true);
-                OpBuilder thenBuilder = ifOp.getThenBodyBuilder(rewriter.getListener());
-                OpBuilder elseBuilder = ifOp.getElseBodyBuilder(rewriter.getListener());
+                // gather non-root results onto node 0
+                if (targetNodeIdx != 0)
+                {
+                    Value rootNodeIndex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+                    Value rootRank = rewriter.create<memref::LoadOp>(loc, nodeToRankMap, ValueRange{rootNodeIndex});
 
-                // Receive
-                auto taskIDOp = thenBuilder.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(taskId));
-                auto taskIdModNodes = thenBuilder.create<mlir::arith::RemSIOp>(loc, taskIDOp->getResult(0), getNodes->getResult(1));
-                auto innercond = thenBuilder.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::ne, zero.getResult(), taskIdModNodes.getResult());
-                auto innerIf = thenBuilder.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, innercond, false);
-                auto innerThenBuilder = innerIf.getThenBodyBuilder(thenBuilder.getListener());
+                    Value ownerNodeIndex = rewriter.create<arith::ConstantIndexOp>(loc, targetNodeIdx);
+                    Value ownerRank = rewriter.create<memref::LoadOp>(loc, nodeToRankMap, ValueRange{ownerNodeIndex});
 
-                auto recvOp = innerThenBuilder.create<mlir::mpi::RecvOp>(
-                    loc, retVal, subBuffer, tag.getResult(), taskIdModNodes->getResult(0), comm->getResult(0));
+                    auto isRoot = rewriter.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), rootRank);
+                    auto isOwner = rewriter.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), ownerRank);
 
-                // Send
-                auto elsetaskIDOp = elseBuilder.create<mlir::arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(taskId));
-                auto elsetaskIdModNodes = elseBuilder.create<mlir::arith::RemSIOp>(loc, elsetaskIDOp->getResult(0), getNodes->getResult(1));
-                auto elsecond = elseBuilder.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), elsetaskIdModNodes.getResult());
-                auto elseinnerIf = elseBuilder.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, elsecond, false);
-                auto elseinnerThenBuilder = elseinnerIf.getThenBodyBuilder(elseBuilder.getListener());
+                    auto ifOp = rewriter.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, isRoot, true);
+                    OpBuilder thenBuilder = ifOp.getThenBodyBuilder(rewriter.getListener());
+                    OpBuilder elseBuilder = ifOp.getElseBodyBuilder(rewriter.getListener());
 
-                auto sendOp = elseinnerThenBuilder.create<mlir::mpi::SendOp>(
-                    loc, retVal, subBuffer, tag.getResult(), zero, comm->getResult(0));
+                    thenBuilder.create<mlir::mpi::RecvOp>(loc, retVal, subBuffer, tag.getResult(), ownerRank, comm->getResult(0));
+
+                    auto sendIf = elseBuilder.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, isOwner, false);
+                    auto sendBuilder = sendIf.getThenBodyBuilder(elseBuilder.getListener());
+                    sendBuilder.create<mlir::mpi::SendOp>(loc, retVal, subBuffer, tag.getResult(), rootRank, comm->getResult(0));
+                }
 
                 // Broadcast
                 BoolAttr needBroadcast = mlir::dyn_cast<mlir::BoolAttr>(taskOp->getAttr("needBroadcast"));
                 if (needBroadcast && needBroadcast.getValue())
                     toBroadcast.push_back(subBuffer);
-
-                ++taskId;
             }
 
+            Value broadcastRootNodeIndex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+            Value broadcastRootRank = rewriter.create<memref::LoadOp>(loc, nodeToRankMap, ValueRange{broadcastRootNodeIndex});
+
             generateBroadcastCommunication(
-                rewriter, loc, toBroadcast, rank.getResult(0), zero.getResult(),
+                rewriter, loc, toBroadcast, rank.getResult(0), broadcastRootRank,
                 comm->getResult(0), retVal, tag.getResult(), getNodes->getResult(1));
 
             toBroadcast.clear();
