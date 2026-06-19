@@ -125,8 +125,44 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
         llvm::SmallVector<mlir::avial::ArrayPartitioningInfo> arrayPartitionInfoOutVec;
 
         int64_t total_iters = ub - lb;
-        int64_t base_chunk = total_iters / num_devices;
-        int64_t remainder = total_iters % num_devices;
+
+        // weight = 1/cost for each node, cost cannot be 0
+        std::vector<float> weights;
+        float weight_sum = 0.0f;
+
+        for (int i = 0; i < num_devices; i++)
+        {
+            float cost = 1.0f;
+            if (auto costAttr = mlir::dyn_cast<mlir::FloatAttr>(getDeviceAttribute(deviceVec[i], "cost")))
+            {
+                cost = costAttr.getValue().convertToFloat();
+            }
+
+            if (cost <= 0.0f) llvm::report_fatal_error("cost needs to be > 0");
+
+            float weight = 1.0f / cost;
+            weights.push_back(weight);
+            weight_sum += weight;
+        }
+
+        std::vector<int64_t> chunk_sizes;
+        int64_t assigned_iters = 0;
+
+        for (int i = 0; i < num_devices; i++)
+        {
+            int64_t chunk = static_cast<int64_t>((weights[i] / weight_sum) * total_iters);
+            chunk_sizes.push_back(chunk);
+            assigned_iters += chunk;
+        }
+
+        // handle remainder iterations by adding 1 iteration to each device till all remainder iterations are assigned
+        int64_t remainder = total_iters - assigned_iters;
+        assert(remainder >= 0 && remainder < num_devices && "remainder should be in [0,num_devices)");
+
+        for (int i = 0; i < remainder; i++)
+        {
+            chunk_sizes[i % num_devices]++;
+        }
 
         llvm::SmallVector<mlir::Value> insVec(op.getReads().begin(),
                                               op.getReads().end());
@@ -212,7 +248,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
         int64_t current = constlowerBound;
         for (int i = 0; i < num_devices; ++i)
         {
-            int64_t chunk = base_chunk + (i < remainder ? 1 : 0);
+            int64_t chunk = chunk_sizes[i];
             int64_t start = current;
             int64_t end = start + chunk;
             current = end;
