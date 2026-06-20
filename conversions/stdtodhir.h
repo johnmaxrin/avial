@@ -1,8 +1,8 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/IR/PatternMatch.h"
 
-#include "includes/avialDialect.h"
-#include "includes/avialTypes.h"
+#include "includes/dhirDialect.h"
+#include "includes/dhirTypes.h"
 
 #include "mlir/Transforms/DialectConversion.h"
 
@@ -14,9 +14,9 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 
-#include "includes/avialDialect.h"
-#include "includes/avialOps.h"
-#include "includes/avialTypes.h"
+#include "includes/dhirDialect.h"
+#include "includes/dhirOps.h"
+#include "includes/dhirTypes.h"
 
 #include "includes/utils.h"
 
@@ -29,9 +29,9 @@
 #include <string>
 
 using namespace mlir;
-using namespace avial;
+using namespace dhir;
 
-struct ConvertToAvial : public OpConversionPattern<mlir::func::FuncOp>
+struct ConvertToDhir : public OpConversionPattern<mlir::func::FuncOp>
 {
     using OpConversionPattern::OpConversionPattern;
 
@@ -63,7 +63,7 @@ struct ConvertToAvial : public OpConversionPattern<mlir::func::FuncOp>
         mlir::ArrayAttr insAttr = rewriter.getArrayAttr(argsAttr);
 
         rewriter.setInsertionPoint(op);
-        auto schOp = rewriter.create<avial::ScheduleOp>(rewriter.getUnknownLoc(), insAttr, rewriter.getStringAttr(op.getName()));
+        auto schOp = rewriter.create<dhir::ScheduleOp>(rewriter.getUnknownLoc(), insAttr, rewriter.getStringAttr(op.getName()));
 
         for (const auto &arg : llvm::enumerate(op.getRegion().getBlocks().front().getArguments()))
         {
@@ -88,13 +88,13 @@ struct ConvertToAvial : public OpConversionPattern<mlir::func::FuncOp>
                 auto archVal = rewriter.getStringAttr("sm_61");
                 auto entry1 = mlir::DataLayoutEntryAttr::get(archAttr, archVal);
                 auto targetDlti = mlir::TargetDeviceSpecAttr::get(innerop.getContext(), {entry1});
-                auto taskOp = rewriter.create<avial::TaskOp>(innerop.getLoc(), avial::TaskRefType::get(rewriter.getContext()), targetDlti, mlir::ValueRange{},mlir::DenseI64ArrayAttr{}, mlir::ValueRange{}, mlir::DenseI64ArrayAttr{}, mlir::ValueRange{});
+                auto taskOp = rewriter.create<dhir::TaskOp>(innerop.getLoc(), dhir::TaskRefType::get(rewriter.getContext()), targetDlti, mlir::ValueRange{},mlir::DenseI64ArrayAttr{}, mlir::ValueRange{}, mlir::DenseI64ArrayAttr{}, mlir::ValueRange{});
 
                 rewriter.setInsertionPointToStart(&taskOp.getBodyRegion().getBlocks().front());
 
                 innerop.removeAttr("task");
                 Operation *cloned = rewriter.clone(innerop, mapping);
-                rewriter.create<mlir::avial::YieldOp>(rewriter.getUnknownLoc());
+                rewriter.create<mlir::dhir::YieldOp>(rewriter.getUnknownLoc());
             }
             else
                 Operation *cloned = rewriter.clone(innerop, mapping);
@@ -106,7 +106,7 @@ struct ConvertToAvial : public OpConversionPattern<mlir::func::FuncOp>
 
 
         rewriter.setInsertionPointToEnd(&schOp.getBodyRegion().getBlocks().front());
-        rewriter.create<mlir::avial::YieldOp>(rewriter.getUnknownLoc());
+        rewriter.create<mlir::dhir::YieldOp>(rewriter.getUnknownLoc());
 
 
         rewriter.eraseOp(op);
@@ -118,14 +118,14 @@ struct ConvertToAvial : public OpConversionPattern<mlir::func::FuncOp>
 
 namespace mlir
 {
-    namespace avial
+    namespace dhir
     {
-#define GEN_PASS_DEF_CONVERTSTDTOAVIALPASS
+#define GEN_PASS_DEF_CONVERTSTDTODHIRPASS
 #include "dialect/Passes.h.inc"
 
-        struct ConvertStdToAvialPass : public mlir::avial::impl::ConvertStdToAvialPassBase<ConvertStdToAvialPass>
+        struct ConvertStdToDhirPass : public mlir::dhir::impl::ConvertStdToDhirPassBase<ConvertStdToDhirPass>
         {
-            using ConvertStdToAvialPassBase::ConvertStdToAvialPassBase;
+            using ConvertStdToDhirPassBase::ConvertStdToDhirPassBase;
             void runOnOperation() override
             {
                 mlir::MLIRContext *context = &getContext();
@@ -135,13 +135,13 @@ namespace mlir
                 ConversionTarget target(getContext());
                 target.addIllegalOp<func::FuncOp>();
 
-                target.addLegalDialect<avial::AvialDialect>();
+                target.addLegalDialect<dhir::DhirDialect>();
                 target.markUnknownOpDynamicallyLegal([](Operation *op) { return true; });
 
 
                 RewritePatternSet patterns(context);
 
-                patterns.add<ConvertToAvial>(context);
+                patterns.add<ConvertToDhir>(context);
 
                 if (failed(applyPartialConversion(module, target, std::move(patterns))))
                 {

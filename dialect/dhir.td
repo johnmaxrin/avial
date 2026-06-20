@@ -10,10 +10,10 @@ include "mlir/Pass/PassBase.td"
 
 include "passes.td"
 
-def AvialDialect : Dialect {
+def DhirDialect : Dialect {
     let summary = "A sample dialect for understanding";
-    let name = "avial";
-    let cppNamespace = "mlir::avial";
+    let name = "dhir";
+    let cppNamespace = "mlir::dhir";
     let useDefaultTypePrinterParser = 1;
 }
 
@@ -22,17 +22,17 @@ def AvialDialect : Dialect {
 
 
 
-class AvialDialectType<string name, string typeMnemonic, list<Trait> traits = []>
-    : TypeDef<AvialDialect, name, traits> {
+class DhirDialectType<string name, string typeMnemonic, list<Trait> traits = []>
+    : TypeDef<DhirDialect, name, traits> {
   let mnemonic = typeMnemonic;
 }
 
 
-def TaskRef : AvialDialectType<"TaskRef", "taskref"> {
+def TaskRef : DhirDialectType<"TaskRef", "taskref"> {
   let summary = "Task Ref";
 }
 
-def TargetRef : AvialDialectType<"TargetRef", "targetref"> {
+def TargetRef : DhirDialectType<"TargetRef", "targetref"> {
   let summary = "Target Ref";
   let parameters = (ins StringRefParameter<"arch">:$value);
   let assemblyFormat = " `<` $value `>` ";
@@ -44,12 +44,12 @@ def TargetRef : AvialDialectType<"TargetRef", "targetref"> {
 
 
 // Ops
-class AvialDialectOp<string mnemonic> : Op<AvialDialect, mnemonic>
+class DhirDialectOp<string mnemonic> : Op<DhirDialect, mnemonic>
 {
   let summary = "Operation Class";
 }
 
-def TaskOp : Op<AvialDialect, "task", [AttrSizedOperandSegments, SingleBlockImplicitTerminator<"YieldOp">]>
+def TaskOp : Op<DhirDialect, "task", [AttrSizedOperandSegments, SingleBlockImplicitTerminator<"YieldOp">]>
 {
   let summary = "Task Operation"; 
   let arguments = (
@@ -73,7 +73,7 @@ def TaskOp : Op<AvialDialect, "task", [AttrSizedOperandSegments, SingleBlockImpl
 }
 
 
-def ScheduleOp : Op<AvialDialect, "schedule", [IsolatedFromAbove,SingleBlockImplicitTerminator<"YieldOp">]>
+def ScheduleOp : Op<DhirDialect, "schedule", [IsolatedFromAbove,SingleBlockImplicitTerminator<"YieldOp">]>
 {
   let summary = "ScheduleOp"; 
   let regions = (region SizedRegion<1> : $body); 
@@ -88,7 +88,7 @@ def ScheduleOp : Op<AvialDialect, "schedule", [IsolatedFromAbove,SingleBlockImpl
 
 }
 
-def ReplicateOp : Op<AvialDialect, "replicate", [AttrSizedOperandSegments, SingleBlockImplicitTerminator<"YieldOp">]>
+def ReplicateOp : Op<DhirDialect, "replicate", [AttrSizedOperandSegments, SingleBlockImplicitTerminator<"YieldOp">]>
 {
   let summary = "ReplicateOp"; 
   let arguments = (ins
@@ -98,7 +98,7 @@ def ReplicateOp : Op<AvialDialect, "replicate", [AttrSizedOperandSegments, Singl
   let regions = (region SizedRegion<1> : $body); 
 }
 
-def ConvergeOp : Op<AvialDialect, "converge", [AttrSizedOperandSegments, SingleBlockImplicitTerminator<"YieldOp">]>
+def ConvergeOp : Op<DhirDialect, "converge", [AttrSizedOperandSegments, SingleBlockImplicitTerminator<"YieldOp">]>
 {
   let summary = "Converge"; 
   let arguments = (ins
@@ -110,12 +110,12 @@ def ConvergeOp : Op<AvialDialect, "converge", [AttrSizedOperandSegments, SingleB
 }
 
 
-def YieldOp : Op<AvialDialect, "yield", [Terminator]>
+def YieldOp : Op<DhirDialect, "yield", [Terminator]>
 {
   let summary = "A Terminator";
 }
 
-def TaskGraphOp : AvialDialectOp<"taskGraph">
+def TaskGraphOp : DhirDialectOp<"taskGraph">
 {
   let summary = "Task Operation"; 
   let results = (outs AnyType);

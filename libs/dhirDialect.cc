@@ -1,6 +1,6 @@
-#include "includes/avialDialect.h"
-#include "includes/avialOps.h"
-#include "includes/avialTypes.h"
+#include "includes/dhirDialect.h"
+#include "includes/dhirOps.h"
+#include "includes/dhirTypes.h"
 
 
 
@@ -23,10 +23,10 @@
 
 namespace mlir
 {
-    namespace avial
+    namespace dhir
     {
 
-        void AvialDialect::initialize()
+        void DhirDialect::initialize()
         {
 
             addTypes<

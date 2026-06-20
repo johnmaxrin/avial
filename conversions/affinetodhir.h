@@ -1,8 +1,8 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/IR/PatternMatch.h"
 
-#include "includes/avialDialect.h"
-#include "includes/avialTypes.h"
+#include "includes/dhirDialect.h"
+#include "includes/dhirTypes.h"
 
 #include "mlir/Transforms/DialectConversion.h"
 
@@ -14,9 +14,9 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 
-#include "includes/avialDialect.h"
-#include "includes/avialOps.h"
-#include "includes/avialTypes.h"
+#include "includes/dhirDialect.h"
+#include "includes/dhirOps.h"
+#include "includes/dhirTypes.h"
 #include "includes/utils.h"
 
 #include "mlir/Dialect/DLTI/DLTI.h"
@@ -29,20 +29,20 @@
 #include <string>
 
 using namespace mlir;
-using namespace avial;
+using namespace dhir;
 
 namespace mlir
 {
-    namespace avial
+    namespace dhir
     {
 
-#define GEN_PASS_DEF_CONVERTAFFINETOAVIALPASS
+#define GEN_PASS_DEF_CONVERTAFFINETODHIRPASS
 
 #include "dialect/Passes.h.inc"
 
-        struct ConvertAffineToAvialPass : public mlir::avial::impl::ConvertAffineToAvialPassBase<ConvertAffineToAvialPass>
+        struct ConvertAffineToDhirPass : public mlir::dhir::impl::ConvertAffineToDhirPassBase<ConvertAffineToDhirPass>
         {
-            using ConvertAffineToAvialPassBase::ConvertAffineToAvialPassBase;
+            using ConvertAffineToDhirPassBase::ConvertAffineToDhirPassBase;
 
             // Helper function to check if a loop is independent (considering only its own iterations)
             // This checks the loop in isolation, not in the context of parent loops
@@ -146,7 +146,7 @@ namespace mlir
 
                     bool isStencil = false;
 
-                    mlir::avial::ArrayPartitioningAnalysis analysis(forOp);
+                    mlir::dhir::ArrayPartitioningAnalysis analysis(forOp);
                     for (Value in : insouts[0])
                     {
                         auto info = analysis.analyzeArray(in);
@@ -162,7 +162,7 @@ namespace mlir
                     }
 
                     builder.setInsertionPoint(forOp);
-                    auto replicateOp = builder.create<mlir::avial::ReplicateOp>(forOp.getLoc(), insouts[0], insouts[1]);
+                    auto replicateOp = builder.create<mlir::dhir::ReplicateOp>(forOp.getLoc(), insouts[0], insouts[1]);
                     replicateOp->setAttr("replicateID", builder.getI64IntegerAttr(repId));
 
                     if (isStencil)
@@ -175,7 +175,7 @@ namespace mlir
 
                     forOp->moveBefore(newBlock, newBlock->end());
                     builder.setInsertionPointToEnd(newBlock);
-                    builder.create<mlir::avial::YieldOp>(builder.getUnknownLoc());
+                    builder.create<mlir::dhir::YieldOp>(builder.getUnknownLoc());
 
                     llvm::errs() << "Wrapped loop with ReplicateOp (replicateID=" << repId << ")\n";
                     ++repId;
@@ -275,7 +275,7 @@ namespace mlir
                     auto insouts = InsOutsAnalysis::getInsandOut(forOp);
 
                     builder.setInsertionPoint(forOp);
-                    auto replicateOp = builder.create<mlir::avial::ReplicateOp>(forOp.getLoc(), insouts[0], insouts[1]);
+                    auto replicateOp = builder.create<mlir::dhir::ReplicateOp>(forOp.getLoc(), insouts[0], insouts[1]);
                     replicateOp->setAttr("replicateID", builder.getI64IntegerAttr(repId));
 
                     mlir::Region &replicateRegion = replicateOp.getBodyRegion();
@@ -283,7 +283,7 @@ namespace mlir
 
                     forOp->moveBefore(newBlock, newBlock->end());
                     builder.setInsertionPointToEnd(newBlock);
-                    builder.create<mlir::avial::YieldOp>(builder.getUnknownLoc());
+                    builder.create<mlir::dhir::YieldOp>(builder.getUnknownLoc());
                     ++repId;
                 }
 
@@ -301,7 +301,7 @@ namespace mlir
                     auto insouts = InsOutsAnalysis::getInsandOut(forOp);
 
                     builder.setInsertionPoint(forOp);
-                    auto convergeOp = builder.create<mlir::avial::ConvergeOp>(forOp.getLoc(), insouts[0], insouts[1]);
+                    auto convergeOp = builder.create<mlir::dhir::ConvergeOp>(forOp.getLoc(), insouts[0], insouts[1]);
                     convergeOp->setAttr("ConvergeID", builder.getI64IntegerAttr(taskId));
 
                     mlir::Region &ConvergeRegion = convergeOp.getBodyRegion();
@@ -309,7 +309,7 @@ namespace mlir
 
                     forOp->moveBefore(newBlock, newBlock->end());
                     builder.setInsertionPointToEnd(newBlock);
-                    builder.create<mlir::avial::YieldOp>(builder.getUnknownLoc());
+                    builder.create<mlir::dhir::YieldOp>(builder.getUnknownLoc());
 
                     ++taskId;
                 }

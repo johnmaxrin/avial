@@ -3,8 +3,8 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Verifier.h"
 
-#include "includes/avialDialect.h"
-#include "includes/avialTypes.h"
+#include "includes/dhirDialect.h"
+#include "includes/dhirTypes.h"
 #include "includes/utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 
@@ -45,7 +45,7 @@ mlir::Value materializeOpFoldResult(mlir::OpFoldResult ofr, mlir::ConversionPatt
 static mlir::SmallVector<mlir::Value> materializeOpFoldResults(mlir::ConversionPatternRewriter &rewriter, mlir::ArrayRef<mlir::OpFoldResult> ofrs);
 
 using namespace mlir;
-using namespace avial;
+using namespace dhir;
 
 #include "mlir/Dialect/GPU/Transforms/ParallelLoopMapper.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
@@ -271,8 +271,8 @@ static SmallVector<Value> materializeOpFoldResults(ConversionPatternRewriter &re
 
 static Value createRuntimeTopology(ModuleOp module, ConversionPatternRewriter &rewriter, Location loc)
 {
-    auto devicesAttr = module->getAttrOfType<ArrayAttr>("avial.target_devices");
-    assert(devicesAttr && "No avial.target_devices attribute found");
+    auto devicesAttr = module->getAttrOfType<ArrayAttr>("dhir.target_devices");
+    assert(devicesAttr && "No dhir.target_devices attribute found");
 
     struct NodeInfo
     {
@@ -388,12 +388,12 @@ static Value createRuntimeTopology(ModuleOp module, ConversionPatternRewriter &r
     return topology;
 }
 
-struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
+struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
 {
     using OpConversionPattern::OpConversionPattern;
 
     LogicalResult matchAndRewrite(
-        mlir::avial::ScheduleOp op, OpAdaptor adaptor,
+        mlir::dhir::ScheduleOp op, OpAdaptor adaptor,
         ConversionPatternRewriter &rewriter) const override
     {
 
@@ -452,7 +452,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
 
         Value topology = createRuntimeTopology(module, rewriter, loc);
 
-        auto devicesAttr = module->getAttrOfType<ArrayAttr>("avial.target_devices");
+        auto devicesAttr = module->getAttrOfType<ArrayAttr>("dhir.target_devices");
         int numNodes = devicesAttr.size();
 
         auto mapType = MemRefType::get({numNodes}, rewriter.getI32Type());
@@ -513,8 +513,8 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
         // Clone constants and non-task, non-loop operations
         for (auto &innerOp : op.getBodyRegion().front().getOperations())
         {
-            if (mlir::isa<mlir::avial::TaskOp>(innerOp) || 
-                mlir::isa<mlir::avial::YieldOp>(innerOp) || 
+            if (mlir::isa<mlir::dhir::TaskOp>(innerOp) || 
+                mlir::isa<mlir::dhir::YieldOp>(innerOp) || 
                 mlir::isa<mlir::scf::ForOp>(innerOp))
                 continue;
 
@@ -544,7 +544,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
             
             for (auto &loopOp : outerLoop.getBody()->getOperations())
             {
-                if (mlir::isa<mlir::scf::YieldOp>(loopOp) || mlir::isa<mlir::avial::TaskOp>(loopOp))
+                if (mlir::isa<mlir::scf::YieldOp>(loopOp) || mlir::isa<mlir::dhir::TaskOp>(loopOp))
                     continue;
                 
                 Operation *clonedOp = rewriter.clone(loopOp, mapping);
@@ -567,7 +567,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
 
             for (auto task : level)
             {
-                auto taskOp = dyn_cast<avial::TaskOp>(task->op);
+                auto taskOp = dyn_cast<dhir::TaskOp>(task->op);
                 Attribute targetDevice = taskOp.getTarget();
 
                 // if task target device has no matches in the deviceToIndex map, something is broken on our end.
@@ -662,7 +662,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
                     } 
 
                     for (auto &op : taskBlock) {
-                        if (mlir::isa<mlir::avial::YieldOp>(op))
+                        if (mlir::isa<mlir::dhir::YieldOp>(op))
                             continue;
                     
                         Operation *clonedOp = ifbuilder.clone(op, rankMapping);
@@ -695,7 +695,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
 
             for (auto task : level)
             {
-                auto taskOp = dyn_cast<mlir::avial::TaskOp>(task->op);
+                auto taskOp = dyn_cast<mlir::dhir::TaskOp>(task->op);
                 Attribute targetDevice = taskOp.getTarget();
 
                 assert(deviceToIndex.count(targetDevice) && "Task target device not found in deviceToIndex map");
@@ -848,14 +848,14 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::avial::ScheduleOp>
 
 namespace mlir
 {
-    namespace avial
+    namespace dhir
     {
-#define GEN_PASS_DEF_CONVERTAVIALIRTOMPIPASS
+#define GEN_PASS_DEF_CONVERTDHIRTOMPIPASS
 #include "dialect/Passes.h.inc"
 
-        struct ConvertAvialIRToMPIPass : public mlir::avial::impl::ConvertAvialIRToMPIPassBase<ConvertAvialIRToMPIPass>
+        struct ConvertDhirToMPIPass : public mlir::dhir::impl::ConvertDhirToMPIPassBase<ConvertDhirToMPIPass>
         {
-            using ConvertAvialIRToMPIPassBase::ConvertAvialIRToMPIPassBase;
+            using ConvertDhirToMPIPassBase::ConvertDhirToMPIPassBase;
 
             void getDependentDialects(DialectRegistry &registry) const override
             {
@@ -888,14 +888,14 @@ namespace mlir
                 target.addLegalDialect<mlir::omp::OpenMPDialect>();
                 target.addLegalDialect<mlir::gpu::GPUDialect>();
 
-                target.addIllegalOp<avial::ScheduleOp>();
+                target.addIllegalOp<dhir::ScheduleOp>();
 
                 targetReplicateOp.addLegalDialect<mlir::arith::ArithDialect>();
                 targetReplicateOp.addLegalDialect<mlir::scf::SCFDialect>();
 
-                targetReplicateOp.addLegalOp<mlir::avial::TaskOp>();
-                targetReplicateOp.addIllegalOp<avial::ReplicateOp>();
-                targetReplicateOp.addLegalOp<mlir::avial::YieldOp>();
+                targetReplicateOp.addLegalOp<mlir::dhir::TaskOp>();
+                targetReplicateOp.addIllegalOp<dhir::ReplicateOp>();
+                targetReplicateOp.addLegalOp<mlir::dhir::YieldOp>();
                 targetReplicateOp.addLegalDialect<mlir::memref::MemRefDialect>();
 
                 targetTaskOp.addLegalDialect<mlir::omp::OpenMPDialect>();
@@ -903,13 +903,13 @@ namespace mlir
                 // targetTaskOp.addIllegalOp<mlir::scf::ForOp>();
                 targetTaskOp.addLegalOp<mlir::omp::ParallelOp>();
                 targetTaskOp.markOpRecursivelyLegal<mlir::omp::ParallelOp>();
-                targetTaskOp.addLegalDialect<mlir::avial::AvialDialect>();
+                targetTaskOp.addLegalDialect<mlir::dhir::DhirDialect>();
                 targetTaskOp.addLegalDialect<mlir::arith::ArithDialect>();
 
-                // RewritePatternSet avialpatterns(context);
-                // avialpatterns.add<ConvertReplicateOp>(context);
+                // RewritePatternSet dhirpatterns(context);
+                // dhirpatterns.add<ConvertReplicateOp>(context);
 
-                // if (failed(applyPartialConversion(module, targetReplicateOp, std::move(avialpatterns))))
+                // if (failed(applyPartialConversion(module, targetReplicateOp, std::move(dhirpatterns))))
                 // {
                 //     signalPassFailure();
                 // }

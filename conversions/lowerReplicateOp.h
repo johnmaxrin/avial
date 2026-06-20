@@ -2,8 +2,8 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Conversion/Passes.h"
 
-#include "includes/avialDialect.h"
-#include "includes/avialTypes.h"
+#include "includes/dhirDialect.h"
+#include "includes/dhirTypes.h"
 #include "includes/utils.h"
 #include "analysis/arrayPartitionAnalysis.h"
 
@@ -18,12 +18,12 @@
 
 using namespace mlir;
 
-struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
+struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
 {
     using OpConversionPattern::OpConversionPattern;
 
     LogicalResult matchAndRewrite(
-        mlir::avial::ReplicateOp op, OpAdaptor adaptor,
+        mlir::dhir::ReplicateOp op, OpAdaptor adaptor,
         ConversionPatternRewriter &rewriter) const override
     {
 
@@ -32,7 +32,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
             module = module->getParentOp();
 
         mlir::Operation *schOp = op;
-        while (schOp && !mlir::isa<mlir::avial::ScheduleOp>(schOp))
+        while (schOp && !mlir::isa<mlir::dhir::ScheduleOp>(schOp))
         {
             if (mlir::isa<mlir::ModuleOp>(schOp))
             {
@@ -121,8 +121,8 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
         int64_t ub = constupperBound;
         int64_t lb = constlowerBound;
         int64_t num_devices = deviceVec.size();
-        llvm::SmallVector<mlir::avial::ArrayPartitioningInfo> arrayPartitionInfoInVec;
-        llvm::SmallVector<mlir::avial::ArrayPartitioningInfo> arrayPartitionInfoOutVec;
+        llvm::SmallVector<mlir::dhir::ArrayPartitioningInfo> arrayPartitionInfoInVec;
+        llvm::SmallVector<mlir::dhir::ArrayPartitioningInfo> arrayPartitionInfoOutVec;
 
         int64_t total_iters = ub - lb;
 
@@ -227,13 +227,13 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
 
             for (Value memref : insVec)
             {
-                mlir::avial::ArrayPartitioningAnalysis analysis(outerForOp);
+                mlir::dhir::ArrayPartitioningAnalysis analysis(outerForOp);
                 arrayPartitionInfoInVec.push_back(analysis.analyzeArray(memref));
             }
 
             for (Value memref : outsVec)
             {
-                mlir::avial::ArrayPartitioningAnalysis analysis(outerForOp);
+                mlir::dhir::ArrayPartitioningAnalysis analysis(outerForOp);
                 arrayPartitionInfoOutVec.push_back(analysis.analyzeArray(memref));
             }
         }
@@ -337,14 +337,14 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
                     mapping.map(out, out);
                 }
 
-                if (mlir::avial::doesOutputNeedBroadcast(op, out))
+                if (mlir::dhir::doesOutputNeedBroadcast(op, out))
                     needBroadcast = true;
             }
 
             mlir::DenseI64ArrayAttr outRanges = rewriter.getDenseI64ArrayAttr({start, end});
-            auto taskOp = rewriter.create<avial::TaskOp>(
+            auto taskOp = rewriter.create<dhir::TaskOp>(
                 op.getLoc(),
-                avial::TaskRefType::get(rewriter.getContext()),
+                dhir::TaskRefType::get(rewriter.getContext()),
                 deviceVec[i],
                 ValueRange(subViewIns), rewriter.getDenseI64ArrayAttr({0, 0}),
                 ValueRange(subViewOuts), outRanges, ValueRange{outsVec});
@@ -457,7 +457,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
             }
 
             rewriter.setInsertionPointToEnd(&taskOp.getRegion().front());
-            rewriter.create<avial::YieldOp>(rewriter.getUnknownLoc());
+            rewriter.create<dhir::YieldOp>(rewriter.getUnknownLoc());
 
             subViewIns.clear();
             subViewOuts.clear();
@@ -470,12 +470,12 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::avial::ReplicateOp>
 
 namespace mlir
 {
-    namespace avial
+    namespace dhir
     {
 #define GEN_PASS_DEF_LOWERREPLICATEOPPASS
 #include "dialect/Passes.h.inc"
         struct LowerReplicateOpPass
-            : public mlir::avial::impl::LowerReplicateOpPassBase<LowerReplicateOpPass>
+            : public mlir::dhir::impl::LowerReplicateOpPassBase<LowerReplicateOpPass>
         {
             using LowerReplicateOpPassBase::LowerReplicateOpPassBase;
 
@@ -488,15 +488,15 @@ namespace mlir
                 targetReplicateOp.addLegalDialect<mlir::arith::ArithDialect>();
                 targetReplicateOp.addLegalDialect<mlir::scf::SCFDialect>();
                 targetReplicateOp.addLegalDialect<mlir::affine::AffineDialect>();
-                targetReplicateOp.addLegalOp<mlir::avial::TaskOp>();
-                targetReplicateOp.addIllegalOp<avial::ReplicateOp>();
-                targetReplicateOp.addLegalOp<mlir::avial::YieldOp>();
+                targetReplicateOp.addLegalOp<mlir::dhir::TaskOp>();
+                targetReplicateOp.addIllegalOp<dhir::ReplicateOp>();
+                targetReplicateOp.addLegalOp<mlir::dhir::YieldOp>();
                 targetReplicateOp.addLegalDialect<mlir::memref::MemRefDialect>();
 
-                RewritePatternSet avialpatterns(context);
-                avialpatterns.add<ConvertReplicateOp>(context);
+                RewritePatternSet dhirpatterns(context);
+                dhirpatterns.add<ConvertReplicateOp>(context);
 
-                if (failed(applyPartialConversion(module, targetReplicateOp, std::move(avialpatterns))))
+                if (failed(applyPartialConversion(module, targetReplicateOp, std::move(dhirpatterns))))
                     signalPassFailure();
             }
         };
