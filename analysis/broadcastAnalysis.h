@@ -12,13 +12,13 @@
 #include <algorithm>
 #include "arrayPartitionAnalysis.h"
 
-#include "includes/avialOps.h"
-#include "includes/avialDialect.h"
+#include "includes/dhirOps.h"
+#include "includes/dhirDialect.h"
 
 
 namespace mlir
 {
-    namespace avial
+    namespace dhir
     {
     
         // ========================================================================
@@ -48,7 +48,7 @@ namespace mlir
 
                 // Get all write arguments from this replicate operation
 
-                llvm::SmallVector<Value> writeArgs = mlir::dyn_cast<mlir::avial::ReplicateOp>(replicateOp).getWrites();
+                llvm::SmallVector<Value> writeArgs = mlir::dyn_cast<mlir::dhir::ReplicateOp>(replicateOp).getWrites();
 
                 if (writeArgs.empty()) {
                     llvm::errs() << "No write arguments found in replicate operation\n";
@@ -142,7 +142,7 @@ namespace mlir
 
                 // Walk through all operations in the parent
                 
-                parentOp->walk([&](mlir::avial::ReplicateOp op) {
+                parentOp->walk([&](mlir::dhir::ReplicateOp op) {
                     // Skip until we find the current replicate operation
                     if (op == replicateOp) {
                         foundCurrentReplicate = true;
@@ -165,7 +165,7 @@ namespace mlir
             // Check if a memref is read by a replicate operation
             bool isReadByReplicate(mlir::Operation *replicate, Value memref)
             {
-                llvm::SmallVector<Value> readArgs = mlir::dyn_cast<mlir::avial::ReplicateOp>(replicate).getReads(); 
+                llvm::SmallVector<Value> readArgs = mlir::dyn_cast<mlir::dhir::ReplicateOp>(replicate).getReads(); 
                 llvm::errs() << "Memref: ";
                 memref.dump();
                 for (Value readArg : readArgs) {
@@ -222,7 +222,7 @@ namespace mlir
             return false; // Not found, default to no broadcast
         }
 
-    } // namespace avial
+    } // namespace dhir
 } // namespace mlir
 
 /*
@@ -233,10 +233,10 @@ namespace mlir
  * #include "BroadcastAnalysis.h"
  *
  * void processReplicateOp(mlir::Operation *replicateOp) {
- *     std::vector<mlir::avial::BroadcastInfo> broadcastDecisions;
+ *     std::vector<mlir::dhir::BroadcastInfo> broadcastDecisions;
  *     
  *     // Analyze the replicate operation
- *     if (!mlir::avial::analyzeBroadcastRequirements(replicateOp, broadcastDecisions)) {
+ *     if (!mlir::dhir::analyzeBroadcastRequirements(replicateOp, broadcastDecisions)) {
  *         llvm::errs() << "Broadcast analysis failed!\n";
  *         return;
  *     }

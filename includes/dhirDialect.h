@@ -1,5 +1,5 @@
-#ifndef AVIALDIALECT
-#define AVIALDIALECT
+#ifndef DHIRDIALECT
+#define DHIRDIALECT
 
 
 

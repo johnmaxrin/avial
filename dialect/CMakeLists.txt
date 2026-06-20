@@ -1,6 +1,6 @@
-set(LLVM_TARGET_DEFINITIONS avial.td)
-mlir_tablegen(Dialect.h.inc -gen-dialect-decls -dialect=avial)
-mlir_tablegen(Dialect.cpp.inc -gen-dialect-defs -dialect=avial)
+set(LLVM_TARGET_DEFINITIONS dhir.td)
+mlir_tablegen(Dialect.h.inc -gen-dialect-decls -dialect=dhir)
+mlir_tablegen(Dialect.cpp.inc -gen-dialect-defs -dialect=dhir)
 mlir_tablegen(Ops.h.inc -gen-op-decls)
 mlir_tablegen(Ops.cpp.inc -gen-op-defs)
 mlir_tablegen(Types.h.inc -gen-typedef-decls )
@@ -9,5 +9,5 @@ mlir_tablegen(Enums.h.inc -gen-enum-decls)
 mlir_tablegen(Enums.cpp.inc -gen-enum-defs)
 mlir_tablegen(Passes.h.inc -gen-pass-decls)
 
-add_public_tablegen_target(MLIRAvialDialectIncGen)
+add_public_tablegen_target(MLIRDhirDialectIncGen)
 

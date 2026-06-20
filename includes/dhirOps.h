@@ -1,9 +1,9 @@
-#ifndef AVIALOPS
-#define AVIALOPS
+#ifndef DHIROPS
+#define DHIROPS
 
-#include "avialDialect.h"
-#include "avialTypes.h"
-#include "avialEnums.h"
+#include "dhirDialect.h"
+#include "dhirTypes.h"
+#include "dhirEnums.h"
 
 #include "mlir/IR/BuiltinOps.h"    // from @llvm-project
 #include "mlir/IR/BuiltinTypes.h"  // from @llvm-project
@@ -23,4 +23,4 @@
  
 
 
-#endif  // AVIALOPS
+#endif  // DHIROPS

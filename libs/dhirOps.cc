@@ -1,9 +1,9 @@
-#include "includes/avialOps.h"
+#include "includes/dhirOps.h"
 
 using namespace mlir;
-using namespace mlir::avial;
+using namespace mlir::dhir;
 
-void mlir::avial::TaskOp::build(OpBuilder &builder, OperationState &state, TaskRefType resType, mlir::Attribute target, ::mlir::ValueRange inputs, mlir::DenseI64ArrayAttr inpRanges, ::mlir::ValueRange outputs, mlir::DenseI64ArrayAttr outRanges, mlir::ValueRange actualBuffers,
+void mlir::dhir::TaskOp::build(OpBuilder &builder, OperationState &state, TaskRefType resType, mlir::Attribute target, ::mlir::ValueRange inputs, mlir::DenseI64ArrayAttr inpRanges, ::mlir::ValueRange outputs, mlir::DenseI64ArrayAttr outRanges, mlir::ValueRange actualBuffers,
                                 function_ref<void(OpBuilder &, Location, mlir::Value, mlir::ValueRange)> bodyBuilder)
 {
   state.addTypes(resType);
@@ -38,7 +38,7 @@ void mlir::avial::TaskOp::build(OpBuilder &builder, OperationState &state, TaskR
   }
 }
 
-void mlir::avial::ScheduleOp::build(OpBuilder &builder, OperationState &state, ::mlir::ArrayAttr inputs, ::mlir::StringAttr schName,
+void mlir::dhir::ScheduleOp::build(OpBuilder &builder, OperationState &state, ::mlir::ArrayAttr inputs, ::mlir::StringAttr schName,
                                     function_ref<void(OpBuilder &, Location, mlir::Value, mlir::ValueRange)> bodyBuilder)
 {
 

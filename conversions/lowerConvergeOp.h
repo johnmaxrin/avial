@@ -1,8 +1,8 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Conversion/Passes.h"
-#include "includes/avialDialect.h"
-#include "includes/avialTypes.h"
+#include "includes/dhirDialect.h"
+#include "includes/dhirTypes.h"
 #include "includes/utils.h"
 #include "analysis/arrayPartitionAnalysis.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -13,20 +13,20 @@
 
 using namespace mlir;
 
-struct ConvertConvergeOp : public OpConversionPattern<mlir::avial::ConvergeOp>
+struct ConvertConvergeOp : public OpConversionPattern<mlir::dhir::ConvergeOp>
 {
     using OpConversionPattern::OpConversionPattern;
     
     LogicalResult matchAndRewrite(
-        mlir::avial::ConvergeOp op, OpAdaptor adaptor,
+        mlir::dhir::ConvergeOp op, OpAdaptor adaptor,
         ConversionPatternRewriter &rewriter) const override
     {
         llvm::errs() << "---- Processing ConvergeOp ----\n";
         
         // Collect all TaskOps in the ConvergeOp's body
-        llvm::SmallVector<mlir::avial::TaskOp> allTasks;
+        llvm::SmallVector<mlir::dhir::TaskOp> allTasks;
         
-        op.getBodyRegion().walk([&](mlir::avial::TaskOp taskOp) {
+        op.getBodyRegion().walk([&](mlir::dhir::TaskOp taskOp) {
             allTasks.push_back(taskOp);
         });
         
@@ -110,13 +110,13 @@ struct ConvertConvergeOp : public OpConversionPattern<mlir::avial::ConvergeOp>
 
 namespace mlir
 {
-    namespace avial
+    namespace dhir
     {
         #define GEN_PASS_DEF_LOWERCONVERGEOPPASS
         #include "dialect/Passes.h.inc"
         
         struct LowerConvergeOpPass
-            : public mlir::avial::impl::LowerConvergeOpPassBase<LowerConvergeOpPass>
+            : public mlir::dhir::impl::LowerConvergeOpPassBase<LowerConvergeOpPass>
         {
             using LowerConvergeOpPassBase::LowerConvergeOpPassBase;
             
@@ -129,18 +129,18 @@ namespace mlir
                 targetReplicateOp.addLegalDialect<mlir::arith::ArithDialect>();
                 targetReplicateOp.addLegalDialect<mlir::scf::SCFDialect>();
                 targetReplicateOp.addLegalDialect<mlir::affine::AffineDialect>();
-                targetReplicateOp.addLegalOp<mlir::avial::TaskOp>();
-                targetReplicateOp.addLegalOp<mlir::avial::YieldOp>();
-                targetReplicateOp.addLegalOp<mlir::avial::ScheduleOp>();
+                targetReplicateOp.addLegalOp<mlir::dhir::TaskOp>();
+                targetReplicateOp.addLegalOp<mlir::dhir::YieldOp>();
+                targetReplicateOp.addLegalOp<mlir::dhir::ScheduleOp>();
                 targetReplicateOp.addLegalDialect<mlir::memref::MemRefDialect>();
                 
                 // Mark ConvergeOp as illegal - it should be removed
-                targetReplicateOp.addIllegalOp<mlir::avial::ConvergeOp>();
+                targetReplicateOp.addIllegalOp<mlir::dhir::ConvergeOp>();
                 
-                RewritePatternSet avialpatterns(context);
-                avialpatterns.add<ConvertConvergeOp>(context);
+                RewritePatternSet dhirpatterns(context);
+                dhirpatterns.add<ConvertConvergeOp>(context);
                 
-                if (failed(applyPartialConversion(module, targetReplicateOp, std::move(avialpatterns))))
+                if (failed(applyPartialConversion(module, targetReplicateOp, std::move(dhirpatterns))))
                 {
                     signalPassFailure();
                 }

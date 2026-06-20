@@ -14,9 +14,9 @@
 
 #include <iostream>
 
-#include "includes/avialDialect.h"
-#include "includes/avialOps.h"
-#include "includes/avialTypes.h"
+#include "includes/dhirDialect.h"
+#include "includes/dhirOps.h"
+#include "includes/dhirTypes.h"
 #include "includes/utils.h"
 
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -33,11 +33,11 @@
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 
-#include "conversions/avialirtompi.h"
+#include "conversions/dhirtompi.h"
 #include "conversions/lowerReplicateOp.h"
 #include "conversions/lowerConvergeOp.h"
-#include "conversions/affinetoavial.h"
-#include "conversions/stdtoavial.h"
+#include "conversions/affinetodhir.h"
+#include "conversions/stdtodhir.h"
 
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
@@ -183,27 +183,27 @@ int main(int argc, char *argv[])
 
     if (affineTodhir)
     {
-        pm.addPass(mlir::avial::createConvertAffineToAvialPass());
+        pm.addPass(mlir::dhir::createConvertAffineToDhirPass());
         pm.addPass(mlir::createLowerAffinePass());
     }
 
     if (stdTodhir)
-        pm.addPass(mlir::avial::createConvertStdToAvialPass());
+        pm.addPass(mlir::dhir::createConvertStdToDhirPass());
 
     if (lowerReplicate)
     {
-        pm.addPass(mlir::avial::createLowerReplicateOpPass());
+        pm.addPass(mlir::dhir::createLowerReplicateOpPass());
     }
 
     if(lowerConverge)
     {
-        pm.addPass(mlir::avial::createLowerConvergeOpPass());
+        pm.addPass(mlir::dhir::createLowerConvergeOpPass());
     }
 
     if (dhirToMPI)
     {
         pm.addPass(createSelectiveGPUConversionPass());
-        pm.addPass(mlir::avial::createConvertAvialIRToMPIPass());
+        pm.addPass(mlir::dhir::createConvertDhirToMPIPass());
 
         // GPU Related lowering
 
