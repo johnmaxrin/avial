@@ -22,6 +22,8 @@ OUTPUT_DIR="${BUILD_DIR}/test_output"
 
 # Tools
 DHIR_OPT="${BUILD_DIR}/bin/dhir-opt"
+DEFAULT_CONFIG_FILE="${TEST_DIR}/configs/system_config_4_cpu.json"
+CONFIG_FILE="${DEFAULT_CONFIG_FILE}"
 
 # Parse arguments
 TEST_FILTER=""
@@ -39,14 +41,23 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help|-h)
-            echo "Usage: $0 [test_name|all] [--verbose] [--keep-output]"
+            echo "Usage: $0 [test_name|all] [options]"
             echo ""
             echo "Options:"
-            echo "  test_name       Run specific test (e.g., jacobi)"
-            echo "  all             Run all tests (default)"
-            echo "  --verbose, -v   Show detailed output"
+            echo "  test_name          Run specific test (e.g., jacobi)"
+            echo "  all                Run all tests (default)"
+            echo "  --verbose, -v      Show detailed output"
             echo "  --keep-output, -k  Keep output files after test"
+            echo "  --config, -c FILE  Use a custom system configuration"
             exit 0
+            ;;
+        --config|-c)
+            if [[ -z "$2" ]]; then
+                log_error "--config requires a path"
+                exit 1
+            fi
+            CONFIG_FILE="$2"
+            shift 2
             ;;
         *)
             TEST_FILTER="$1"
@@ -87,6 +98,12 @@ if [ ! -f "${DHIR_OPT}" ]; then
     exit 1
 fi
 
+# Check if config exists
+if [ ! -f "${CONFIG_FILE}" ]; then
+    log_error "Config file not found at ${CONFIG_FILE}"
+    exit 1
+fi
+
 # Pipeline stages
 PIPELINE=(
     "--affine-to-dhir"
@@ -100,51 +117,55 @@ PIPELINE=(
 # Run a single test
 run_test() {
     local test_file="$1"
-    local test_name=$(basename "${test_file}" .mlir)
-    
+    local test_name
+    test_name=$(basename "${test_file}" .mlir)
+
     TOTAL_TESTS=$((TOTAL_TESTS + 1))
-    
+
     log_info "Running test: ${test_name}"
-    
+
     # Output file
     local output_file="${OUTPUT_DIR}/${test_name}_output.mlir"
     local error_file="${OUTPUT_DIR}/${test_name}_error.log"
-    
-    # Run the full pipeline
-    local cmd="${DHIR_OPT}"
+
+    local cmd=(
+        "${DHIR_OPT}"
+        "${test_file}"
+        "${CONFIG_FILE}"
+    )
+
     for pass in "${PIPELINE[@]}"; do
-        cmd="${cmd} ${pass}"
+        cmd+=("${pass}")
     done
-    cmd="${cmd} ${test_file}"
-    
-    if [ $VERBOSE -eq 1 ]; then
-        log_info "Command: ${cmd}"
+
+    if [ "${VERBOSE}" -eq 1 ]; then
+        printf "${BLUE}[INFO]${NC} Command: "
+        printf '%q ' "${cmd[@]}"
+        echo
     fi
-    
-    # Execute and capture output
-    if eval "${cmd} > ${output_file} 2> ${error_file}"; then
+
+    if "${cmd[@]}" >"${output_file}" 2>"${error_file}"; then
         log_success "${test_name}"
         PASSED_TESTS=$((PASSED_TESTS + 1))
-        
-        # Clean up if not keeping output
-        if [ $KEEP_OUTPUT -eq 0 ]; then
+
+        if [ "${KEEP_OUTPUT}" -eq 0 ]; then
             rm -f "${output_file}" "${error_file}"
         fi
-        
+
         return 0
     else
         log_error "${test_name}"
         FAILED_TESTS=$((FAILED_TESTS + 1))
         FAILED_TEST_NAMES+=("${test_name}")
-        
-        if [ $VERBOSE -eq 1 ]; then
+
+        if [ "${VERBOSE}" -eq 1 ]; then
             echo "Error output:"
             cat "${error_file}"
         else
             log_info "Run with --verbose to see error details"
             log_info "Error log saved to: ${error_file}"
         fi
-        
+
         return 1
     fi
 }
@@ -152,74 +173,69 @@ run_test() {
 # Run tests for all files in polybench
 run_polybench_tests() {
     log_info "Running Polybench tests from ${POLYBENCH_DIR}"
-    
+
     if [ ! -d "${POLYBENCH_DIR}" ]; then
         log_error "Polybench directory not found: ${POLYBENCH_DIR}"
         exit 1
     fi
-    
-    # Find all .mlir files
+
     local test_files=()
     while IFS= read -r -d '' file; do
         test_files+=("$file")
     done < <(find "${POLYBENCH_DIR}" -name "*.mlir" -print0 | sort -z)
-    
+
     if [ ${#test_files[@]} -eq 0 ]; then
         log_warning "No test files found in ${POLYBENCH_DIR}"
         exit 0
     fi
-    
+
     log_info "Found ${#test_files[@]} test files"
-    echo ""
-    
-    # Run each test
+    echo
+
     for test_file in "${test_files[@]}"; do
-        local test_name=$(basename "${test_file}" .mlir)
-        
-        # Apply filter if specified
+        local test_name
+        test_name=$(basename "${test_file}" .mlir)
+
         if [ -n "${TEST_FILTER}" ] && [ "${TEST_FILTER}" != "all" ]; then
             if [[ ! "${test_name}" =~ ${TEST_FILTER} ]]; then
                 continue
             fi
         fi
-        
+
         run_test "${test_file}"
-        echo ""
+        echo
     done
 }
 
 # Main execution
 log_info "DHIR Compiler Test Suite"
+log_info "Config: ${CONFIG_FILE}"
 log_info "========================="
-echo ""
+echo
 
-# Track failed test names
 FAILED_TEST_NAMES=()
 
 run_polybench_tests
 
-# Print summary
-echo ""
+echo
 log_info "Test Summary"
 log_info "============"
 echo "Total tests:  ${TOTAL_TESTS}"
 echo -e "Passed:       ${GREEN}${PASSED_TESTS}${NC}"
 echo -e "Failed:       ${RED}${FAILED_TESTS}${NC}"
 
-# List failed tests if any
 if [ ${FAILED_TESTS} -gt 0 ]; then
-    echo ""
+    echo
     log_error "Failed tests:"
     for test_name in "${FAILED_TEST_NAMES[@]}"; do
         echo "  - ${test_name}"
     done
 fi
 
-if [ $KEEP_OUTPUT -eq 1 ]; then
+if [ "${KEEP_OUTPUT}" -eq 1 ]; then
     log_info "Output files saved to: ${OUTPUT_DIR}"
 fi
 
-# Exit with appropriate code
 if [ ${FAILED_TESTS} -eq 0 ]; then
     exit 0
 else
