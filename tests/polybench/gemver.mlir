@@ -1,4 +1,18 @@
-  func.func @kernel_gemver(%arg0: i32, %arg1: f32, %arg2: f32, %arg3: memref<200x200xf32>, %arg4: memref<200xf32>, %arg5: memref<?xf32>, %arg6: memref<?xf32>, %arg7: memref<?xf32>, %arg8: memref<?xf32>, %arg9: memref<?xf32>, %arg10: memref<?xf32>, %arg11: memref<?xf32>) {
+module {
+  func.func @kernel_gemver(
+      %arg0: i32,
+      %arg1: f32,
+      %arg2: f32,
+      %arg3: memref<200x200xf32>,
+      %arg4: memref<200xf32>,
+      %arg5: memref<200xf32>,
+      %arg6: memref<200xf32>,
+      %arg7: memref<200xf32>,
+      %arg8: memref<200xf32>,
+      %arg9: memref<200xf32>,
+      %arg10: memref<200xf32>,
+      %arg11: memref<200xf32>
+  ) {
     affine.for %arg12 = 0 to 200 {
       affine.for %arg13 = 0 to 200 {
         %0 = affine.load %arg3[%arg12, %arg13] : memref<200x200xf32>
@@ -43,3 +57,4 @@
     }
     return
   }
+}

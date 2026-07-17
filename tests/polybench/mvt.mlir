@@ -1,5 +1,12 @@
-module  {
-  func.func @kernel_mvt(%arg0: i32, %arg1: memref<?xf32>, %arg2: memref<?xf32>, %arg3: memref<?xf32>, %arg4: memref<?xf32>, %arg5: memref<?x128xf32>)  {
+module {
+  func.func @kernel_mvt(
+      %arg0: i32,
+      %arg1: memref<?xf32>,
+      %arg2: memref<?xf32>,
+      %arg3: memref<?xf32>,
+      %arg4: memref<?xf32>,
+      %arg5: memref<?x128xf32>
+  ) {
     affine.for %arg6 = 0 to 128 {
       affine.for %arg7 = 0 to 128 {
         %0 = affine.load %arg1[%arg6] : memref<?xf32>

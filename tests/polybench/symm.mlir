@@ -1,10 +1,18 @@
-#map = affine_map<(d0) -> (d0 - 1)>
-module  {
-  func.func @kernel_symm(%arg0: i32, %arg1: i32, %arg2: f32, %arg3: f32, %arg4: memref<?x1000xf32>, %arg5: memref<?x1000xf32>, %arg6: memref<?x1000xf32>)  {
+#map_id = affine_map<(d0) -> (d0)>
+module {
+  func.func @kernel_symm(
+      %arg0: i32,
+      %arg1: i32,
+      %arg2: f32,
+      %arg3: f32,
+      %arg4: memref<?x1000xf32>,
+      %arg5: memref<?x1000xf32>,
+      %arg6: memref<?x1000xf32>
+  ) {
     %cst = arith.constant 0.000000e+00 : f32
     affine.for %arg7 = 0 to 1000 {
       affine.for %arg8 = 0 to 1000 {
-        %0 = affine.for %arg9 = 0 to #map(%arg8) iter_args(%arg10 = %cst) -> (f32) {
+        %0 = affine.for %arg9 = 0 to #map_id(%arg7) iter_args(%arg10 = %cst) -> (f32) {
           %10 = affine.load %arg5[%arg9, %arg7] : memref<?x1000xf32>
           %11 = arith.mulf %arg2, %10 : f32
           %12 = affine.load %arg6[%arg7, %arg8] : memref<?x1000xf32>

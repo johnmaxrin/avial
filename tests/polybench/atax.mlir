@@ -1,6 +1,12 @@
-module  {
-  func.func @kernel_atax(%arg0: i32, %arg1: i32, %arg2: memref<?x128xf32>, %arg3: memref<?xf32>, %arg4: memref<?xf32>, %arg5: memref<?xf32>)  {
-    
+module {
+  func.func @kernel_atax(
+      %arg0: i32,
+      %arg1: i32,
+      %arg2: memref<?x128xf32>,
+      %arg3: memref<?xf32>,
+      %arg4: memref<?xf32>,
+      %arg5: memref<?xf32>
+  ) {
     affine.for %arg6 = 0 to 128 {
       affine.for %arg7 = 0 to 128 {
         %0 = affine.load %arg5[%arg6] : memref<?xf32>

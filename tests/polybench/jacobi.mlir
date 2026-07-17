@@ -1,24 +1,22 @@
 module {
-  func.func @kernel_jacobi(%arg0: i32, %arg1: i32, %arg2: memref<?xf32>, %arg3: memref<?xf32>) {
-    %c-1_i32 = arith.constant -1 : i32
+  func.func @kernel_jacobi(
+      %arg0: i32,
+      %arg1: i32,
+      %arg2: memref<?xf32>,
+      %arg3: memref<?xf32>
+  ) {
     %cst = arith.constant 3.333300e-01 : f64
-    %c1_i32 = arith.constant 1 : i32
     affine.for %arg4 = 0 to 10000 {
       affine.for %arg5 = 1 to 999 {
-        %0 = arith.index_cast %arg5 : index to i32
-        %1 = arith.addi %0, %c-1_i32 : i32
-        %2 = arith.index_cast %1 : i32 to index
-        %3 = affine.load %arg2[%arg5 - 1] : memref<?xf32>
-        %4 = affine.load %arg2[%arg5] : memref<?xf32>
-        %5 = arith.addf %3, %4 : f32
-        %6 = arith.addi %0, %c1_i32 : i32
-        %7 = arith.index_cast %6 : i32 to index
-        %8 = affine.load %arg2[%arg5 + 1] : memref<?xf32>
-        %9 = arith.addf %5, %8 : f32
-        %10 = arith.extf %9 : f32 to f64
-        %11 = arith.mulf %10, %cst : f64
-        %12 = arith.truncf %11 : f64 to f32
-        affine.store %12, %arg3[%arg5] : memref<?xf32>
+        %0 = affine.load %arg2[%arg5 - 1] : memref<?xf32>
+        %1 = affine.load %arg2[%arg5] : memref<?xf32>
+        %2 = arith.addf %0, %1 : f32
+        %3 = affine.load %arg2[%arg5 + 1] : memref<?xf32>
+        %4 = arith.addf %2, %3 : f32
+        %5 = arith.extf %4 : f32 to f64
+        %6 = arith.mulf %5, %cst : f64
+        %7 = arith.truncf %6 : f64 to f32
+        affine.store %7, %arg3[%arg5] : memref<?xf32>
       }
       affine.for %arg5 = 1 to 999 {
         %0 = affine.load %arg3[%arg5] : memref<?xf32>

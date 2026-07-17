@@ -1,6 +1,11 @@
 #map = affine_map<(d0) -> (d0)>
-module  {
-  func.func @kernel_trmm(%arg0: i32, %arg1: f32, %arg2: memref<?x1000xf32>, %arg3: memref<?x1000xf32>)  {
+module {
+  func.func @kernel_trmm(
+      %arg0: i32,
+      %arg1: f32,
+      %arg2: memref<?x1000xf32>,
+      %arg3: memref<?x1000xf32>
+  ) {
     affine.for %arg4 = 1 to 1000 {
       affine.for %arg5 = 0 to 1000 {
         affine.for %arg6 = 0 to #map(%arg4) {

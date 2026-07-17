@@ -1,6 +1,11 @@
 #map = affine_map<(d0) -> (d0)>
-module  {
-  func.func @kernel_trisolv(%arg0: i32, %arg1: memref<?x1000xf32>, %arg2: memref<?xf32>, %arg3: memref<?xf32>)  {
+module {
+  func.func @kernel_trisolv(
+      %arg0: i32,
+      %arg1: memref<?x1000xf32>,
+      %arg2: memref<?xf32>,
+      %arg3: memref<?xf32>
+  ) {
     affine.for %arg4 = 0 to 1000 {
       %0 = affine.load %arg3[%arg4] : memref<?xf32>
       affine.store %0, %arg2[%arg4] : memref<?xf32>

@@ -1,5 +1,8 @@
-module  {
-  func.func @kernel_floyd_warshall(%arg0: i32, %arg1: memref<?x128xf32>)  {
+module {
+  func.func @kernel_floyd_warshall(
+      %arg0: i32,
+      %arg1: memref<?x128xf32>
+  ) {
     affine.for %arg2 = 0 to 128 {
       affine.for %arg3 = 0 to 128 {
         affine.for %arg4 = 0 to 128 {
