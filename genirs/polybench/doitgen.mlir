@@ -121,20 +121,20 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %84 = llvm.sext %50 : i32 to i64
     %85 = llvm.getelementptr inbounds|nuw %76[%84] : (!llvm.ptr, i64) -> !llvm.ptr, i32
     %86 = llvm.load %85 : !llvm.ptr -> i32
-    %87 = llvm.extractvalue %42[0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %88 = llvm.extractvalue %42[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %87 = llvm.extractvalue %33[0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %88 = llvm.extractvalue %33[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %89 = llvm.mlir.poison : !llvm.struct<(ptr, ptr, i64)>
     %90 = llvm.insertvalue %87, %89[0] : !llvm.struct<(ptr, ptr, i64)> 
     %91 = llvm.insertvalue %88, %90[1] : !llvm.struct<(ptr, ptr, i64)> 
     %92 = llvm.mlir.constant(0 : index) : i64
     %93 = llvm.insertvalue %92, %91[2] : !llvm.struct<(ptr, ptr, i64)> 
-    %94 = llvm.extractvalue %42[2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %95 = llvm.extractvalue %42[3, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %96 = llvm.extractvalue %42[3, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %97 = llvm.extractvalue %42[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %98 = llvm.extractvalue %42[4, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %99 = llvm.extractvalue %42[4, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %100 = llvm.extractvalue %42[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %94 = llvm.extractvalue %33[2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %95 = llvm.extractvalue %33[3, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %96 = llvm.extractvalue %33[3, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %97 = llvm.extractvalue %33[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %98 = llvm.extractvalue %33[4, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %99 = llvm.extractvalue %33[4, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %100 = llvm.extractvalue %33[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %101 = llvm.mlir.poison : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)>
     %102 = llvm.extractvalue %93[0] : !llvm.struct<(ptr, ptr, i64)> 
     %103 = llvm.extractvalue %93[1] : !llvm.struct<(ptr, ptr, i64)> 
@@ -154,20 +154,20 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %117 = llvm.insertvalue %116, %115[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %118 = llvm.mlir.constant(1 : index) : i64
     %119 = llvm.insertvalue %118, %117[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %120 = llvm.extractvalue %33[0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %121 = llvm.extractvalue %33[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %120 = llvm.extractvalue %42[0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %121 = llvm.extractvalue %42[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %122 = llvm.mlir.poison : !llvm.struct<(ptr, ptr, i64)>
     %123 = llvm.insertvalue %120, %122[0] : !llvm.struct<(ptr, ptr, i64)> 
     %124 = llvm.insertvalue %121, %123[1] : !llvm.struct<(ptr, ptr, i64)> 
     %125 = llvm.mlir.constant(0 : index) : i64
     %126 = llvm.insertvalue %125, %124[2] : !llvm.struct<(ptr, ptr, i64)> 
-    %127 = llvm.extractvalue %33[2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %128 = llvm.extractvalue %33[3, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %129 = llvm.extractvalue %33[3, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %130 = llvm.extractvalue %33[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %131 = llvm.extractvalue %33[4, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %132 = llvm.extractvalue %33[4, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %133 = llvm.extractvalue %33[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %127 = llvm.extractvalue %42[2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %128 = llvm.extractvalue %42[3, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %129 = llvm.extractvalue %42[3, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %130 = llvm.extractvalue %42[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %131 = llvm.extractvalue %42[4, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %132 = llvm.extractvalue %42[4, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %133 = llvm.extractvalue %42[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %134 = llvm.mlir.poison : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)>
     %135 = llvm.extractvalue %126[0] : !llvm.struct<(ptr, ptr, i64)> 
     %136 = llvm.extractvalue %126[1] : !llvm.struct<(ptr, ptr, i64)> 
@@ -187,20 +187,20 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %150 = llvm.insertvalue %149, %148[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %151 = llvm.mlir.constant(1 : index) : i64
     %152 = llvm.insertvalue %151, %150[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %153 = llvm.extractvalue %42[0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %154 = llvm.extractvalue %42[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %153 = llvm.extractvalue %33[0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %154 = llvm.extractvalue %33[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %155 = llvm.mlir.poison : !llvm.struct<(ptr, ptr, i64)>
     %156 = llvm.insertvalue %153, %155[0] : !llvm.struct<(ptr, ptr, i64)> 
     %157 = llvm.insertvalue %154, %156[1] : !llvm.struct<(ptr, ptr, i64)> 
     %158 = llvm.mlir.constant(0 : index) : i64
     %159 = llvm.insertvalue %158, %157[2] : !llvm.struct<(ptr, ptr, i64)> 
-    %160 = llvm.extractvalue %42[2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %161 = llvm.extractvalue %42[3, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %162 = llvm.extractvalue %42[3, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %163 = llvm.extractvalue %42[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %164 = llvm.extractvalue %42[4, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %165 = llvm.extractvalue %42[4, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %166 = llvm.extractvalue %42[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %160 = llvm.extractvalue %33[2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %161 = llvm.extractvalue %33[3, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %162 = llvm.extractvalue %33[3, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %163 = llvm.extractvalue %33[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %164 = llvm.extractvalue %33[4, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %165 = llvm.extractvalue %33[4, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %166 = llvm.extractvalue %33[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %167 = llvm.mlir.poison : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)>
     %168 = llvm.extractvalue %159[0] : !llvm.struct<(ptr, ptr, i64)> 
     %169 = llvm.extractvalue %159[1] : !llvm.struct<(ptr, ptr, i64)> 
@@ -220,20 +220,20 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %183 = llvm.insertvalue %182, %181[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %184 = llvm.mlir.constant(1 : index) : i64
     %185 = llvm.insertvalue %184, %183[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %186 = llvm.extractvalue %33[0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %187 = llvm.extractvalue %33[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %186 = llvm.extractvalue %42[0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %187 = llvm.extractvalue %42[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %188 = llvm.mlir.poison : !llvm.struct<(ptr, ptr, i64)>
     %189 = llvm.insertvalue %186, %188[0] : !llvm.struct<(ptr, ptr, i64)> 
     %190 = llvm.insertvalue %187, %189[1] : !llvm.struct<(ptr, ptr, i64)> 
     %191 = llvm.mlir.constant(0 : index) : i64
     %192 = llvm.insertvalue %191, %190[2] : !llvm.struct<(ptr, ptr, i64)> 
-    %193 = llvm.extractvalue %33[2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %194 = llvm.extractvalue %33[3, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %195 = llvm.extractvalue %33[3, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %196 = llvm.extractvalue %33[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %197 = llvm.extractvalue %33[4, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %198 = llvm.extractvalue %33[4, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %199 = llvm.extractvalue %33[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %193 = llvm.extractvalue %42[2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %194 = llvm.extractvalue %42[3, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %195 = llvm.extractvalue %42[3, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %196 = llvm.extractvalue %42[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %197 = llvm.extractvalue %42[4, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %198 = llvm.extractvalue %42[4, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %199 = llvm.extractvalue %42[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %200 = llvm.mlir.poison : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)>
     %201 = llvm.extractvalue %192[0] : !llvm.struct<(ptr, ptr, i64)> 
     %202 = llvm.extractvalue %192[1] : !llvm.struct<(ptr, ptr, i64)> 
@@ -253,20 +253,20 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %216 = llvm.insertvalue %215, %214[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %217 = llvm.mlir.constant(1 : index) : i64
     %218 = llvm.insertvalue %217, %216[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %219 = llvm.extractvalue %42[0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %220 = llvm.extractvalue %42[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %219 = llvm.extractvalue %33[0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %220 = llvm.extractvalue %33[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %221 = llvm.mlir.poison : !llvm.struct<(ptr, ptr, i64)>
     %222 = llvm.insertvalue %219, %221[0] : !llvm.struct<(ptr, ptr, i64)> 
     %223 = llvm.insertvalue %220, %222[1] : !llvm.struct<(ptr, ptr, i64)> 
     %224 = llvm.mlir.constant(0 : index) : i64
     %225 = llvm.insertvalue %224, %223[2] : !llvm.struct<(ptr, ptr, i64)> 
-    %226 = llvm.extractvalue %42[2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %227 = llvm.extractvalue %42[3, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %228 = llvm.extractvalue %42[3, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %229 = llvm.extractvalue %42[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %230 = llvm.extractvalue %42[4, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %231 = llvm.extractvalue %42[4, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %232 = llvm.extractvalue %42[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %226 = llvm.extractvalue %33[2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %227 = llvm.extractvalue %33[3, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %228 = llvm.extractvalue %33[3, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %229 = llvm.extractvalue %33[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %230 = llvm.extractvalue %33[4, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %231 = llvm.extractvalue %33[4, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %232 = llvm.extractvalue %33[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %233 = llvm.mlir.poison : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)>
     %234 = llvm.extractvalue %225[0] : !llvm.struct<(ptr, ptr, i64)> 
     %235 = llvm.extractvalue %225[1] : !llvm.struct<(ptr, ptr, i64)> 
@@ -286,20 +286,20 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %249 = llvm.insertvalue %248, %247[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %250 = llvm.mlir.constant(1 : index) : i64
     %251 = llvm.insertvalue %250, %249[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %252 = llvm.extractvalue %33[0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %253 = llvm.extractvalue %33[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %252 = llvm.extractvalue %42[0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %253 = llvm.extractvalue %42[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %254 = llvm.mlir.poison : !llvm.struct<(ptr, ptr, i64)>
     %255 = llvm.insertvalue %252, %254[0] : !llvm.struct<(ptr, ptr, i64)> 
     %256 = llvm.insertvalue %253, %255[1] : !llvm.struct<(ptr, ptr, i64)> 
     %257 = llvm.mlir.constant(0 : index) : i64
     %258 = llvm.insertvalue %257, %256[2] : !llvm.struct<(ptr, ptr, i64)> 
-    %259 = llvm.extractvalue %33[2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %260 = llvm.extractvalue %33[3, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %261 = llvm.extractvalue %33[3, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %262 = llvm.extractvalue %33[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %263 = llvm.extractvalue %33[4, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %264 = llvm.extractvalue %33[4, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %265 = llvm.extractvalue %33[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %259 = llvm.extractvalue %42[2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %260 = llvm.extractvalue %42[3, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %261 = llvm.extractvalue %42[3, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %262 = llvm.extractvalue %42[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %263 = llvm.extractvalue %42[4, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %264 = llvm.extractvalue %42[4, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %265 = llvm.extractvalue %42[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %266 = llvm.mlir.poison : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)>
     %267 = llvm.extractvalue %258[0] : !llvm.struct<(ptr, ptr, i64)> 
     %268 = llvm.extractvalue %258[1] : !llvm.struct<(ptr, ptr, i64)> 
@@ -319,20 +319,20 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %282 = llvm.insertvalue %281, %280[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %283 = llvm.mlir.constant(1 : index) : i64
     %284 = llvm.insertvalue %283, %282[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %285 = llvm.extractvalue %42[0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %286 = llvm.extractvalue %42[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %285 = llvm.extractvalue %33[0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %286 = llvm.extractvalue %33[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %287 = llvm.mlir.poison : !llvm.struct<(ptr, ptr, i64)>
     %288 = llvm.insertvalue %285, %287[0] : !llvm.struct<(ptr, ptr, i64)> 
     %289 = llvm.insertvalue %286, %288[1] : !llvm.struct<(ptr, ptr, i64)> 
     %290 = llvm.mlir.constant(0 : index) : i64
     %291 = llvm.insertvalue %290, %289[2] : !llvm.struct<(ptr, ptr, i64)> 
-    %292 = llvm.extractvalue %42[2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %293 = llvm.extractvalue %42[3, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %294 = llvm.extractvalue %42[3, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %295 = llvm.extractvalue %42[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %296 = llvm.extractvalue %42[4, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %297 = llvm.extractvalue %42[4, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %298 = llvm.extractvalue %42[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %292 = llvm.extractvalue %33[2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %293 = llvm.extractvalue %33[3, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %294 = llvm.extractvalue %33[3, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %295 = llvm.extractvalue %33[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %296 = llvm.extractvalue %33[4, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %297 = llvm.extractvalue %33[4, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %298 = llvm.extractvalue %33[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %299 = llvm.mlir.poison : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)>
     %300 = llvm.extractvalue %291[0] : !llvm.struct<(ptr, ptr, i64)> 
     %301 = llvm.extractvalue %291[1] : !llvm.struct<(ptr, ptr, i64)> 
@@ -352,20 +352,20 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %315 = llvm.insertvalue %314, %313[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %316 = llvm.mlir.constant(1 : index) : i64
     %317 = llvm.insertvalue %316, %315[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %318 = llvm.extractvalue %33[0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %319 = llvm.extractvalue %33[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %318 = llvm.extractvalue %42[0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %319 = llvm.extractvalue %42[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %320 = llvm.mlir.poison : !llvm.struct<(ptr, ptr, i64)>
     %321 = llvm.insertvalue %318, %320[0] : !llvm.struct<(ptr, ptr, i64)> 
     %322 = llvm.insertvalue %319, %321[1] : !llvm.struct<(ptr, ptr, i64)> 
     %323 = llvm.mlir.constant(0 : index) : i64
     %324 = llvm.insertvalue %323, %322[2] : !llvm.struct<(ptr, ptr, i64)> 
-    %325 = llvm.extractvalue %33[2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %326 = llvm.extractvalue %33[3, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %327 = llvm.extractvalue %33[3, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %328 = llvm.extractvalue %33[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %329 = llvm.extractvalue %33[4, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %330 = llvm.extractvalue %33[4, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %331 = llvm.extractvalue %33[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %325 = llvm.extractvalue %42[2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %326 = llvm.extractvalue %42[3, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %327 = llvm.extractvalue %42[3, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %328 = llvm.extractvalue %42[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %329 = llvm.extractvalue %42[4, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %330 = llvm.extractvalue %42[4, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %331 = llvm.extractvalue %42[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %332 = llvm.mlir.poison : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)>
     %333 = llvm.extractvalue %324[0] : !llvm.struct<(ptr, ptr, i64)> 
     %334 = llvm.extractvalue %324[1] : !llvm.struct<(ptr, ptr, i64)> 
@@ -404,7 +404,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %531 = llvm.icmp "slt" %530, %17 : i64
           llvm.cond_br %531, ^bb5, ^bb9
         ^bb5:  // pred: ^bb4
-          %532 = llvm.extractvalue %152[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %532 = llvm.extractvalue %119[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %533 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %534 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
           %535 = llvm.add %533, %534 overflow<nsw, nuw> : i64
@@ -416,14 +416,14 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %539 = llvm.icmp "slt" %538, %17 : i64
           llvm.cond_br %539, ^bb7, ^bb8
         ^bb7:  // pred: ^bb6
-          %540 = llvm.extractvalue %152[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %540 = llvm.extractvalue %119[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %541 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %542 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
           %543 = llvm.add %541, %542 overflow<nsw, nuw> : i64
           %544 = llvm.add %543, %530 overflow<nsw, nuw> : i64
           %545 = llvm.getelementptr inbounds|nuw %540[%544] : (!llvm.ptr, i64) -> !llvm.ptr, f32
           %546 = llvm.load %545 : !llvm.ptr -> f32
-          %547 = llvm.extractvalue %119[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %547 = llvm.extractvalue %152[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %548 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %549 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
           %550 = llvm.add %548, %549 overflow<nsw, nuw> : i64
@@ -436,7 +436,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %557 = llvm.load %556 : !llvm.ptr -> f32
           %558 = llvm.fmul %553, %557 : f32
           %559 = llvm.fadd %546, %558 : f32
-          %560 = llvm.extractvalue %152[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %560 = llvm.extractvalue %119[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %561 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %562 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
           %563 = llvm.add %561, %562 overflow<nsw, nuw> : i64
@@ -454,14 +454,14 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %569 = llvm.icmp "slt" %568, %20 : i64
           llvm.cond_br %569, ^bb11, ^bb12
         ^bb11:  // pred: ^bb10
-          %570 = llvm.extractvalue %152[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %570 = llvm.extractvalue %119[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %571 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %572 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
           %573 = llvm.add %571, %572 overflow<nsw, nuw> : i64
           %574 = llvm.add %573, %568 overflow<nsw, nuw> : i64
           %575 = llvm.getelementptr inbounds|nuw %570[%574] : (!llvm.ptr, i64) -> !llvm.ptr, f32
           %576 = llvm.load %575 : !llvm.ptr -> f32
-          %577 = llvm.extractvalue %119[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %577 = llvm.extractvalue %152[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %578 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %579 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
           %580 = llvm.add %578, %579 overflow<nsw, nuw> : i64
@@ -503,7 +503,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %531 = llvm.icmp "slt" %530, %17 : i64
           llvm.cond_br %531, ^bb5, ^bb9
         ^bb5:  // pred: ^bb4
-          %532 = llvm.extractvalue %218[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %532 = llvm.extractvalue %185[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %533 = llvm.getelementptr %532[524288] : (!llvm.ptr) -> !llvm.ptr, f32
           %534 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %535 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
@@ -516,7 +516,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %540 = llvm.icmp "slt" %539, %17 : i64
           llvm.cond_br %540, ^bb7, ^bb8
         ^bb7:  // pred: ^bb6
-          %541 = llvm.extractvalue %218[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %541 = llvm.extractvalue %185[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %542 = llvm.getelementptr %541[524288] : (!llvm.ptr) -> !llvm.ptr, f32
           %543 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %544 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
@@ -524,7 +524,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %546 = llvm.add %545, %530 overflow<nsw, nuw> : i64
           %547 = llvm.getelementptr inbounds|nuw %542[%546] : (!llvm.ptr, i64) -> !llvm.ptr, f32
           %548 = llvm.load %547 : !llvm.ptr -> f32
-          %549 = llvm.extractvalue %185[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %549 = llvm.extractvalue %218[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %550 = llvm.getelementptr %549[524288] : (!llvm.ptr) -> !llvm.ptr, f32
           %551 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %552 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
@@ -538,7 +538,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %560 = llvm.load %559 : !llvm.ptr -> f32
           %561 = llvm.fmul %556, %560 : f32
           %562 = llvm.fadd %548, %561 : f32
-          %563 = llvm.extractvalue %218[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %563 = llvm.extractvalue %185[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %564 = llvm.getelementptr %563[524288] : (!llvm.ptr) -> !llvm.ptr, f32
           %565 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %566 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
@@ -557,7 +557,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %573 = llvm.icmp "slt" %572, %20 : i64
           llvm.cond_br %573, ^bb11, ^bb12
         ^bb11:  // pred: ^bb10
-          %574 = llvm.extractvalue %218[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %574 = llvm.extractvalue %185[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %575 = llvm.getelementptr %574[524288] : (!llvm.ptr) -> !llvm.ptr, f32
           %576 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %577 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
@@ -565,7 +565,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %579 = llvm.add %578, %572 overflow<nsw, nuw> : i64
           %580 = llvm.getelementptr inbounds|nuw %575[%579] : (!llvm.ptr, i64) -> !llvm.ptr, f32
           %581 = llvm.load %580 : !llvm.ptr -> f32
-          %582 = llvm.extractvalue %185[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %582 = llvm.extractvalue %218[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %583 = llvm.getelementptr %582[524288] : (!llvm.ptr) -> !llvm.ptr, f32
           %584 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %585 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
@@ -608,7 +608,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %531 = llvm.icmp "slt" %530, %17 : i64
           llvm.cond_br %531, ^bb5, ^bb9
         ^bb5:  // pred: ^bb4
-          %532 = llvm.extractvalue %284[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %532 = llvm.extractvalue %251[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %533 = llvm.getelementptr %532[1048576] : (!llvm.ptr) -> !llvm.ptr, f32
           %534 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %535 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
@@ -621,7 +621,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %540 = llvm.icmp "slt" %539, %17 : i64
           llvm.cond_br %540, ^bb7, ^bb8
         ^bb7:  // pred: ^bb6
-          %541 = llvm.extractvalue %284[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %541 = llvm.extractvalue %251[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %542 = llvm.getelementptr %541[1048576] : (!llvm.ptr) -> !llvm.ptr, f32
           %543 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %544 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
@@ -629,7 +629,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %546 = llvm.add %545, %530 overflow<nsw, nuw> : i64
           %547 = llvm.getelementptr inbounds|nuw %542[%546] : (!llvm.ptr, i64) -> !llvm.ptr, f32
           %548 = llvm.load %547 : !llvm.ptr -> f32
-          %549 = llvm.extractvalue %251[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %549 = llvm.extractvalue %284[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %550 = llvm.getelementptr %549[1048576] : (!llvm.ptr) -> !llvm.ptr, f32
           %551 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %552 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
@@ -643,7 +643,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %560 = llvm.load %559 : !llvm.ptr -> f32
           %561 = llvm.fmul %556, %560 : f32
           %562 = llvm.fadd %548, %561 : f32
-          %563 = llvm.extractvalue %284[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %563 = llvm.extractvalue %251[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %564 = llvm.getelementptr %563[1048576] : (!llvm.ptr) -> !llvm.ptr, f32
           %565 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %566 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
@@ -662,7 +662,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %573 = llvm.icmp "slt" %572, %20 : i64
           llvm.cond_br %573, ^bb11, ^bb12
         ^bb11:  // pred: ^bb10
-          %574 = llvm.extractvalue %284[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %574 = llvm.extractvalue %251[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %575 = llvm.getelementptr %574[1048576] : (!llvm.ptr) -> !llvm.ptr, f32
           %576 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %577 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
@@ -670,7 +670,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %579 = llvm.add %578, %572 overflow<nsw, nuw> : i64
           %580 = llvm.getelementptr inbounds|nuw %575[%579] : (!llvm.ptr, i64) -> !llvm.ptr, f32
           %581 = llvm.load %580 : !llvm.ptr -> f32
-          %582 = llvm.extractvalue %251[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %582 = llvm.extractvalue %284[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %583 = llvm.getelementptr %582[1048576] : (!llvm.ptr) -> !llvm.ptr, f32
           %584 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %585 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
@@ -713,7 +713,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %531 = llvm.icmp "slt" %530, %17 : i64
           llvm.cond_br %531, ^bb5, ^bb9
         ^bb5:  // pred: ^bb4
-          %532 = llvm.extractvalue %350[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %532 = llvm.extractvalue %317[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %533 = llvm.getelementptr %532[1572864] : (!llvm.ptr) -> !llvm.ptr, f32
           %534 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %535 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
@@ -726,7 +726,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %540 = llvm.icmp "slt" %539, %17 : i64
           llvm.cond_br %540, ^bb7, ^bb8
         ^bb7:  // pred: ^bb6
-          %541 = llvm.extractvalue %350[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %541 = llvm.extractvalue %317[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %542 = llvm.getelementptr %541[1572864] : (!llvm.ptr) -> !llvm.ptr, f32
           %543 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %544 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
@@ -734,7 +734,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %546 = llvm.add %545, %530 overflow<nsw, nuw> : i64
           %547 = llvm.getelementptr inbounds|nuw %542[%546] : (!llvm.ptr, i64) -> !llvm.ptr, f32
           %548 = llvm.load %547 : !llvm.ptr -> f32
-          %549 = llvm.extractvalue %317[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %549 = llvm.extractvalue %350[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %550 = llvm.getelementptr %549[1572864] : (!llvm.ptr) -> !llvm.ptr, f32
           %551 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %552 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
@@ -748,7 +748,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %560 = llvm.load %559 : !llvm.ptr -> f32
           %561 = llvm.fmul %556, %560 : f32
           %562 = llvm.fadd %548, %561 : f32
-          %563 = llvm.extractvalue %350[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %563 = llvm.extractvalue %317[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %564 = llvm.getelementptr %563[1572864] : (!llvm.ptr) -> !llvm.ptr, f32
           %565 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %566 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
@@ -767,7 +767,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %573 = llvm.icmp "slt" %572, %20 : i64
           llvm.cond_br %573, ^bb11, ^bb12
         ^bb11:  // pred: ^bb10
-          %574 = llvm.extractvalue %350[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %574 = llvm.extractvalue %317[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %575 = llvm.getelementptr %574[1572864] : (!llvm.ptr) -> !llvm.ptr, f32
           %576 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %577 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
@@ -775,7 +775,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %579 = llvm.add %578, %572 overflow<nsw, nuw> : i64
           %580 = llvm.getelementptr inbounds|nuw %575[%579] : (!llvm.ptr, i64) -> !llvm.ptr, f32
           %581 = llvm.load %580 : !llvm.ptr -> f32
-          %582 = llvm.extractvalue %317[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+          %582 = llvm.extractvalue %350[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
           %583 = llvm.getelementptr %582[1572864] : (!llvm.ptr) -> !llvm.ptr, f32
           %584 = llvm.mul %arg28, %0 overflow<nsw, nuw> : i64
           %585 = llvm.mul %528, %20 overflow<nsw, nuw> : i64
@@ -801,20 +801,20 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
   ^bb8:  // 2 preds: ^bb6, ^bb7
     %355 = llvm.trunc %45 : i64 to i32
     %356 = llvm.call @MPI_Barrier(%355) : (i32) -> i32
-    %357 = llvm.extractvalue %42[0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %358 = llvm.extractvalue %42[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %357 = llvm.extractvalue %33[0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %358 = llvm.extractvalue %33[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %359 = llvm.mlir.poison : !llvm.struct<(ptr, ptr, i64)>
     %360 = llvm.insertvalue %357, %359[0] : !llvm.struct<(ptr, ptr, i64)> 
     %361 = llvm.insertvalue %358, %360[1] : !llvm.struct<(ptr, ptr, i64)> 
     %362 = llvm.mlir.constant(0 : index) : i64
     %363 = llvm.insertvalue %362, %361[2] : !llvm.struct<(ptr, ptr, i64)> 
-    %364 = llvm.extractvalue %42[2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %365 = llvm.extractvalue %42[3, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %366 = llvm.extractvalue %42[3, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %367 = llvm.extractvalue %42[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %368 = llvm.extractvalue %42[4, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %369 = llvm.extractvalue %42[4, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %370 = llvm.extractvalue %42[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %364 = llvm.extractvalue %33[2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %365 = llvm.extractvalue %33[3, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %366 = llvm.extractvalue %33[3, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %367 = llvm.extractvalue %33[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %368 = llvm.extractvalue %33[4, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %369 = llvm.extractvalue %33[4, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %370 = llvm.extractvalue %33[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %371 = llvm.mlir.poison : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)>
     %372 = llvm.extractvalue %363[0] : !llvm.struct<(ptr, ptr, i64)> 
     %373 = llvm.extractvalue %363[1] : !llvm.struct<(ptr, ptr, i64)> 
@@ -867,20 +867,20 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
   ^bb12:  // 2 preds: ^bb10, ^bb11
     llvm.br ^bb13
   ^bb13:  // 2 preds: ^bb9, ^bb12
-    %413 = llvm.extractvalue %42[0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %414 = llvm.extractvalue %42[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %413 = llvm.extractvalue %33[0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %414 = llvm.extractvalue %33[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %415 = llvm.mlir.poison : !llvm.struct<(ptr, ptr, i64)>
     %416 = llvm.insertvalue %413, %415[0] : !llvm.struct<(ptr, ptr, i64)> 
     %417 = llvm.insertvalue %414, %416[1] : !llvm.struct<(ptr, ptr, i64)> 
     %418 = llvm.mlir.constant(0 : index) : i64
     %419 = llvm.insertvalue %418, %417[2] : !llvm.struct<(ptr, ptr, i64)> 
-    %420 = llvm.extractvalue %42[2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %421 = llvm.extractvalue %42[3, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %422 = llvm.extractvalue %42[3, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %423 = llvm.extractvalue %42[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %424 = llvm.extractvalue %42[4, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %425 = llvm.extractvalue %42[4, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %426 = llvm.extractvalue %42[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %420 = llvm.extractvalue %33[2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %421 = llvm.extractvalue %33[3, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %422 = llvm.extractvalue %33[3, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %423 = llvm.extractvalue %33[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %424 = llvm.extractvalue %33[4, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %425 = llvm.extractvalue %33[4, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %426 = llvm.extractvalue %33[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %427 = llvm.mlir.poison : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)>
     %428 = llvm.extractvalue %419[0] : !llvm.struct<(ptr, ptr, i64)> 
     %429 = llvm.extractvalue %419[1] : !llvm.struct<(ptr, ptr, i64)> 
@@ -933,20 +933,20 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
   ^bb17:  // 2 preds: ^bb15, ^bb16
     llvm.br ^bb18
   ^bb18:  // 2 preds: ^bb14, ^bb17
-    %469 = llvm.extractvalue %42[0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %470 = llvm.extractvalue %42[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %469 = llvm.extractvalue %33[0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %470 = llvm.extractvalue %33[1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %471 = llvm.mlir.poison : !llvm.struct<(ptr, ptr, i64)>
     %472 = llvm.insertvalue %469, %471[0] : !llvm.struct<(ptr, ptr, i64)> 
     %473 = llvm.insertvalue %470, %472[1] : !llvm.struct<(ptr, ptr, i64)> 
     %474 = llvm.mlir.constant(0 : index) : i64
     %475 = llvm.insertvalue %474, %473[2] : !llvm.struct<(ptr, ptr, i64)> 
-    %476 = llvm.extractvalue %42[2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %477 = llvm.extractvalue %42[3, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %478 = llvm.extractvalue %42[3, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %479 = llvm.extractvalue %42[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %480 = llvm.extractvalue %42[4, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %481 = llvm.extractvalue %42[4, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
-    %482 = llvm.extractvalue %42[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %476 = llvm.extractvalue %33[2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %477 = llvm.extractvalue %33[3, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %478 = llvm.extractvalue %33[3, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %479 = llvm.extractvalue %33[3, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %480 = llvm.extractvalue %33[4, 0] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %481 = llvm.extractvalue %33[4, 1] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
+    %482 = llvm.extractvalue %33[4, 2] : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)> 
     %483 = llvm.mlir.poison : !llvm.struct<(ptr, ptr, i64, array<3 x i64>, array<3 x i64>)>
     %484 = llvm.extractvalue %475[0] : !llvm.struct<(ptr, ptr, i64)> 
     %485 = llvm.extractvalue %475[1] : !llvm.struct<(ptr, ptr, i64)> 

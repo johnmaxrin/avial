@@ -70,94 +70,93 @@ define void @kernel_symm(i32 %0, i32 %1, float %2, float %3, ptr %4, ptr %5, i64
   call void @buildRankNodeMaps(ptr %47, ptr %54, ptr %55)
   br label %56
 
-56:                                               ; preds = %122, %25
-  %57 = phi i64 [ %123, %122 ], [ 0, %25 ]
+56:                                               ; preds = %121, %25
+  %57 = phi i64 [ %122, %121 ], [ 0, %25 ]
   %58 = icmp slt i64 %57, 1000
-  br i1 %58, label %59, label %124
+  br i1 %58, label %59, label %123
 
 59:                                               ; preds = %56
   br label %60
 
-60:                                               ; preds = %99, %59
-  %61 = phi i64 [ %121, %99 ], [ 0, %59 ]
+60:                                               ; preds = %98, %59
+  %61 = phi i64 [ %120, %98 ], [ 0, %59 ]
   %62 = icmp slt i64 %61, 1000
-  br i1 %62, label %63, label %122
+  br i1 %62, label %63, label %121
 
 63:                                               ; preds = %60
-  %64 = add i64 %61, -1
-  br label %65
+  br label %64
 
-65:                                               ; preds = %69, %63
-  %66 = phi i64 [ %98, %69 ], [ 0, %63 ]
-  %67 = phi float [ %97, %69 ], [ 0.000000e+00, %63 ]
-  %68 = icmp slt i64 %66, %64
-  br i1 %68, label %69, label %99
+64:                                               ; preds = %68, %63
+  %65 = phi i64 [ %97, %68 ], [ 0, %63 ]
+  %66 = phi float [ %96, %68 ], [ 0.000000e+00, %63 ]
+  %67 = icmp slt i64 %65, %57
+  br i1 %67, label %68, label %98
 
-69:                                               ; preds = %65
-  %70 = mul nuw nsw i64 %66, 1000
-  %71 = add nuw nsw i64 %70, %57
-  %72 = getelementptr inbounds nuw float, ptr %12, i64 %71
-  %73 = load float, ptr %72, align 4
-  %74 = fmul float %2, %73
-  %75 = mul nuw nsw i64 %57, 1000
-  %76 = add nuw nsw i64 %75, %61
-  %77 = getelementptr inbounds nuw float, ptr %19, i64 %76
-  %78 = load float, ptr %77, align 4
-  %79 = fmul float %74, %78
-  %80 = mul nuw nsw i64 %66, 1000
-  %81 = add nuw nsw i64 %80, %61
-  %82 = getelementptr inbounds nuw float, ptr %5, i64 %81
-  %83 = load float, ptr %82, align 4
-  %84 = fadd float %83, %79
-  %85 = mul nuw nsw i64 %66, 1000
-  %86 = add nuw nsw i64 %85, %61
-  %87 = getelementptr inbounds nuw float, ptr %5, i64 %86
-  store float %84, ptr %87, align 4
-  %88 = mul nuw nsw i64 %66, 1000
-  %89 = add nuw nsw i64 %88, %61
-  %90 = getelementptr inbounds nuw float, ptr %19, i64 %89
-  %91 = load float, ptr %90, align 4
-  %92 = mul nuw nsw i64 %66, 1000
-  %93 = add nuw nsw i64 %92, %57
-  %94 = getelementptr inbounds nuw float, ptr %12, i64 %93
-  %95 = load float, ptr %94, align 4
-  %96 = fmul float %91, %95
-  %97 = fadd float %67, %96
-  %98 = add i64 %66, 1
-  br label %65
+68:                                               ; preds = %64
+  %69 = mul nuw nsw i64 %65, 1000
+  %70 = add nuw nsw i64 %69, %57
+  %71 = getelementptr inbounds nuw float, ptr %12, i64 %70
+  %72 = load float, ptr %71, align 4
+  %73 = fmul float %2, %72
+  %74 = mul nuw nsw i64 %57, 1000
+  %75 = add nuw nsw i64 %74, %61
+  %76 = getelementptr inbounds nuw float, ptr %19, i64 %75
+  %77 = load float, ptr %76, align 4
+  %78 = fmul float %73, %77
+  %79 = mul nuw nsw i64 %65, 1000
+  %80 = add nuw nsw i64 %79, %61
+  %81 = getelementptr inbounds nuw float, ptr %5, i64 %80
+  %82 = load float, ptr %81, align 4
+  %83 = fadd float %82, %78
+  %84 = mul nuw nsw i64 %65, 1000
+  %85 = add nuw nsw i64 %84, %61
+  %86 = getelementptr inbounds nuw float, ptr %5, i64 %85
+  store float %83, ptr %86, align 4
+  %87 = mul nuw nsw i64 %65, 1000
+  %88 = add nuw nsw i64 %87, %61
+  %89 = getelementptr inbounds nuw float, ptr %19, i64 %88
+  %90 = load float, ptr %89, align 4
+  %91 = mul nuw nsw i64 %65, 1000
+  %92 = add nuw nsw i64 %91, %57
+  %93 = getelementptr inbounds nuw float, ptr %12, i64 %92
+  %94 = load float, ptr %93, align 4
+  %95 = fmul float %90, %94
+  %96 = fadd float %66, %95
+  %97 = add i64 %65, 1
+  br label %64
 
-99:                                               ; preds = %65
-  %100 = mul nuw nsw i64 %57, 1000
-  %101 = add nuw nsw i64 %100, %61
-  %102 = getelementptr inbounds nuw float, ptr %5, i64 %101
-  %103 = load float, ptr %102, align 4
-  %104 = fmul float %3, %103
-  %105 = mul nuw nsw i64 %57, 1000
-  %106 = add nuw nsw i64 %105, %57
-  %107 = getelementptr inbounds nuw float, ptr %12, i64 %106
-  %108 = load float, ptr %107, align 4
-  %109 = fmul float %2, %108
-  %110 = mul nuw nsw i64 %57, 1000
-  %111 = add nuw nsw i64 %110, %61
-  %112 = getelementptr inbounds nuw float, ptr %19, i64 %111
-  %113 = load float, ptr %112, align 4
-  %114 = fmul float %109, %113
-  %115 = fadd float %104, %114
-  %116 = fmul float %2, %67
-  %117 = fadd float %115, %116
-  %118 = mul nuw nsw i64 %57, 1000
-  %119 = add nuw nsw i64 %118, %61
-  %120 = getelementptr inbounds nuw float, ptr %5, i64 %119
-  store float %117, ptr %120, align 4
-  %121 = add i64 %61, 1
+98:                                               ; preds = %64
+  %99 = mul nuw nsw i64 %57, 1000
+  %100 = add nuw nsw i64 %99, %61
+  %101 = getelementptr inbounds nuw float, ptr %5, i64 %100
+  %102 = load float, ptr %101, align 4
+  %103 = fmul float %3, %102
+  %104 = mul nuw nsw i64 %57, 1000
+  %105 = add nuw nsw i64 %104, %57
+  %106 = getelementptr inbounds nuw float, ptr %12, i64 %105
+  %107 = load float, ptr %106, align 4
+  %108 = fmul float %2, %107
+  %109 = mul nuw nsw i64 %57, 1000
+  %110 = add nuw nsw i64 %109, %61
+  %111 = getelementptr inbounds nuw float, ptr %19, i64 %110
+  %112 = load float, ptr %111, align 4
+  %113 = fmul float %108, %112
+  %114 = fadd float %103, %113
+  %115 = fmul float %2, %66
+  %116 = fadd float %114, %115
+  %117 = mul nuw nsw i64 %57, 1000
+  %118 = add nuw nsw i64 %117, %61
+  %119 = getelementptr inbounds nuw float, ptr %5, i64 %118
+  store float %116, ptr %119, align 4
+  %120 = add i64 %61, 1
   br label %60
 
-122:                                              ; preds = %60
-  %123 = add i64 %57, 1
+121:                                              ; preds = %60
+  %122 = add i64 %57, 1
   br label %56
 
-124:                                              ; preds = %56
-  %125 = call i32 @MPI_Barrier(i32 1140850688)
+123:                                              ; preds = %56
+  %124 = call i32 @MPI_Barrier(i32 1140850688)
   ret void
 }
 

@@ -30,13 +30,13 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %11 = llvm.mlir.addressof @arch_str_3 : !llvm.ptr
     %12 = llvm.mlir.constant(4 : i32) : i32
     %13 = llvm.mlir.constant(3.333300e-01 : f64) : f64
-    %14 = llvm.mlir.constant(1 : i32) : i32
-    %15 = llvm.mlir.constant(0 : index) : i64
-    %16 = llvm.mlir.constant(10000 : index) : i64
-    %17 = llvm.mlir.constant(1 : index) : i64
-    %18 = llvm.mlir.constant(0 : i32) : i32
-    %19 = llvm.mlir.constant(251 : index) : i64
-    %20 = llvm.mlir.constant(-1 : index) : i64
+    %14 = llvm.mlir.constant(0 : index) : i64
+    %15 = llvm.mlir.constant(10000 : index) : i64
+    %16 = llvm.mlir.constant(1 : index) : i64
+    %17 = llvm.mlir.constant(0 : i32) : i32
+    %18 = llvm.mlir.constant(251 : index) : i64
+    %19 = llvm.mlir.constant(-1 : index) : i64
+    %20 = llvm.mlir.constant(1 : i32) : i32
     %21 = llvm.mlir.constant(501 : index) : i64
     %22 = llvm.mlir.constant(2 : i32) : i32
     %23 = llvm.mlir.constant(750 : index) : i64
@@ -75,7 +75,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %56 = llvm.getelementptr %52[0, 3] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(ptr, ptr, i32, f32)>
     llvm.store %3, %53 : !llvm.ptr, !llvm.ptr
     llvm.store %4, %54 : !llvm.ptr, !llvm.ptr
-    llvm.store %18, %55 : i32, !llvm.ptr
+    llvm.store %17, %55 : i32, !llvm.ptr
     llvm.store %5, %56 : f32, !llvm.ptr
     %57 = llvm.getelementptr %52[1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(ptr, ptr, i32, f32)>
     %58 = llvm.getelementptr %57[0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(ptr, ptr, i32, f32)>
@@ -84,7 +84,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %61 = llvm.getelementptr %57[0, 3] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(ptr, ptr, i32, f32)>
     llvm.store %6, %58 : !llvm.ptr, !llvm.ptr
     llvm.store %7, %59 : !llvm.ptr, !llvm.ptr
-    llvm.store %18, %60 : i32, !llvm.ptr
+    llvm.store %17, %60 : i32, !llvm.ptr
     llvm.store %5, %61 : f32, !llvm.ptr
     %62 = llvm.getelementptr %52[2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(ptr, ptr, i32, f32)>
     %63 = llvm.getelementptr %62[0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(ptr, ptr, i32, f32)>
@@ -93,7 +93,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %66 = llvm.getelementptr %62[0, 3] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(ptr, ptr, i32, f32)>
     llvm.store %8, %63 : !llvm.ptr, !llvm.ptr
     llvm.store %9, %64 : !llvm.ptr, !llvm.ptr
-    llvm.store %18, %65 : i32, !llvm.ptr
+    llvm.store %17, %65 : i32, !llvm.ptr
     llvm.store %5, %66 : f32, !llvm.ptr
     %67 = llvm.getelementptr %52[3] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(ptr, ptr, i32, f32)>
     %68 = llvm.getelementptr %67[0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(ptr, ptr, i32, f32)>
@@ -102,7 +102,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %71 = llvm.getelementptr %67[0, 3] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(ptr, ptr, i32, f32)>
     llvm.store %10, %68 : !llvm.ptr, !llvm.ptr
     llvm.store %11, %69 : !llvm.ptr, !llvm.ptr
-    llvm.store %18, %70 : i32, !llvm.ptr
+    llvm.store %17, %70 : i32, !llvm.ptr
     llvm.store %5, %71 : f32, !llvm.ptr
     %72 = llvm.alloca %2 x !llvm.struct<(i32, ptr)> : (i64) -> !llvm.ptr
     %73 = llvm.getelementptr %72[0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(i32, ptr)>
@@ -123,9 +123,9 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %85 = llvm.sext %46 : i32 to i64
     %86 = llvm.getelementptr inbounds|nuw %77[%85] : (!llvm.ptr, i64) -> !llvm.ptr, i32
     %87 = llvm.load %86 : !llvm.ptr -> i32
-    llvm.br ^bb1(%15 : i64)
+    llvm.br ^bb1(%14 : i64)
   ^bb1(%88: i64):  // 2 preds: ^bb0, ^bb56
-    %89 = llvm.icmp "slt" %88, %16 : i64
+    %89 = llvm.icmp "slt" %88, %15 : i64
     llvm.cond_br %89, ^bb2, ^bb57
   ^bb2:  // pred: ^bb1
     %90 = llvm.extractvalue %33[0] : !llvm.struct<(ptr, ptr, i64, array<1 x i64>, array<1 x i64>)> 
@@ -296,22 +296,22 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %255 = llvm.insertvalue %254, %253[3, 0] : !llvm.struct<(ptr, ptr, i64, array<1 x i64>, array<1 x i64>)> 
     %256 = llvm.mlir.constant(1 : index) : i64
     %257 = llvm.insertvalue %256, %255[4, 0] : !llvm.struct<(ptr, ptr, i64, array<1 x i64>, array<1 x i64>)> 
-    %258 = llvm.icmp "eq" %87, %18 : i32
+    %258 = llvm.icmp "eq" %87, %17 : i32
     llvm.cond_br %258, ^bb3, ^bb4
   ^bb3:  // pred: ^bb2
     omp.parallel {
       omp.wsloop {
-        omp.loop_nest (%arg12) : i64 = (%17) to (%19) step (%17) {
+        omp.loop_nest (%arg12) : i64 = (%16) to (%18) step (%16) {
           %584 = llvm.intr.stacksave : !llvm.ptr
           llvm.br ^bb1
         ^bb1:  // pred: ^bb0
-          %585 = llvm.add %arg12, %20 : i64
+          %585 = llvm.add %arg12, %19 : i64
           %586 = llvm.getelementptr inbounds|nuw %arg3[%585] : (!llvm.ptr, i64) -> !llvm.ptr, f32
           %587 = llvm.load %586 : !llvm.ptr -> f32
           %588 = llvm.getelementptr inbounds|nuw %arg3[%arg12] : (!llvm.ptr, i64) -> !llvm.ptr, f32
           %589 = llvm.load %588 : !llvm.ptr -> f32
           %590 = llvm.fadd %587, %589 : f32
-          %591 = llvm.add %arg12, %17 : i64
+          %591 = llvm.add %arg12, %16 : i64
           %592 = llvm.getelementptr inbounds|nuw %arg3[%591] : (!llvm.ptr, i64) -> !llvm.ptr, f32
           %593 = llvm.load %592 : !llvm.ptr -> f32
           %594 = llvm.fadd %590, %593 : f32
@@ -330,22 +330,22 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     }
     llvm.br ^bb4
   ^bb4:  // 2 preds: ^bb2, ^bb3
-    %259 = llvm.icmp "eq" %87, %14 : i32
+    %259 = llvm.icmp "eq" %87, %20 : i32
     llvm.cond_br %259, ^bb5, ^bb6
   ^bb5:  // pred: ^bb4
     omp.parallel {
       omp.wsloop {
-        omp.loop_nest (%arg12) : i64 = (%19) to (%21) step (%17) {
+        omp.loop_nest (%arg12) : i64 = (%18) to (%21) step (%16) {
           %584 = llvm.intr.stacksave : !llvm.ptr
           llvm.br ^bb1
         ^bb1:  // pred: ^bb0
-          %585 = llvm.add %arg12, %20 : i64
+          %585 = llvm.add %arg12, %19 : i64
           %586 = llvm.getelementptr inbounds|nuw %arg3[%585] : (!llvm.ptr, i64) -> !llvm.ptr, f32
           %587 = llvm.load %586 : !llvm.ptr -> f32
           %588 = llvm.getelementptr inbounds|nuw %arg3[%arg12] : (!llvm.ptr, i64) -> !llvm.ptr, f32
           %589 = llvm.load %588 : !llvm.ptr -> f32
           %590 = llvm.fadd %587, %589 : f32
-          %591 = llvm.add %arg12, %17 : i64
+          %591 = llvm.add %arg12, %16 : i64
           %592 = llvm.getelementptr inbounds|nuw %arg3[%591] : (!llvm.ptr, i64) -> !llvm.ptr, f32
           %593 = llvm.load %592 : !llvm.ptr -> f32
           %594 = llvm.fadd %590, %593 : f32
@@ -369,17 +369,17 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
   ^bb7:  // pred: ^bb6
     omp.parallel {
       omp.wsloop {
-        omp.loop_nest (%arg12) : i64 = (%21) to (%23) step (%17) {
+        omp.loop_nest (%arg12) : i64 = (%21) to (%23) step (%16) {
           %584 = llvm.intr.stacksave : !llvm.ptr
           llvm.br ^bb1
         ^bb1:  // pred: ^bb0
-          %585 = llvm.add %arg12, %20 : i64
+          %585 = llvm.add %arg12, %19 : i64
           %586 = llvm.getelementptr inbounds|nuw %arg3[%585] : (!llvm.ptr, i64) -> !llvm.ptr, f32
           %587 = llvm.load %586 : !llvm.ptr -> f32
           %588 = llvm.getelementptr inbounds|nuw %arg3[%arg12] : (!llvm.ptr, i64) -> !llvm.ptr, f32
           %589 = llvm.load %588 : !llvm.ptr -> f32
           %590 = llvm.fadd %587, %589 : f32
-          %591 = llvm.add %arg12, %17 : i64
+          %591 = llvm.add %arg12, %16 : i64
           %592 = llvm.getelementptr inbounds|nuw %arg3[%591] : (!llvm.ptr, i64) -> !llvm.ptr, f32
           %593 = llvm.load %592 : !llvm.ptr -> f32
           %594 = llvm.fadd %590, %593 : f32
@@ -403,17 +403,17 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
   ^bb9:  // pred: ^bb8
     omp.parallel {
       omp.wsloop {
-        omp.loop_nest (%arg12) : i64 = (%23) to (%25) step (%17) {
+        omp.loop_nest (%arg12) : i64 = (%23) to (%25) step (%16) {
           %584 = llvm.intr.stacksave : !llvm.ptr
           llvm.br ^bb1
         ^bb1:  // pred: ^bb0
-          %585 = llvm.add %arg12, %20 : i64
+          %585 = llvm.add %arg12, %19 : i64
           %586 = llvm.getelementptr inbounds|nuw %arg3[%585] : (!llvm.ptr, i64) -> !llvm.ptr, f32
           %587 = llvm.load %586 : !llvm.ptr -> f32
           %588 = llvm.getelementptr inbounds|nuw %arg3[%arg12] : (!llvm.ptr, i64) -> !llvm.ptr, f32
           %589 = llvm.load %588 : !llvm.ptr -> f32
           %590 = llvm.fadd %587, %589 : f32
-          %591 = llvm.add %arg12, %17 : i64
+          %591 = llvm.add %arg12, %16 : i64
           %592 = llvm.getelementptr inbounds|nuw %arg3[%591] : (!llvm.ptr, i64) -> !llvm.ptr, f32
           %593 = llvm.load %592 : !llvm.ptr -> f32
           %594 = llvm.fadd %590, %593 : f32
@@ -471,7 +471,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %296 = llvm.trunc %41 : i64 to i32
     %297 = llvm.mlir.constant(1 : i64) : i64
     %298 = llvm.inttoptr %297 : i64 to !llvm.ptr
-    %299 = llvm.call @MPI_Recv(%292, %294, %295, %287, %18, %296, %298) : (!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr) -> i32
+    %299 = llvm.call @MPI_Recv(%292, %294, %295, %287, %17, %296, %298) : (!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr) -> i32
     llvm.br ^bb15
   ^bb12:  // pred: ^bb10
     llvm.cond_br %289, ^bb13, ^bb14
@@ -483,7 +483,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %304 = llvm.trunc %303 : i64 to i32
     %305 = llvm.mlir.constant(1275069450 : i32) : i32
     %306 = llvm.trunc %41 : i64 to i32
-    %307 = llvm.call @MPI_Send(%302, %304, %305, %285, %18, %306) : (!llvm.ptr, i32, i32, i32, i32, i32) -> i32
+    %307 = llvm.call @MPI_Send(%302, %304, %305, %285, %17, %306) : (!llvm.ptr, i32, i32, i32, i32, i32) -> i32
     llvm.br ^bb14
   ^bb14:  // 2 preds: ^bb12, ^bb13
     llvm.br ^bb15
@@ -525,7 +525,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %340 = llvm.trunc %41 : i64 to i32
     %341 = llvm.mlir.constant(1 : i64) : i64
     %342 = llvm.inttoptr %341 : i64 to !llvm.ptr
-    %343 = llvm.call @MPI_Recv(%336, %338, %339, %331, %18, %340, %342) : (!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr) -> i32
+    %343 = llvm.call @MPI_Recv(%336, %338, %339, %331, %17, %340, %342) : (!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr) -> i32
     llvm.br ^bb20
   ^bb17:  // pred: ^bb15
     llvm.cond_br %333, ^bb18, ^bb19
@@ -537,7 +537,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %348 = llvm.trunc %347 : i64 to i32
     %349 = llvm.mlir.constant(1275069450 : i32) : i32
     %350 = llvm.trunc %41 : i64 to i32
-    %351 = llvm.call @MPI_Send(%346, %348, %349, %329, %18, %350) : (!llvm.ptr, i32, i32, i32, i32, i32) -> i32
+    %351 = llvm.call @MPI_Send(%346, %348, %349, %329, %17, %350) : (!llvm.ptr, i32, i32, i32, i32, i32) -> i32
     llvm.br ^bb19
   ^bb19:  // 2 preds: ^bb17, ^bb18
     llvm.br ^bb20
@@ -579,7 +579,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %384 = llvm.trunc %41 : i64 to i32
     %385 = llvm.mlir.constant(1 : i64) : i64
     %386 = llvm.inttoptr %385 : i64 to !llvm.ptr
-    %387 = llvm.call @MPI_Recv(%380, %382, %383, %375, %18, %384, %386) : (!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr) -> i32
+    %387 = llvm.call @MPI_Recv(%380, %382, %383, %375, %17, %384, %386) : (!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr) -> i32
     llvm.br ^bb25
   ^bb22:  // pred: ^bb20
     llvm.cond_br %377, ^bb23, ^bb24
@@ -591,17 +591,17 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %392 = llvm.trunc %391 : i64 to i32
     %393 = llvm.mlir.constant(1275069450 : i32) : i32
     %394 = llvm.trunc %41 : i64 to i32
-    %395 = llvm.call @MPI_Send(%390, %392, %393, %373, %18, %394) : (!llvm.ptr, i32, i32, i32, i32, i32) -> i32
+    %395 = llvm.call @MPI_Send(%390, %392, %393, %373, %17, %394) : (!llvm.ptr, i32, i32, i32, i32, i32) -> i32
     llvm.br ^bb24
   ^bb24:  // 2 preds: ^bb22, ^bb23
     llvm.br ^bb25
   ^bb25:  // 2 preds: ^bb21, ^bb24
-    %396 = llvm.icmp "eq" %87, %18 : i32
+    %396 = llvm.icmp "eq" %87, %17 : i32
     llvm.cond_br %396, ^bb26, ^bb27
   ^bb26:  // pred: ^bb25
     omp.parallel {
       omp.wsloop {
-        omp.loop_nest (%arg12) : i64 = (%17) to (%26) step (%17) {
+        omp.loop_nest (%arg12) : i64 = (%16) to (%26) step (%16) {
           %584 = llvm.intr.stacksave : !llvm.ptr
           llvm.br ^bb1
         ^bb1:  // pred: ^bb0
@@ -623,12 +623,12 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     }
     llvm.br ^bb27
   ^bb27:  // 2 preds: ^bb25, ^bb26
-    %397 = llvm.icmp "eq" %87, %14 : i32
+    %397 = llvm.icmp "eq" %87, %20 : i32
     llvm.cond_br %397, ^bb28, ^bb29
   ^bb28:  // pred: ^bb27
     omp.parallel {
       omp.wsloop {
-        omp.loop_nest (%arg12) : i64 = (%15) to (%26) step (%17) {
+        omp.loop_nest (%arg12) : i64 = (%14) to (%26) step (%16) {
           %584 = llvm.intr.stacksave : !llvm.ptr
           llvm.br ^bb1
         ^bb1:  // pred: ^bb0
@@ -655,7 +655,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
   ^bb30:  // pred: ^bb29
     omp.parallel {
       omp.wsloop {
-        omp.loop_nest (%arg12) : i64 = (%15) to (%27) step (%17) {
+        omp.loop_nest (%arg12) : i64 = (%14) to (%27) step (%16) {
           %584 = llvm.intr.stacksave : !llvm.ptr
           llvm.br ^bb1
         ^bb1:  // pred: ^bb0
@@ -682,7 +682,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
   ^bb32:  // pred: ^bb31
     omp.parallel {
       omp.wsloop {
-        omp.loop_nest (%arg12) : i64 = (%15) to (%27) step (%17) {
+        omp.loop_nest (%arg12) : i64 = (%14) to (%27) step (%16) {
           %584 = llvm.intr.stacksave : !llvm.ptr
           llvm.br ^bb1
         ^bb1:  // pred: ^bb0
@@ -743,7 +743,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %434 = llvm.trunc %41 : i64 to i32
     %435 = llvm.mlir.constant(1 : i64) : i64
     %436 = llvm.inttoptr %435 : i64 to !llvm.ptr
-    %437 = llvm.call @MPI_Recv(%430, %432, %433, %425, %18, %434, %436) : (!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr) -> i32
+    %437 = llvm.call @MPI_Recv(%430, %432, %433, %425, %17, %434, %436) : (!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr) -> i32
     llvm.br ^bb38
   ^bb35:  // pred: ^bb33
     llvm.cond_br %427, ^bb36, ^bb37
@@ -755,7 +755,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %442 = llvm.trunc %441 : i64 to i32
     %443 = llvm.mlir.constant(1275069450 : i32) : i32
     %444 = llvm.trunc %41 : i64 to i32
-    %445 = llvm.call @MPI_Send(%440, %442, %443, %423, %18, %444) : (!llvm.ptr, i32, i32, i32, i32, i32) -> i32
+    %445 = llvm.call @MPI_Send(%440, %442, %443, %423, %17, %444) : (!llvm.ptr, i32, i32, i32, i32, i32) -> i32
     llvm.br ^bb37
   ^bb37:  // 2 preds: ^bb35, ^bb36
     llvm.br ^bb38
@@ -797,7 +797,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %478 = llvm.trunc %41 : i64 to i32
     %479 = llvm.mlir.constant(1 : i64) : i64
     %480 = llvm.inttoptr %479 : i64 to !llvm.ptr
-    %481 = llvm.call @MPI_Recv(%474, %476, %477, %469, %18, %478, %480) : (!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr) -> i32
+    %481 = llvm.call @MPI_Recv(%474, %476, %477, %469, %17, %478, %480) : (!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr) -> i32
     llvm.br ^bb43
   ^bb40:  // pred: ^bb38
     llvm.cond_br %471, ^bb41, ^bb42
@@ -809,7 +809,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %486 = llvm.trunc %485 : i64 to i32
     %487 = llvm.mlir.constant(1275069450 : i32) : i32
     %488 = llvm.trunc %41 : i64 to i32
-    %489 = llvm.call @MPI_Send(%484, %486, %487, %467, %18, %488) : (!llvm.ptr, i32, i32, i32, i32, i32) -> i32
+    %489 = llvm.call @MPI_Send(%484, %486, %487, %467, %17, %488) : (!llvm.ptr, i32, i32, i32, i32, i32) -> i32
     llvm.br ^bb42
   ^bb42:  // 2 preds: ^bb40, ^bb41
     llvm.br ^bb43
@@ -851,7 +851,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %522 = llvm.trunc %41 : i64 to i32
     %523 = llvm.mlir.constant(1 : i64) : i64
     %524 = llvm.inttoptr %523 : i64 to !llvm.ptr
-    %525 = llvm.call @MPI_Recv(%518, %520, %521, %513, %18, %522, %524) : (!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr) -> i32
+    %525 = llvm.call @MPI_Recv(%518, %520, %521, %513, %17, %522, %524) : (!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr) -> i32
     llvm.br ^bb48
   ^bb45:  // pred: ^bb43
     llvm.cond_br %515, ^bb46, ^bb47
@@ -863,7 +863,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %530 = llvm.trunc %529 : i64 to i32
     %531 = llvm.mlir.constant(1275069450 : i32) : i32
     %532 = llvm.trunc %41 : i64 to i32
-    %533 = llvm.call @MPI_Send(%528, %530, %531, %511, %18, %532) : (!llvm.ptr, i32, i32, i32, i32, i32) -> i32
+    %533 = llvm.call @MPI_Send(%528, %530, %531, %511, %17, %532) : (!llvm.ptr, i32, i32, i32, i32, i32) -> i32
     llvm.br ^bb47
   ^bb47:  // 2 preds: ^bb45, ^bb46
     llvm.br ^bb48
@@ -894,7 +894,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     llvm.cond_br %556, ^bb49, ^bb55
   ^bb49:  // pred: ^bb48
     %557 = llvm.sext %51 : i32 to i64
-    llvm.br ^bb50(%15 : i64)
+    llvm.br ^bb50(%14 : i64)
   ^bb50(%558: i64):  // 2 preds: ^bb49, ^bb53
     %559 = llvm.icmp "slt" %558, %557 : i64
     llvm.cond_br %559, ^bb51, ^bb54
@@ -910,10 +910,10 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %566 = llvm.trunc %565 : i64 to i32
     %567 = llvm.mlir.constant(1275069450 : i32) : i32
     %568 = llvm.trunc %41 : i64 to i32
-    %569 = llvm.call @MPI_Send(%564, %566, %567, %560, %18, %568) : (!llvm.ptr, i32, i32, i32, i32, i32) -> i32
+    %569 = llvm.call @MPI_Send(%564, %566, %567, %560, %17, %568) : (!llvm.ptr, i32, i32, i32, i32, i32) -> i32
     llvm.br ^bb53
   ^bb53:  // 2 preds: ^bb51, ^bb52
-    %570 = llvm.add %558, %17 : i64
+    %570 = llvm.add %558, %16 : i64
     llvm.br ^bb50(%570 : i64)
   ^bb54:  // pred: ^bb50
     llvm.br ^bb56
@@ -927,10 +927,10 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %577 = llvm.trunc %41 : i64 to i32
     %578 = llvm.mlir.constant(1 : i64) : i64
     %579 = llvm.inttoptr %578 : i64 to !llvm.ptr
-    %580 = llvm.call @MPI_Recv(%573, %575, %576, %534, %18, %577, %579) : (!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr) -> i32
+    %580 = llvm.call @MPI_Recv(%573, %575, %576, %534, %17, %577, %579) : (!llvm.ptr, i32, i32, i32, i32, i32, !llvm.ptr) -> i32
     llvm.br ^bb56
   ^bb56:  // 2 preds: ^bb54, ^bb55
-    %581 = llvm.add %88, %17 : i64
+    %581 = llvm.add %88, %16 : i64
     llvm.br ^bb1(%581 : i64)
   ^bb57:  // pred: ^bb1
     %582 = llvm.trunc %41 : i64 to i32

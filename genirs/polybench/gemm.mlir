@@ -31,9 +31,9 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %13 = llvm.mlir.constant(0.000000e+00 : f32) : f32
     %14 = llvm.mlir.constant(0 : i32) : i32
     %15 = llvm.mlir.constant(0 : index) : i64
-    %16 = llvm.mlir.constant(2500 : index) : i64
+    %16 = llvm.mlir.constant(250 : index) : i64
     %17 = llvm.mlir.constant(1 : index) : i64
-    %18 = llvm.mlir.constant(10000 : index) : i64
+    %18 = llvm.mlir.constant(1000 : index) : i64
     %19 = llvm.mlir.constant(1 : i32) : i32
     %20 = llvm.mlir.constant(2 : i32) : i32
     %21 = llvm.mlir.constant(3 : i32) : i32
@@ -134,11 +134,11 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %97 = llvm.insertvalue %95, %96[1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
     %98 = llvm.mlir.constant(0 : index) : i64
     %99 = llvm.insertvalue %98, %97[2] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %100 = llvm.mlir.constant(2500 : index) : i64
+    %100 = llvm.mlir.constant(250 : index) : i64
     %101 = llvm.insertvalue %100, %99[3, 0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %102 = llvm.mlir.constant(10000 : index) : i64
+    %102 = llvm.mlir.constant(1000 : index) : i64
     %103 = llvm.insertvalue %102, %101[4, 0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %104 = llvm.mlir.constant(10000 : index) : i64
+    %104 = llvm.mlir.constant(1000 : index) : i64
     %105 = llvm.insertvalue %104, %103[3, 1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
     %106 = llvm.mlir.constant(1 : index) : i64
     %107 = llvm.insertvalue %106, %105[4, 1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
@@ -161,11 +161,11 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %124 = llvm.insertvalue %122, %123[1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
     %125 = llvm.mlir.constant(0 : index) : i64
     %126 = llvm.insertvalue %125, %124[2] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %127 = llvm.mlir.constant(2500 : index) : i64
+    %127 = llvm.mlir.constant(250 : index) : i64
     %128 = llvm.insertvalue %127, %126[3, 0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %129 = llvm.mlir.constant(10000 : index) : i64
+    %129 = llvm.mlir.constant(1000 : index) : i64
     %130 = llvm.insertvalue %129, %128[4, 0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %131 = llvm.mlir.constant(10000 : index) : i64
+    %131 = llvm.mlir.constant(1000 : index) : i64
     %132 = llvm.insertvalue %131, %130[3, 1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
     %133 = llvm.mlir.constant(1 : index) : i64
     %134 = llvm.insertvalue %133, %132[4, 1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
@@ -186,13 +186,13 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %149 = llvm.extractvalue %141[1] : !llvm.struct<(ptr, ptr, i64)> 
     %150 = llvm.insertvalue %148, %147[0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
     %151 = llvm.insertvalue %149, %150[1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %152 = llvm.mlir.constant(25000000 : index) : i64
+    %152 = llvm.mlir.constant(250000 : index) : i64
     %153 = llvm.insertvalue %152, %151[2] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %154 = llvm.mlir.constant(2500 : index) : i64
+    %154 = llvm.mlir.constant(250 : index) : i64
     %155 = llvm.insertvalue %154, %153[3, 0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %156 = llvm.mlir.constant(10000 : index) : i64
+    %156 = llvm.mlir.constant(1000 : index) : i64
     %157 = llvm.insertvalue %156, %155[4, 0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %158 = llvm.mlir.constant(10000 : index) : i64
+    %158 = llvm.mlir.constant(1000 : index) : i64
     %159 = llvm.insertvalue %158, %157[3, 1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
     %160 = llvm.mlir.constant(1 : index) : i64
     %161 = llvm.insertvalue %160, %159[4, 1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
@@ -213,13 +213,13 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %176 = llvm.extractvalue %168[1] : !llvm.struct<(ptr, ptr, i64)> 
     %177 = llvm.insertvalue %175, %174[0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
     %178 = llvm.insertvalue %176, %177[1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %179 = llvm.mlir.constant(25000000 : index) : i64
+    %179 = llvm.mlir.constant(250000 : index) : i64
     %180 = llvm.insertvalue %179, %178[2] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %181 = llvm.mlir.constant(2500 : index) : i64
+    %181 = llvm.mlir.constant(250 : index) : i64
     %182 = llvm.insertvalue %181, %180[3, 0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %183 = llvm.mlir.constant(10000 : index) : i64
+    %183 = llvm.mlir.constant(1000 : index) : i64
     %184 = llvm.insertvalue %183, %182[4, 0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %185 = llvm.mlir.constant(10000 : index) : i64
+    %185 = llvm.mlir.constant(1000 : index) : i64
     %186 = llvm.insertvalue %185, %184[3, 1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
     %187 = llvm.mlir.constant(1 : index) : i64
     %188 = llvm.insertvalue %187, %186[4, 1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
@@ -240,13 +240,13 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %203 = llvm.extractvalue %195[1] : !llvm.struct<(ptr, ptr, i64)> 
     %204 = llvm.insertvalue %202, %201[0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
     %205 = llvm.insertvalue %203, %204[1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %206 = llvm.mlir.constant(50000000 : index) : i64
+    %206 = llvm.mlir.constant(500000 : index) : i64
     %207 = llvm.insertvalue %206, %205[2] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %208 = llvm.mlir.constant(2500 : index) : i64
+    %208 = llvm.mlir.constant(250 : index) : i64
     %209 = llvm.insertvalue %208, %207[3, 0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %210 = llvm.mlir.constant(10000 : index) : i64
+    %210 = llvm.mlir.constant(1000 : index) : i64
     %211 = llvm.insertvalue %210, %209[4, 0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %212 = llvm.mlir.constant(10000 : index) : i64
+    %212 = llvm.mlir.constant(1000 : index) : i64
     %213 = llvm.insertvalue %212, %211[3, 1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
     %214 = llvm.mlir.constant(1 : index) : i64
     %215 = llvm.insertvalue %214, %213[4, 1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
@@ -267,13 +267,13 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %230 = llvm.extractvalue %222[1] : !llvm.struct<(ptr, ptr, i64)> 
     %231 = llvm.insertvalue %229, %228[0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
     %232 = llvm.insertvalue %230, %231[1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %233 = llvm.mlir.constant(50000000 : index) : i64
+    %233 = llvm.mlir.constant(500000 : index) : i64
     %234 = llvm.insertvalue %233, %232[2] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %235 = llvm.mlir.constant(2500 : index) : i64
+    %235 = llvm.mlir.constant(250 : index) : i64
     %236 = llvm.insertvalue %235, %234[3, 0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %237 = llvm.mlir.constant(10000 : index) : i64
+    %237 = llvm.mlir.constant(1000 : index) : i64
     %238 = llvm.insertvalue %237, %236[4, 0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %239 = llvm.mlir.constant(10000 : index) : i64
+    %239 = llvm.mlir.constant(1000 : index) : i64
     %240 = llvm.insertvalue %239, %238[3, 1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
     %241 = llvm.mlir.constant(1 : index) : i64
     %242 = llvm.insertvalue %241, %240[4, 1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
@@ -294,13 +294,13 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %257 = llvm.extractvalue %249[1] : !llvm.struct<(ptr, ptr, i64)> 
     %258 = llvm.insertvalue %256, %255[0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
     %259 = llvm.insertvalue %257, %258[1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %260 = llvm.mlir.constant(75000000 : index) : i64
+    %260 = llvm.mlir.constant(750000 : index) : i64
     %261 = llvm.insertvalue %260, %259[2] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %262 = llvm.mlir.constant(2500 : index) : i64
+    %262 = llvm.mlir.constant(250 : index) : i64
     %263 = llvm.insertvalue %262, %261[3, 0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %264 = llvm.mlir.constant(10000 : index) : i64
+    %264 = llvm.mlir.constant(1000 : index) : i64
     %265 = llvm.insertvalue %264, %263[4, 0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %266 = llvm.mlir.constant(10000 : index) : i64
+    %266 = llvm.mlir.constant(1000 : index) : i64
     %267 = llvm.insertvalue %266, %265[3, 1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
     %268 = llvm.mlir.constant(1 : index) : i64
     %269 = llvm.insertvalue %268, %267[4, 1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
@@ -321,13 +321,13 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %284 = llvm.extractvalue %276[1] : !llvm.struct<(ptr, ptr, i64)> 
     %285 = llvm.insertvalue %283, %282[0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
     %286 = llvm.insertvalue %284, %285[1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %287 = llvm.mlir.constant(75000000 : index) : i64
+    %287 = llvm.mlir.constant(750000 : index) : i64
     %288 = llvm.insertvalue %287, %286[2] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %289 = llvm.mlir.constant(2500 : index) : i64
+    %289 = llvm.mlir.constant(250 : index) : i64
     %290 = llvm.insertvalue %289, %288[3, 0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %291 = llvm.mlir.constant(10000 : index) : i64
+    %291 = llvm.mlir.constant(1000 : index) : i64
     %292 = llvm.insertvalue %291, %290[4, 0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %293 = llvm.mlir.constant(10000 : index) : i64
+    %293 = llvm.mlir.constant(1000 : index) : i64
     %294 = llvm.insertvalue %293, %292[3, 1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
     %295 = llvm.mlir.constant(1 : index) : i64
     %296 = llvm.insertvalue %295, %294[4, 1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
@@ -407,7 +407,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           llvm.cond_br %457, ^bb3, ^bb7
         ^bb3:  // pred: ^bb2
           %458 = llvm.extractvalue %188[1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-          %459 = llvm.getelementptr %458[25000000] : (!llvm.ptr) -> !llvm.ptr, f32
+          %459 = llvm.getelementptr %458[250000] : (!llvm.ptr) -> !llvm.ptr, f32
           %460 = llvm.mul %arg24, %18 overflow<nsw, nuw> : i64
           %461 = llvm.add %460, %456 overflow<nsw, nuw> : i64
           %462 = llvm.getelementptr inbounds|nuw %459[%461] : (!llvm.ptr, i64) -> !llvm.ptr, f32
@@ -418,7 +418,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           llvm.cond_br %464, ^bb5, ^bb6
         ^bb5:  // pred: ^bb4
           %465 = llvm.extractvalue %161[1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-          %466 = llvm.getelementptr %465[25000000] : (!llvm.ptr) -> !llvm.ptr, f32
+          %466 = llvm.getelementptr %465[250000] : (!llvm.ptr) -> !llvm.ptr, f32
           %467 = llvm.mul %arg24, %18 overflow<nsw, nuw> : i64
           %468 = llvm.add %467, %463 overflow<nsw, nuw> : i64
           %469 = llvm.getelementptr inbounds|nuw %466[%468] : (!llvm.ptr, i64) -> !llvm.ptr, f32
@@ -429,14 +429,14 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %474 = llvm.load %473 : !llvm.ptr -> f32
           %475 = llvm.fmul %470, %474 : f32
           %476 = llvm.extractvalue %188[1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-          %477 = llvm.getelementptr %476[25000000] : (!llvm.ptr) -> !llvm.ptr, f32
+          %477 = llvm.getelementptr %476[250000] : (!llvm.ptr) -> !llvm.ptr, f32
           %478 = llvm.mul %arg24, %18 overflow<nsw, nuw> : i64
           %479 = llvm.add %478, %456 overflow<nsw, nuw> : i64
           %480 = llvm.getelementptr inbounds|nuw %477[%479] : (!llvm.ptr, i64) -> !llvm.ptr, f32
           %481 = llvm.load %480 : !llvm.ptr -> f32
           %482 = llvm.fadd %481, %475 : f32
           %483 = llvm.extractvalue %188[1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-          %484 = llvm.getelementptr %483[25000000] : (!llvm.ptr) -> !llvm.ptr, f32
+          %484 = llvm.getelementptr %483[250000] : (!llvm.ptr) -> !llvm.ptr, f32
           %485 = llvm.mul %arg24, %18 overflow<nsw, nuw> : i64
           %486 = llvm.add %485, %456 overflow<nsw, nuw> : i64
           %487 = llvm.getelementptr inbounds|nuw %484[%486] : (!llvm.ptr, i64) -> !llvm.ptr, f32
@@ -472,7 +472,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           llvm.cond_br %457, ^bb3, ^bb7
         ^bb3:  // pred: ^bb2
           %458 = llvm.extractvalue %242[1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-          %459 = llvm.getelementptr %458[50000000] : (!llvm.ptr) -> !llvm.ptr, f32
+          %459 = llvm.getelementptr %458[500000] : (!llvm.ptr) -> !llvm.ptr, f32
           %460 = llvm.mul %arg24, %18 overflow<nsw, nuw> : i64
           %461 = llvm.add %460, %456 overflow<nsw, nuw> : i64
           %462 = llvm.getelementptr inbounds|nuw %459[%461] : (!llvm.ptr, i64) -> !llvm.ptr, f32
@@ -483,7 +483,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           llvm.cond_br %464, ^bb5, ^bb6
         ^bb5:  // pred: ^bb4
           %465 = llvm.extractvalue %215[1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-          %466 = llvm.getelementptr %465[50000000] : (!llvm.ptr) -> !llvm.ptr, f32
+          %466 = llvm.getelementptr %465[500000] : (!llvm.ptr) -> !llvm.ptr, f32
           %467 = llvm.mul %arg24, %18 overflow<nsw, nuw> : i64
           %468 = llvm.add %467, %463 overflow<nsw, nuw> : i64
           %469 = llvm.getelementptr inbounds|nuw %466[%468] : (!llvm.ptr, i64) -> !llvm.ptr, f32
@@ -494,14 +494,14 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %474 = llvm.load %473 : !llvm.ptr -> f32
           %475 = llvm.fmul %470, %474 : f32
           %476 = llvm.extractvalue %242[1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-          %477 = llvm.getelementptr %476[50000000] : (!llvm.ptr) -> !llvm.ptr, f32
+          %477 = llvm.getelementptr %476[500000] : (!llvm.ptr) -> !llvm.ptr, f32
           %478 = llvm.mul %arg24, %18 overflow<nsw, nuw> : i64
           %479 = llvm.add %478, %456 overflow<nsw, nuw> : i64
           %480 = llvm.getelementptr inbounds|nuw %477[%479] : (!llvm.ptr, i64) -> !llvm.ptr, f32
           %481 = llvm.load %480 : !llvm.ptr -> f32
           %482 = llvm.fadd %481, %475 : f32
           %483 = llvm.extractvalue %242[1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-          %484 = llvm.getelementptr %483[50000000] : (!llvm.ptr) -> !llvm.ptr, f32
+          %484 = llvm.getelementptr %483[500000] : (!llvm.ptr) -> !llvm.ptr, f32
           %485 = llvm.mul %arg24, %18 overflow<nsw, nuw> : i64
           %486 = llvm.add %485, %456 overflow<nsw, nuw> : i64
           %487 = llvm.getelementptr inbounds|nuw %484[%486] : (!llvm.ptr, i64) -> !llvm.ptr, f32
@@ -537,7 +537,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           llvm.cond_br %457, ^bb3, ^bb7
         ^bb3:  // pred: ^bb2
           %458 = llvm.extractvalue %296[1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-          %459 = llvm.getelementptr %458[75000000] : (!llvm.ptr) -> !llvm.ptr, f32
+          %459 = llvm.getelementptr %458[750000] : (!llvm.ptr) -> !llvm.ptr, f32
           %460 = llvm.mul %arg24, %18 overflow<nsw, nuw> : i64
           %461 = llvm.add %460, %456 overflow<nsw, nuw> : i64
           %462 = llvm.getelementptr inbounds|nuw %459[%461] : (!llvm.ptr, i64) -> !llvm.ptr, f32
@@ -548,7 +548,7 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           llvm.cond_br %464, ^bb5, ^bb6
         ^bb5:  // pred: ^bb4
           %465 = llvm.extractvalue %269[1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-          %466 = llvm.getelementptr %465[75000000] : (!llvm.ptr) -> !llvm.ptr, f32
+          %466 = llvm.getelementptr %465[750000] : (!llvm.ptr) -> !llvm.ptr, f32
           %467 = llvm.mul %arg24, %18 overflow<nsw, nuw> : i64
           %468 = llvm.add %467, %463 overflow<nsw, nuw> : i64
           %469 = llvm.getelementptr inbounds|nuw %466[%468] : (!llvm.ptr, i64) -> !llvm.ptr, f32
@@ -559,14 +559,14 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
           %474 = llvm.load %473 : !llvm.ptr -> f32
           %475 = llvm.fmul %470, %474 : f32
           %476 = llvm.extractvalue %296[1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-          %477 = llvm.getelementptr %476[75000000] : (!llvm.ptr) -> !llvm.ptr, f32
+          %477 = llvm.getelementptr %476[750000] : (!llvm.ptr) -> !llvm.ptr, f32
           %478 = llvm.mul %arg24, %18 overflow<nsw, nuw> : i64
           %479 = llvm.add %478, %456 overflow<nsw, nuw> : i64
           %480 = llvm.getelementptr inbounds|nuw %477[%479] : (!llvm.ptr, i64) -> !llvm.ptr, f32
           %481 = llvm.load %480 : !llvm.ptr -> f32
           %482 = llvm.fadd %481, %475 : f32
           %483 = llvm.extractvalue %296[1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-          %484 = llvm.getelementptr %483[75000000] : (!llvm.ptr) -> !llvm.ptr, f32
+          %484 = llvm.getelementptr %483[750000] : (!llvm.ptr) -> !llvm.ptr, f32
           %485 = llvm.mul %arg24, %18 overflow<nsw, nuw> : i64
           %486 = llvm.add %485, %456 overflow<nsw, nuw> : i64
           %487 = llvm.getelementptr inbounds|nuw %484[%486] : (!llvm.ptr, i64) -> !llvm.ptr, f32
@@ -606,13 +606,13 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %317 = llvm.extractvalue %309[1] : !llvm.struct<(ptr, ptr, i64)> 
     %318 = llvm.insertvalue %316, %315[0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
     %319 = llvm.insertvalue %317, %318[1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %320 = llvm.mlir.constant(25000000 : index) : i64
+    %320 = llvm.mlir.constant(250000 : index) : i64
     %321 = llvm.insertvalue %320, %319[2] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %322 = llvm.mlir.constant(2500 : index) : i64
+    %322 = llvm.mlir.constant(250 : index) : i64
     %323 = llvm.insertvalue %322, %321[3, 0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %324 = llvm.mlir.constant(10000 : index) : i64
+    %324 = llvm.mlir.constant(1000 : index) : i64
     %325 = llvm.insertvalue %324, %323[4, 0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %326 = llvm.mlir.constant(10000 : index) : i64
+    %326 = llvm.mlir.constant(1000 : index) : i64
     %327 = llvm.insertvalue %326, %325[3, 1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
     %328 = llvm.mlir.constant(1 : index) : i64
     %329 = llvm.insertvalue %328, %327[4, 1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
@@ -666,13 +666,13 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %367 = llvm.extractvalue %359[1] : !llvm.struct<(ptr, ptr, i64)> 
     %368 = llvm.insertvalue %366, %365[0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
     %369 = llvm.insertvalue %367, %368[1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %370 = llvm.mlir.constant(50000000 : index) : i64
+    %370 = llvm.mlir.constant(500000 : index) : i64
     %371 = llvm.insertvalue %370, %369[2] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %372 = llvm.mlir.constant(2500 : index) : i64
+    %372 = llvm.mlir.constant(250 : index) : i64
     %373 = llvm.insertvalue %372, %371[3, 0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %374 = llvm.mlir.constant(10000 : index) : i64
+    %374 = llvm.mlir.constant(1000 : index) : i64
     %375 = llvm.insertvalue %374, %373[4, 0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %376 = llvm.mlir.constant(10000 : index) : i64
+    %376 = llvm.mlir.constant(1000 : index) : i64
     %377 = llvm.insertvalue %376, %375[3, 1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
     %378 = llvm.mlir.constant(1 : index) : i64
     %379 = llvm.insertvalue %378, %377[4, 1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
@@ -726,13 +726,13 @@ module attributes {dhir.target_devices = [#dlti.target_device_spec<"type" = "nod
     %417 = llvm.extractvalue %409[1] : !llvm.struct<(ptr, ptr, i64)> 
     %418 = llvm.insertvalue %416, %415[0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
     %419 = llvm.insertvalue %417, %418[1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %420 = llvm.mlir.constant(75000000 : index) : i64
+    %420 = llvm.mlir.constant(750000 : index) : i64
     %421 = llvm.insertvalue %420, %419[2] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %422 = llvm.mlir.constant(2500 : index) : i64
+    %422 = llvm.mlir.constant(250 : index) : i64
     %423 = llvm.insertvalue %422, %421[3, 0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %424 = llvm.mlir.constant(10000 : index) : i64
+    %424 = llvm.mlir.constant(1000 : index) : i64
     %425 = llvm.insertvalue %424, %423[4, 0] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
-    %426 = llvm.mlir.constant(10000 : index) : i64
+    %426 = llvm.mlir.constant(1000 : index) : i64
     %427 = llvm.insertvalue %426, %425[3, 1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 
     %428 = llvm.mlir.constant(1 : index) : i64
     %429 = llvm.insertvalue %428, %427[4, 1] : !llvm.struct<(ptr, ptr, i64, array<2 x i64>, array<2 x i64>)> 

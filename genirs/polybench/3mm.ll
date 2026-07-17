@@ -176,9 +176,9 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %141 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %139, 0
   %142 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %141, ptr %140, 1
   %143 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %142, i64 0, 2
-  %144 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %143, i64 2500, 3, 0
-  %145 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %144, i64 10000, 4, 0
-  %146 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %145, i64 10000, 3, 1
+  %144 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %143, i64 250, 3, 0
+  %145 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %144, i64 1000, 4, 0
+  %146 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %145, i64 1000, 3, 1
   %147 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %146, i64 1, 4, 1
   %148 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %82, 0
   %149 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %82, 1
@@ -195,9 +195,9 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %160 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %158, 0
   %161 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %160, ptr %159, 1
   %162 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %161, i64 0, 2
-  %163 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %162, i64 2500, 3, 0
-  %164 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %163, i64 10000, 4, 0
-  %165 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %164, i64 10000, 3, 1
+  %163 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %162, i64 250, 3, 0
+  %164 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %163, i64 1000, 4, 0
+  %165 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %164, i64 1000, 3, 1
   %166 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %165, i64 1, 4, 1
   %167 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %75, 0
   %168 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %75, 1
@@ -213,10 +213,10 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %178 = extractvalue { ptr, ptr, i64 } %171, 1
   %179 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %177, 0
   %180 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %179, ptr %178, 1
-  %181 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %180, i64 25000000, 2
-  %182 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %181, i64 2500, 3, 0
-  %183 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %182, i64 10000, 4, 0
-  %184 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %183, i64 10000, 3, 1
+  %181 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %180, i64 250000, 2
+  %182 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %181, i64 250, 3, 0
+  %183 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %182, i64 1000, 4, 0
+  %184 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %183, i64 1000, 3, 1
   %185 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %184, i64 1, 4, 1
   %186 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %82, 0
   %187 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %82, 1
@@ -232,10 +232,10 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %197 = extractvalue { ptr, ptr, i64 } %190, 1
   %198 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %196, 0
   %199 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %198, ptr %197, 1
-  %200 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %199, i64 25000000, 2
-  %201 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %200, i64 2500, 3, 0
-  %202 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %201, i64 10000, 4, 0
-  %203 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %202, i64 10000, 3, 1
+  %200 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %199, i64 250000, 2
+  %201 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %200, i64 250, 3, 0
+  %202 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %201, i64 1000, 4, 0
+  %203 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %202, i64 1000, 3, 1
   %204 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %203, i64 1, 4, 1
   %205 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %75, 0
   %206 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %75, 1
@@ -251,10 +251,10 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %216 = extractvalue { ptr, ptr, i64 } %209, 1
   %217 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %215, 0
   %218 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %217, ptr %216, 1
-  %219 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %218, i64 50000000, 2
-  %220 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %219, i64 2500, 3, 0
-  %221 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %220, i64 10000, 4, 0
-  %222 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %221, i64 10000, 3, 1
+  %219 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %218, i64 500000, 2
+  %220 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %219, i64 250, 3, 0
+  %221 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %220, i64 1000, 4, 0
+  %222 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %221, i64 1000, 3, 1
   %223 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %222, i64 1, 4, 1
   %224 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %82, 0
   %225 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %82, 1
@@ -270,10 +270,10 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %235 = extractvalue { ptr, ptr, i64 } %228, 1
   %236 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %234, 0
   %237 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %236, ptr %235, 1
-  %238 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %237, i64 50000000, 2
-  %239 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %238, i64 2500, 3, 0
-  %240 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %239, i64 10000, 4, 0
-  %241 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %240, i64 10000, 3, 1
+  %238 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %237, i64 500000, 2
+  %239 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %238, i64 250, 3, 0
+  %240 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %239, i64 1000, 4, 0
+  %241 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %240, i64 1000, 3, 1
   %242 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %241, i64 1, 4, 1
   %243 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %75, 0
   %244 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %75, 1
@@ -289,10 +289,10 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %254 = extractvalue { ptr, ptr, i64 } %247, 1
   %255 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %253, 0
   %256 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %255, ptr %254, 1
-  %257 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %256, i64 75000000, 2
-  %258 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %257, i64 2500, 3, 0
-  %259 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %258, i64 10000, 4, 0
-  %260 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %259, i64 10000, 3, 1
+  %257 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %256, i64 750000, 2
+  %258 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %257, i64 250, 3, 0
+  %259 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %258, i64 1000, 4, 0
+  %260 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %259, i64 1000, 3, 1
   %261 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %260, i64 1, 4, 1
   %262 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %82, 0
   %263 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %82, 1
@@ -308,10 +308,10 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %273 = extractvalue { ptr, ptr, i64 } %266, 1
   %274 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %272, 0
   %275 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %274, ptr %273, 1
-  %276 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %275, i64 75000000, 2
-  %277 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %276, i64 2500, 3, 0
-  %278 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %277, i64 10000, 4, 0
-  %279 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %278, i64 10000, 3, 1
+  %276 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %275, i64 750000, 2
+  %277 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %276, i64 250, 3, 0
+  %278 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %277, i64 1000, 4, 0
+  %279 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %278, i64 1000, 3, 1
   %280 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %279, i64 1, 4, 1
   %281 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %68, 0
   %282 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %68, 1
@@ -328,9 +328,9 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %293 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %291, 0
   %294 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %293, ptr %292, 1
   %295 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %294, i64 0, 2
-  %296 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %295, i64 2500, 3, 0
-  %297 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %296, i64 10000, 4, 0
-  %298 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %297, i64 10000, 3, 1
+  %296 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %295, i64 250, 3, 0
+  %297 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %296, i64 1000, 4, 0
+  %298 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %297, i64 1000, 3, 1
   %299 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %298, i64 1, 4, 1
   %300 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %89, 0
   %301 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %89, 1
@@ -347,9 +347,9 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %312 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %310, 0
   %313 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %312, ptr %311, 1
   %314 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %313, i64 0, 2
-  %315 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %314, i64 2500, 3, 0
-  %316 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %315, i64 10000, 4, 0
-  %317 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %316, i64 10000, 3, 1
+  %315 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %314, i64 250, 3, 0
+  %316 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %315, i64 1000, 4, 0
+  %317 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %316, i64 1000, 3, 1
   %318 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %317, i64 1, 4, 1
   %319 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %68, 0
   %320 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %68, 1
@@ -365,10 +365,10 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %330 = extractvalue { ptr, ptr, i64 } %323, 1
   %331 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %329, 0
   %332 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %331, ptr %330, 1
-  %333 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %332, i64 25000000, 2
-  %334 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %333, i64 2500, 3, 0
-  %335 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %334, i64 10000, 4, 0
-  %336 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %335, i64 10000, 3, 1
+  %333 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %332, i64 250000, 2
+  %334 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %333, i64 250, 3, 0
+  %335 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %334, i64 1000, 4, 0
+  %336 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %335, i64 1000, 3, 1
   %337 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %336, i64 1, 4, 1
   %338 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %89, 0
   %339 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %89, 1
@@ -384,10 +384,10 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %349 = extractvalue { ptr, ptr, i64 } %342, 1
   %350 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %348, 0
   %351 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %350, ptr %349, 1
-  %352 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %351, i64 25000000, 2
-  %353 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %352, i64 2500, 3, 0
-  %354 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %353, i64 10000, 4, 0
-  %355 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %354, i64 10000, 3, 1
+  %352 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %351, i64 250000, 2
+  %353 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %352, i64 250, 3, 0
+  %354 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %353, i64 1000, 4, 0
+  %355 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %354, i64 1000, 3, 1
   %356 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %355, i64 1, 4, 1
   %357 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %68, 0
   %358 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %68, 1
@@ -403,10 +403,10 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %368 = extractvalue { ptr, ptr, i64 } %361, 1
   %369 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %367, 0
   %370 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %369, ptr %368, 1
-  %371 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %370, i64 50000000, 2
-  %372 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %371, i64 2500, 3, 0
-  %373 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %372, i64 10000, 4, 0
-  %374 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %373, i64 10000, 3, 1
+  %371 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %370, i64 500000, 2
+  %372 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %371, i64 250, 3, 0
+  %373 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %372, i64 1000, 4, 0
+  %374 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %373, i64 1000, 3, 1
   %375 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %374, i64 1, 4, 1
   %376 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %89, 0
   %377 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %89, 1
@@ -422,10 +422,10 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %387 = extractvalue { ptr, ptr, i64 } %380, 1
   %388 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %386, 0
   %389 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %388, ptr %387, 1
-  %390 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %389, i64 50000000, 2
-  %391 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %390, i64 2500, 3, 0
-  %392 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %391, i64 10000, 4, 0
-  %393 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %392, i64 10000, 3, 1
+  %390 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %389, i64 500000, 2
+  %391 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %390, i64 250, 3, 0
+  %392 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %391, i64 1000, 4, 0
+  %393 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %392, i64 1000, 3, 1
   %394 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %393, i64 1, 4, 1
   %395 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %68, 0
   %396 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %68, 1
@@ -441,10 +441,10 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %406 = extractvalue { ptr, ptr, i64 } %399, 1
   %407 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %405, 0
   %408 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %407, ptr %406, 1
-  %409 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %408, i64 75000000, 2
-  %410 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %409, i64 2500, 3, 0
-  %411 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %410, i64 10000, 4, 0
-  %412 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %411, i64 10000, 3, 1
+  %409 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %408, i64 750000, 2
+  %410 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %409, i64 250, 3, 0
+  %411 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %410, i64 1000, 4, 0
+  %412 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %411, i64 1000, 3, 1
   %413 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %412, i64 1, 4, 1
   %414 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %89, 0
   %415 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %89, 1
@@ -460,10 +460,10 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %425 = extractvalue { ptr, ptr, i64 } %418, 1
   %426 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %424, 0
   %427 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %426, ptr %425, 1
-  %428 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %427, i64 75000000, 2
-  %429 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %428, i64 2500, 3, 0
-  %430 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %429, i64 10000, 4, 0
-  %431 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %430, i64 10000, 3, 1
+  %428 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %427, i64 750000, 2
+  %429 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %428, i64 250, 3, 0
+  %430 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %429, i64 1000, 4, 0
+  %431 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %430, i64 1000, 3, 1
   %432 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %431, i64 1, 4, 1
   %433 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %82, 0
   %434 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %82, 1
@@ -480,9 +480,9 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %445 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %443, 0
   %446 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %445, ptr %444, 1
   %447 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %446, i64 0, 2
-  %448 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %447, i64 2500, 3, 0
-  %449 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %448, i64 10000, 4, 0
-  %450 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %449, i64 10000, 3, 1
+  %448 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %447, i64 250, 3, 0
+  %449 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %448, i64 1000, 4, 0
+  %450 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %449, i64 1000, 3, 1
   %451 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %450, i64 1, 4, 1
   %452 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %61, 0
   %453 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %61, 1
@@ -499,9 +499,9 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %464 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %462, 0
   %465 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %464, ptr %463, 1
   %466 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %465, i64 0, 2
-  %467 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %466, i64 2500, 3, 0
-  %468 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %467, i64 10000, 4, 0
-  %469 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %468, i64 10000, 3, 1
+  %467 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %466, i64 250, 3, 0
+  %468 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %467, i64 1000, 4, 0
+  %469 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %468, i64 1000, 3, 1
   %470 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %469, i64 1, 4, 1
   %471 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %82, 0
   %472 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %82, 1
@@ -517,10 +517,10 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %482 = extractvalue { ptr, ptr, i64 } %475, 1
   %483 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %481, 0
   %484 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %483, ptr %482, 1
-  %485 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %484, i64 25000000, 2
-  %486 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %485, i64 2500, 3, 0
-  %487 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %486, i64 10000, 4, 0
-  %488 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %487, i64 10000, 3, 1
+  %485 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %484, i64 250000, 2
+  %486 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %485, i64 250, 3, 0
+  %487 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %486, i64 1000, 4, 0
+  %488 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %487, i64 1000, 3, 1
   %489 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %488, i64 1, 4, 1
   %490 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %61, 0
   %491 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %61, 1
@@ -536,10 +536,10 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %501 = extractvalue { ptr, ptr, i64 } %494, 1
   %502 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %500, 0
   %503 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %502, ptr %501, 1
-  %504 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %503, i64 25000000, 2
-  %505 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %504, i64 2500, 3, 0
-  %506 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %505, i64 10000, 4, 0
-  %507 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %506, i64 10000, 3, 1
+  %504 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %503, i64 250000, 2
+  %505 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %504, i64 250, 3, 0
+  %506 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %505, i64 1000, 4, 0
+  %507 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %506, i64 1000, 3, 1
   %508 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %507, i64 1, 4, 1
   %509 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %82, 0
   %510 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %82, 1
@@ -555,10 +555,10 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %520 = extractvalue { ptr, ptr, i64 } %513, 1
   %521 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %519, 0
   %522 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %521, ptr %520, 1
-  %523 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %522, i64 50000000, 2
-  %524 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %523, i64 2500, 3, 0
-  %525 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %524, i64 10000, 4, 0
-  %526 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %525, i64 10000, 3, 1
+  %523 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %522, i64 500000, 2
+  %524 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %523, i64 250, 3, 0
+  %525 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %524, i64 1000, 4, 0
+  %526 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %525, i64 1000, 3, 1
   %527 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %526, i64 1, 4, 1
   %528 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %61, 0
   %529 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %61, 1
@@ -574,10 +574,10 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %539 = extractvalue { ptr, ptr, i64 } %532, 1
   %540 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %538, 0
   %541 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %540, ptr %539, 1
-  %542 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %541, i64 50000000, 2
-  %543 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %542, i64 2500, 3, 0
-  %544 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %543, i64 10000, 4, 0
-  %545 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %544, i64 10000, 3, 1
+  %542 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %541, i64 500000, 2
+  %543 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %542, i64 250, 3, 0
+  %544 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %543, i64 1000, 4, 0
+  %545 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %544, i64 1000, 3, 1
   %546 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %545, i64 1, 4, 1
   %547 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %82, 0
   %548 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %82, 1
@@ -593,10 +593,10 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %558 = extractvalue { ptr, ptr, i64 } %551, 1
   %559 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %557, 0
   %560 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %559, ptr %558, 1
-  %561 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %560, i64 75000000, 2
-  %562 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %561, i64 2500, 3, 0
-  %563 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %562, i64 10000, 4, 0
-  %564 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %563, i64 10000, 3, 1
+  %561 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %560, i64 750000, 2
+  %562 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %561, i64 250, 3, 0
+  %563 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %562, i64 1000, 4, 0
+  %564 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %563, i64 1000, 3, 1
   %565 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %564, i64 1, 4, 1
   %566 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %61, 0
   %567 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %61, 1
@@ -612,10 +612,10 @@ define void @kernel_3mm(i32 %0, i32 %1, i32 %2, i32 %3, i32 %4, ptr %5, ptr %6, 
   %577 = extractvalue { ptr, ptr, i64 } %570, 1
   %578 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %576, 0
   %579 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %578, ptr %577, 1
-  %580 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %579, i64 75000000, 2
-  %581 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %580, i64 2500, 3, 0
-  %582 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %581, i64 10000, 4, 0
-  %583 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %582, i64 10000, 3, 1
+  %580 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %579, i64 750000, 2
+  %581 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %580, i64 250, 3, 0
+  %582 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %581, i64 1000, 4, 0
+  %583 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %582, i64 1000, 3, 1
   %584 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %583, i64 1, 4, 1
   %585 = icmp eq i32 %128, 0
   br i1 %585, label %586, label %587
@@ -816,10 +816,10 @@ omp.par.exit298:                                  ; preds = %omp_parallel542
   %621 = extractvalue { ptr, ptr, i64 } %614, 1
   %622 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %620, 0
   %623 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %622, ptr %621, 1
-  %624 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %623, i64 25000000, 2
-  %625 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %624, i64 2500, 3, 0
-  %626 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %625, i64 10000, 4, 0
-  %627 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %626, i64 10000, 3, 1
+  %624 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %623, i64 250000, 2
+  %625 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %624, i64 250, 3, 0
+  %626 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %625, i64 1000, 4, 0
+  %627 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %626, i64 1000, 3, 1
   %628 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %627, i64 1, 4, 1
   %629 = load i32, ptr %121, align 4
   %630 = getelementptr inbounds nuw i32, ptr %121, i32 1
@@ -867,10 +867,10 @@ omp.par.exit298:                                  ; preds = %omp_parallel542
   %662 = extractvalue { ptr, ptr, i64 } %655, 1
   %663 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %661, 0
   %664 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %663, ptr %662, 1
-  %665 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %664, i64 50000000, 2
-  %666 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %665, i64 2500, 3, 0
-  %667 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %666, i64 10000, 4, 0
-  %668 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %667, i64 10000, 3, 1
+  %665 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %664, i64 500000, 2
+  %666 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %665, i64 250, 3, 0
+  %667 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %666, i64 1000, 4, 0
+  %668 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %667, i64 1000, 3, 1
   %669 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %668, i64 1, 4, 1
   %670 = load i32, ptr %121, align 4
   %671 = getelementptr inbounds nuw i32, ptr %121, i32 2
@@ -918,10 +918,10 @@ omp.par.exit298:                                  ; preds = %omp_parallel542
   %703 = extractvalue { ptr, ptr, i64 } %696, 1
   %704 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %702, 0
   %705 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %704, ptr %703, 1
-  %706 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %705, i64 75000000, 2
-  %707 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %706, i64 2500, 3, 0
-  %708 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %707, i64 10000, 4, 0
-  %709 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %708, i64 10000, 3, 1
+  %706 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %705, i64 750000, 2
+  %707 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %706, i64 250, 3, 0
+  %708 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %707, i64 1000, 4, 0
+  %709 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %708, i64 1000, 3, 1
   %710 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %709, i64 1, 4, 1
   %711 = load i32, ptr %121, align 4
   %712 = getelementptr inbounds nuw i32, ptr %121, i32 3
@@ -969,10 +969,10 @@ omp.par.exit298:                                  ; preds = %omp_parallel542
   %744 = extractvalue { ptr, ptr, i64 } %737, 1
   %745 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %743, 0
   %746 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %745, ptr %744, 1
-  %747 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %746, i64 25000000, 2
-  %748 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %747, i64 2500, 3, 0
-  %749 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %748, i64 10000, 4, 0
-  %750 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %749, i64 10000, 3, 1
+  %747 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %746, i64 250000, 2
+  %748 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %747, i64 250, 3, 0
+  %749 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %748, i64 1000, 4, 0
+  %750 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %749, i64 1000, 3, 1
   %751 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %750, i64 1, 4, 1
   %752 = load i32, ptr %121, align 4
   %753 = getelementptr inbounds nuw i32, ptr %121, i32 1
@@ -1020,10 +1020,10 @@ omp.par.exit298:                                  ; preds = %omp_parallel542
   %785 = extractvalue { ptr, ptr, i64 } %778, 1
   %786 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %784, 0
   %787 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %786, ptr %785, 1
-  %788 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %787, i64 50000000, 2
-  %789 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %788, i64 2500, 3, 0
-  %790 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %789, i64 10000, 4, 0
-  %791 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %790, i64 10000, 3, 1
+  %788 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %787, i64 500000, 2
+  %789 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %788, i64 250, 3, 0
+  %790 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %789, i64 1000, 4, 0
+  %791 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %790, i64 1000, 3, 1
   %792 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %791, i64 1, 4, 1
   %793 = load i32, ptr %121, align 4
   %794 = getelementptr inbounds nuw i32, ptr %121, i32 2
@@ -1071,10 +1071,10 @@ omp.par.exit298:                                  ; preds = %omp_parallel542
   %826 = extractvalue { ptr, ptr, i64 } %819, 1
   %827 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %825, 0
   %828 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %827, ptr %826, 1
-  %829 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %828, i64 75000000, 2
-  %830 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %829, i64 2500, 3, 0
-  %831 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %830, i64 10000, 4, 0
-  %832 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %831, i64 10000, 3, 1
+  %829 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %828, i64 750000, 2
+  %830 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %829, i64 250, 3, 0
+  %831 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %830, i64 1000, 4, 0
+  %832 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %831, i64 1000, 3, 1
   %833 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %832, i64 1, 4, 1
   %834 = load i32, ptr %121, align 4
   %835 = getelementptr inbounds nuw i32, ptr %121, i32 3
@@ -1124,9 +1124,9 @@ omp.par.exit298:                                  ; preds = %omp_parallel542
   %869 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %867, 0
   %870 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %869, ptr %868, 1
   %871 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %870, i64 0, 2
-  %872 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %871, i64 10000, 3, 0
-  %873 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %872, i64 10000, 4, 0
-  %874 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %873, i64 10000, 3, 1
+  %872 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %871, i64 1000, 3, 0
+  %873 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %872, i64 1000, 4, 0
+  %874 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %873, i64 1000, 3, 1
   %875 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %874, i64 1, 4, 1
   %876 = icmp eq i32 %93, %856
   br i1 %876, label %877, label %895
@@ -1278,10 +1278,10 @@ omp.par.exit482:                                  ; preds = %omp_parallel554
   %927 = extractvalue { ptr, ptr, i64 } %920, 1
   %928 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %926, 0
   %929 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %928, ptr %927, 1
-  %930 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %929, i64 25000000, 2
-  %931 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %930, i64 2500, 3, 0
-  %932 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %931, i64 10000, 4, 0
-  %933 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %932, i64 10000, 3, 1
+  %930 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %929, i64 250000, 2
+  %931 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %930, i64 250, 3, 0
+  %932 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %931, i64 1000, 4, 0
+  %933 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %932, i64 1000, 3, 1
   %934 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %933, i64 1, 4, 1
   %935 = load i32, ptr %121, align 4
   %936 = getelementptr inbounds nuw i32, ptr %121, i32 1
@@ -1329,10 +1329,10 @@ omp.par.exit482:                                  ; preds = %omp_parallel554
   %968 = extractvalue { ptr, ptr, i64 } %961, 1
   %969 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %967, 0
   %970 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %969, ptr %968, 1
-  %971 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %970, i64 50000000, 2
-  %972 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %971, i64 2500, 3, 0
-  %973 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %972, i64 10000, 4, 0
-  %974 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %973, i64 10000, 3, 1
+  %971 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %970, i64 500000, 2
+  %972 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %971, i64 250, 3, 0
+  %973 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %972, i64 1000, 4, 0
+  %974 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %973, i64 1000, 3, 1
   %975 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %974, i64 1, 4, 1
   %976 = load i32, ptr %121, align 4
   %977 = getelementptr inbounds nuw i32, ptr %121, i32 2
@@ -1380,10 +1380,10 @@ omp.par.exit482:                                  ; preds = %omp_parallel554
   %1009 = extractvalue { ptr, ptr, i64 } %1002, 1
   %1010 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %1008, 0
   %1011 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %1010, ptr %1009, 1
-  %1012 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %1011, i64 75000000, 2
-  %1013 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %1012, i64 2500, 3, 0
-  %1014 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %1013, i64 10000, 4, 0
-  %1015 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %1014, i64 10000, 3, 1
+  %1012 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %1011, i64 750000, 2
+  %1013 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %1012, i64 250, 3, 0
+  %1014 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %1013, i64 1000, 4, 0
+  %1015 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %1014, i64 1000, 3, 1
   %1016 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %1015, i64 1, 4, 1
   %1017 = load i32, ptr %121, align 4
   %1018 = getelementptr inbounds nuw i32, ptr %121, i32 3
@@ -1459,7 +1459,7 @@ omp.wsloop.region492:                             ; preds = %omp.par.region489
 
 omp_loop.preheader493:                            ; preds = %omp.wsloop.region492
   store i64 0, ptr %p.lowerbound514, align 4
-  store i64 2499, ptr %p.upperbound515, align 4
+  store i64 249, ptr %p.upperbound515, align 4
   store i64 1, ptr %p.stride516, align 4
   %omp_global_thread_num517 = call i32 @__kmpc_global_thread_num(ptr @1)
   call void @__kmpc_for_static_init_8u(ptr @1, i32 %omp_global_thread_num517, i32 34, ptr %p.lastiter513, ptr %p.lowerbound514, ptr %p.upperbound515, ptr %p.stride516, i64 1, i64 0)
@@ -1513,7 +1513,7 @@ omp.loop_nest.region505:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region506:                          ; preds = %omp.loop_nest.region510, %omp.loop_nest.region505
   %12 = phi i64 [ %21, %omp.loop_nest.region510 ], [ 0, %omp.loop_nest.region505 ]
-  %13 = icmp slt i64 %12, 10000
+  %13 = icmp slt i64 %12, 1000
   br i1 %13, label %omp.loop_nest.region507, label %omp.loop_nest.region511
 
 omp.loop_nest.region511:                          ; preds = %omp.loop_nest.region506
@@ -1532,8 +1532,8 @@ omp_loop.inc497:                                  ; preds = %omp.region.cont503
 
 omp.loop_nest.region507:                          ; preds = %omp.loop_nest.region506
   %14 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %15 = getelementptr float, ptr %14, i32 75000000
-  %16 = mul nuw nsw i64 %10, 10000
+  %15 = getelementptr float, ptr %14, i32 750000
+  %16 = mul nuw nsw i64 %10, 1000
   %17 = add nuw nsw i64 %16, %12
   %18 = getelementptr inbounds nuw float, ptr %15, i64 %17
   store float 0.000000e+00, ptr %18, align 4
@@ -1541,7 +1541,7 @@ omp.loop_nest.region507:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region508:                          ; preds = %omp.loop_nest.region509, %omp.loop_nest.region507
   %19 = phi i64 [ %45, %omp.loop_nest.region509 ], [ 0, %omp.loop_nest.region507 ]
-  %20 = icmp slt i64 %19, 10000
+  %20 = icmp slt i64 %19, 1000
   br i1 %20, label %omp.loop_nest.region509, label %omp.loop_nest.region510
 
 omp.loop_nest.region510:                          ; preds = %omp.loop_nest.region508
@@ -1550,26 +1550,26 @@ omp.loop_nest.region510:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region509:                          ; preds = %omp.loop_nest.region508
   %22 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %3, 1
-  %23 = getelementptr float, ptr %22, i32 75000000
-  %24 = mul nuw nsw i64 %10, 10000
+  %23 = getelementptr float, ptr %22, i32 750000
+  %24 = mul nuw nsw i64 %10, 1000
   %25 = add nuw nsw i64 %24, %19
   %26 = getelementptr inbounds nuw float, ptr %23, i64 %25
   %27 = load float, ptr %26, align 4
-  %28 = mul nuw nsw i64 %19, 10000
+  %28 = mul nuw nsw i64 %19, 1000
   %29 = add nuw nsw i64 %28, %12
   %30 = getelementptr inbounds nuw float, ptr %loadgep_, i64 %29
   %31 = load float, ptr %30, align 4
   %32 = fmul float %27, %31
   %33 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %34 = getelementptr float, ptr %33, i32 75000000
-  %35 = mul nuw nsw i64 %10, 10000
+  %34 = getelementptr float, ptr %33, i32 750000
+  %35 = mul nuw nsw i64 %10, 1000
   %36 = add nuw nsw i64 %35, %12
   %37 = getelementptr inbounds nuw float, ptr %34, i64 %36
   %38 = load float, ptr %37, align 4
   %39 = fadd float %38, %32
   %40 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %41 = getelementptr float, ptr %40, i32 75000000
-  %42 = mul nuw nsw i64 %10, 10000
+  %41 = getelementptr float, ptr %40, i32 750000
+  %42 = mul nuw nsw i64 %10, 1000
   %43 = add nuw nsw i64 %42, %12
   %44 = getelementptr inbounds nuw float, ptr %41, i64 %43
   store float %39, ptr %44, align 4
@@ -1618,7 +1618,7 @@ omp.wsloop.region446:                             ; preds = %omp.par.region443
 
 omp_loop.preheader447:                            ; preds = %omp.wsloop.region446
   store i64 0, ptr %p.lowerbound468, align 4
-  store i64 2499, ptr %p.upperbound469, align 4
+  store i64 249, ptr %p.upperbound469, align 4
   store i64 1, ptr %p.stride470, align 4
   %omp_global_thread_num471 = call i32 @__kmpc_global_thread_num(ptr @1)
   call void @__kmpc_for_static_init_8u(ptr @1, i32 %omp_global_thread_num471, i32 34, ptr %p.lastiter467, ptr %p.lowerbound468, ptr %p.upperbound469, ptr %p.stride470, i64 1, i64 0)
@@ -1672,7 +1672,7 @@ omp.loop_nest.region459:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region460:                          ; preds = %omp.loop_nest.region464, %omp.loop_nest.region459
   %12 = phi i64 [ %21, %omp.loop_nest.region464 ], [ 0, %omp.loop_nest.region459 ]
-  %13 = icmp slt i64 %12, 10000
+  %13 = icmp slt i64 %12, 1000
   br i1 %13, label %omp.loop_nest.region461, label %omp.loop_nest.region465
 
 omp.loop_nest.region465:                          ; preds = %omp.loop_nest.region460
@@ -1691,8 +1691,8 @@ omp_loop.inc451:                                  ; preds = %omp.region.cont457
 
 omp.loop_nest.region461:                          ; preds = %omp.loop_nest.region460
   %14 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %15 = getelementptr float, ptr %14, i32 50000000
-  %16 = mul nuw nsw i64 %10, 10000
+  %15 = getelementptr float, ptr %14, i32 500000
+  %16 = mul nuw nsw i64 %10, 1000
   %17 = add nuw nsw i64 %16, %12
   %18 = getelementptr inbounds nuw float, ptr %15, i64 %17
   store float 0.000000e+00, ptr %18, align 4
@@ -1700,7 +1700,7 @@ omp.loop_nest.region461:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region462:                          ; preds = %omp.loop_nest.region463, %omp.loop_nest.region461
   %19 = phi i64 [ %45, %omp.loop_nest.region463 ], [ 0, %omp.loop_nest.region461 ]
-  %20 = icmp slt i64 %19, 10000
+  %20 = icmp slt i64 %19, 1000
   br i1 %20, label %omp.loop_nest.region463, label %omp.loop_nest.region464
 
 omp.loop_nest.region464:                          ; preds = %omp.loop_nest.region462
@@ -1709,26 +1709,26 @@ omp.loop_nest.region464:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region463:                          ; preds = %omp.loop_nest.region462
   %22 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %3, 1
-  %23 = getelementptr float, ptr %22, i32 50000000
-  %24 = mul nuw nsw i64 %10, 10000
+  %23 = getelementptr float, ptr %22, i32 500000
+  %24 = mul nuw nsw i64 %10, 1000
   %25 = add nuw nsw i64 %24, %19
   %26 = getelementptr inbounds nuw float, ptr %23, i64 %25
   %27 = load float, ptr %26, align 4
-  %28 = mul nuw nsw i64 %19, 10000
+  %28 = mul nuw nsw i64 %19, 1000
   %29 = add nuw nsw i64 %28, %12
   %30 = getelementptr inbounds nuw float, ptr %loadgep_, i64 %29
   %31 = load float, ptr %30, align 4
   %32 = fmul float %27, %31
   %33 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %34 = getelementptr float, ptr %33, i32 50000000
-  %35 = mul nuw nsw i64 %10, 10000
+  %34 = getelementptr float, ptr %33, i32 500000
+  %35 = mul nuw nsw i64 %10, 1000
   %36 = add nuw nsw i64 %35, %12
   %37 = getelementptr inbounds nuw float, ptr %34, i64 %36
   %38 = load float, ptr %37, align 4
   %39 = fadd float %38, %32
   %40 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %41 = getelementptr float, ptr %40, i32 50000000
-  %42 = mul nuw nsw i64 %10, 10000
+  %41 = getelementptr float, ptr %40, i32 500000
+  %42 = mul nuw nsw i64 %10, 1000
   %43 = add nuw nsw i64 %42, %12
   %44 = getelementptr inbounds nuw float, ptr %41, i64 %43
   store float %39, ptr %44, align 4
@@ -1777,7 +1777,7 @@ omp.wsloop.region400:                             ; preds = %omp.par.region397
 
 omp_loop.preheader401:                            ; preds = %omp.wsloop.region400
   store i64 0, ptr %p.lowerbound422, align 4
-  store i64 2499, ptr %p.upperbound423, align 4
+  store i64 249, ptr %p.upperbound423, align 4
   store i64 1, ptr %p.stride424, align 4
   %omp_global_thread_num425 = call i32 @__kmpc_global_thread_num(ptr @1)
   call void @__kmpc_for_static_init_8u(ptr @1, i32 %omp_global_thread_num425, i32 34, ptr %p.lastiter421, ptr %p.lowerbound422, ptr %p.upperbound423, ptr %p.stride424, i64 1, i64 0)
@@ -1831,7 +1831,7 @@ omp.loop_nest.region413:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region414:                          ; preds = %omp.loop_nest.region418, %omp.loop_nest.region413
   %12 = phi i64 [ %21, %omp.loop_nest.region418 ], [ 0, %omp.loop_nest.region413 ]
-  %13 = icmp slt i64 %12, 10000
+  %13 = icmp slt i64 %12, 1000
   br i1 %13, label %omp.loop_nest.region415, label %omp.loop_nest.region419
 
 omp.loop_nest.region419:                          ; preds = %omp.loop_nest.region414
@@ -1850,8 +1850,8 @@ omp_loop.inc405:                                  ; preds = %omp.region.cont411
 
 omp.loop_nest.region415:                          ; preds = %omp.loop_nest.region414
   %14 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %15 = getelementptr float, ptr %14, i32 25000000
-  %16 = mul nuw nsw i64 %10, 10000
+  %15 = getelementptr float, ptr %14, i32 250000
+  %16 = mul nuw nsw i64 %10, 1000
   %17 = add nuw nsw i64 %16, %12
   %18 = getelementptr inbounds nuw float, ptr %15, i64 %17
   store float 0.000000e+00, ptr %18, align 4
@@ -1859,7 +1859,7 @@ omp.loop_nest.region415:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region416:                          ; preds = %omp.loop_nest.region417, %omp.loop_nest.region415
   %19 = phi i64 [ %45, %omp.loop_nest.region417 ], [ 0, %omp.loop_nest.region415 ]
-  %20 = icmp slt i64 %19, 10000
+  %20 = icmp slt i64 %19, 1000
   br i1 %20, label %omp.loop_nest.region417, label %omp.loop_nest.region418
 
 omp.loop_nest.region418:                          ; preds = %omp.loop_nest.region416
@@ -1868,26 +1868,26 @@ omp.loop_nest.region418:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region417:                          ; preds = %omp.loop_nest.region416
   %22 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %3, 1
-  %23 = getelementptr float, ptr %22, i32 25000000
-  %24 = mul nuw nsw i64 %10, 10000
+  %23 = getelementptr float, ptr %22, i32 250000
+  %24 = mul nuw nsw i64 %10, 1000
   %25 = add nuw nsw i64 %24, %19
   %26 = getelementptr inbounds nuw float, ptr %23, i64 %25
   %27 = load float, ptr %26, align 4
-  %28 = mul nuw nsw i64 %19, 10000
+  %28 = mul nuw nsw i64 %19, 1000
   %29 = add nuw nsw i64 %28, %12
   %30 = getelementptr inbounds nuw float, ptr %loadgep_, i64 %29
   %31 = load float, ptr %30, align 4
   %32 = fmul float %27, %31
   %33 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %34 = getelementptr float, ptr %33, i32 25000000
-  %35 = mul nuw nsw i64 %10, 10000
+  %34 = getelementptr float, ptr %33, i32 250000
+  %35 = mul nuw nsw i64 %10, 1000
   %36 = add nuw nsw i64 %35, %12
   %37 = getelementptr inbounds nuw float, ptr %34, i64 %36
   %38 = load float, ptr %37, align 4
   %39 = fadd float %38, %32
   %40 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %41 = getelementptr float, ptr %40, i32 25000000
-  %42 = mul nuw nsw i64 %10, 10000
+  %41 = getelementptr float, ptr %40, i32 250000
+  %42 = mul nuw nsw i64 %10, 1000
   %43 = add nuw nsw i64 %42, %12
   %44 = getelementptr inbounds nuw float, ptr %41, i64 %43
   store float %39, ptr %44, align 4
@@ -1936,7 +1936,7 @@ omp.wsloop.region354:                             ; preds = %omp.par.region351
 
 omp_loop.preheader355:                            ; preds = %omp.wsloop.region354
   store i64 0, ptr %p.lowerbound376, align 4
-  store i64 2499, ptr %p.upperbound377, align 4
+  store i64 249, ptr %p.upperbound377, align 4
   store i64 1, ptr %p.stride378, align 4
   %omp_global_thread_num379 = call i32 @__kmpc_global_thread_num(ptr @1)
   call void @__kmpc_for_static_init_8u(ptr @1, i32 %omp_global_thread_num379, i32 34, ptr %p.lastiter375, ptr %p.lowerbound376, ptr %p.upperbound377, ptr %p.stride378, i64 1, i64 0)
@@ -1990,7 +1990,7 @@ omp.loop_nest.region367:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region368:                          ; preds = %omp.loop_nest.region372, %omp.loop_nest.region367
   %12 = phi i64 [ %20, %omp.loop_nest.region372 ], [ 0, %omp.loop_nest.region367 ]
-  %13 = icmp slt i64 %12, 10000
+  %13 = icmp slt i64 %12, 1000
   br i1 %13, label %omp.loop_nest.region369, label %omp.loop_nest.region373
 
 omp.loop_nest.region373:                          ; preds = %omp.loop_nest.region368
@@ -2009,7 +2009,7 @@ omp_loop.inc359:                                  ; preds = %omp.region.cont365
 
 omp.loop_nest.region369:                          ; preds = %omp.loop_nest.region368
   %14 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %15 = mul nuw nsw i64 %10, 10000
+  %15 = mul nuw nsw i64 %10, 1000
   %16 = add nuw nsw i64 %15, %12
   %17 = getelementptr inbounds nuw float, ptr %14, i64 %16
   store float 0.000000e+00, ptr %17, align 4
@@ -2017,7 +2017,7 @@ omp.loop_nest.region369:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region370:                          ; preds = %omp.loop_nest.region371, %omp.loop_nest.region369
   %18 = phi i64 [ %41, %omp.loop_nest.region371 ], [ 0, %omp.loop_nest.region369 ]
-  %19 = icmp slt i64 %18, 10000
+  %19 = icmp slt i64 %18, 1000
   br i1 %19, label %omp.loop_nest.region371, label %omp.loop_nest.region372
 
 omp.loop_nest.region372:                          ; preds = %omp.loop_nest.region370
@@ -2026,23 +2026,23 @@ omp.loop_nest.region372:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region371:                          ; preds = %omp.loop_nest.region370
   %21 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %3, 1
-  %22 = mul nuw nsw i64 %10, 10000
+  %22 = mul nuw nsw i64 %10, 1000
   %23 = add nuw nsw i64 %22, %18
   %24 = getelementptr inbounds nuw float, ptr %21, i64 %23
   %25 = load float, ptr %24, align 4
-  %26 = mul nuw nsw i64 %18, 10000
+  %26 = mul nuw nsw i64 %18, 1000
   %27 = add nuw nsw i64 %26, %12
   %28 = getelementptr inbounds nuw float, ptr %loadgep_, i64 %27
   %29 = load float, ptr %28, align 4
   %30 = fmul float %25, %29
   %31 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %32 = mul nuw nsw i64 %10, 10000
+  %32 = mul nuw nsw i64 %10, 1000
   %33 = add nuw nsw i64 %32, %12
   %34 = getelementptr inbounds nuw float, ptr %31, i64 %33
   %35 = load float, ptr %34, align 4
   %36 = fadd float %35, %30
   %37 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %38 = mul nuw nsw i64 %10, 10000
+  %38 = mul nuw nsw i64 %10, 1000
   %39 = add nuw nsw i64 %38, %12
   %40 = getelementptr inbounds nuw float, ptr %37, i64 %39
   store float %36, ptr %40, align 4
@@ -2091,7 +2091,7 @@ omp.wsloop.region308:                             ; preds = %omp.par.region305
 
 omp_loop.preheader309:                            ; preds = %omp.wsloop.region308
   store i64 0, ptr %p.lowerbound330, align 4
-  store i64 2499, ptr %p.upperbound331, align 4
+  store i64 249, ptr %p.upperbound331, align 4
   store i64 1, ptr %p.stride332, align 4
   %omp_global_thread_num333 = call i32 @__kmpc_global_thread_num(ptr @1)
   call void @__kmpc_for_static_init_8u(ptr @1, i32 %omp_global_thread_num333, i32 34, ptr %p.lastiter329, ptr %p.lowerbound330, ptr %p.upperbound331, ptr %p.stride332, i64 1, i64 0)
@@ -2145,7 +2145,7 @@ omp.loop_nest.region321:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region322:                          ; preds = %omp.loop_nest.region326, %omp.loop_nest.region321
   %12 = phi i64 [ %21, %omp.loop_nest.region326 ], [ 0, %omp.loop_nest.region321 ]
-  %13 = icmp slt i64 %12, 10000
+  %13 = icmp slt i64 %12, 1000
   br i1 %13, label %omp.loop_nest.region323, label %omp.loop_nest.region327
 
 omp.loop_nest.region327:                          ; preds = %omp.loop_nest.region322
@@ -2164,8 +2164,8 @@ omp_loop.inc313:                                  ; preds = %omp.region.cont319
 
 omp.loop_nest.region323:                          ; preds = %omp.loop_nest.region322
   %14 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %15 = getelementptr float, ptr %14, i32 75000000
-  %16 = mul nuw nsw i64 %10, 10000
+  %15 = getelementptr float, ptr %14, i32 750000
+  %16 = mul nuw nsw i64 %10, 1000
   %17 = add nuw nsw i64 %16, %12
   %18 = getelementptr inbounds nuw float, ptr %15, i64 %17
   store float 0.000000e+00, ptr %18, align 4
@@ -2173,7 +2173,7 @@ omp.loop_nest.region323:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region324:                          ; preds = %omp.loop_nest.region325, %omp.loop_nest.region323
   %19 = phi i64 [ %45, %omp.loop_nest.region325 ], [ 0, %omp.loop_nest.region323 ]
-  %20 = icmp slt i64 %19, 10000
+  %20 = icmp slt i64 %19, 1000
   br i1 %20, label %omp.loop_nest.region325, label %omp.loop_nest.region326
 
 omp.loop_nest.region326:                          ; preds = %omp.loop_nest.region324
@@ -2182,26 +2182,26 @@ omp.loop_nest.region326:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region325:                          ; preds = %omp.loop_nest.region324
   %22 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %3, 1
-  %23 = getelementptr float, ptr %22, i32 75000000
-  %24 = mul nuw nsw i64 %10, 10000
+  %23 = getelementptr float, ptr %22, i32 750000
+  %24 = mul nuw nsw i64 %10, 1000
   %25 = add nuw nsw i64 %24, %19
   %26 = getelementptr inbounds nuw float, ptr %23, i64 %25
   %27 = load float, ptr %26, align 4
-  %28 = mul nuw nsw i64 %19, 10000
+  %28 = mul nuw nsw i64 %19, 1000
   %29 = add nuw nsw i64 %28, %12
   %30 = getelementptr inbounds nuw float, ptr %loadgep_, i64 %29
   %31 = load float, ptr %30, align 4
   %32 = fmul float %27, %31
   %33 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %34 = getelementptr float, ptr %33, i32 75000000
-  %35 = mul nuw nsw i64 %10, 10000
+  %34 = getelementptr float, ptr %33, i32 750000
+  %35 = mul nuw nsw i64 %10, 1000
   %36 = add nuw nsw i64 %35, %12
   %37 = getelementptr inbounds nuw float, ptr %34, i64 %36
   %38 = load float, ptr %37, align 4
   %39 = fadd float %38, %32
   %40 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %41 = getelementptr float, ptr %40, i32 75000000
-  %42 = mul nuw nsw i64 %10, 10000
+  %41 = getelementptr float, ptr %40, i32 750000
+  %42 = mul nuw nsw i64 %10, 1000
   %43 = add nuw nsw i64 %42, %12
   %44 = getelementptr inbounds nuw float, ptr %41, i64 %43
   store float %39, ptr %44, align 4
@@ -2250,7 +2250,7 @@ omp.wsloop.region262:                             ; preds = %omp.par.region259
 
 omp_loop.preheader263:                            ; preds = %omp.wsloop.region262
   store i64 0, ptr %p.lowerbound284, align 4
-  store i64 2499, ptr %p.upperbound285, align 4
+  store i64 249, ptr %p.upperbound285, align 4
   store i64 1, ptr %p.stride286, align 4
   %omp_global_thread_num287 = call i32 @__kmpc_global_thread_num(ptr @1)
   call void @__kmpc_for_static_init_8u(ptr @1, i32 %omp_global_thread_num287, i32 34, ptr %p.lastiter283, ptr %p.lowerbound284, ptr %p.upperbound285, ptr %p.stride286, i64 1, i64 0)
@@ -2304,7 +2304,7 @@ omp.loop_nest.region275:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region276:                          ; preds = %omp.loop_nest.region280, %omp.loop_nest.region275
   %12 = phi i64 [ %21, %omp.loop_nest.region280 ], [ 0, %omp.loop_nest.region275 ]
-  %13 = icmp slt i64 %12, 10000
+  %13 = icmp slt i64 %12, 1000
   br i1 %13, label %omp.loop_nest.region277, label %omp.loop_nest.region281
 
 omp.loop_nest.region281:                          ; preds = %omp.loop_nest.region276
@@ -2323,8 +2323,8 @@ omp_loop.inc267:                                  ; preds = %omp.region.cont273
 
 omp.loop_nest.region277:                          ; preds = %omp.loop_nest.region276
   %14 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %15 = getelementptr float, ptr %14, i32 50000000
-  %16 = mul nuw nsw i64 %10, 10000
+  %15 = getelementptr float, ptr %14, i32 500000
+  %16 = mul nuw nsw i64 %10, 1000
   %17 = add nuw nsw i64 %16, %12
   %18 = getelementptr inbounds nuw float, ptr %15, i64 %17
   store float 0.000000e+00, ptr %18, align 4
@@ -2332,7 +2332,7 @@ omp.loop_nest.region277:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region278:                          ; preds = %omp.loop_nest.region279, %omp.loop_nest.region277
   %19 = phi i64 [ %45, %omp.loop_nest.region279 ], [ 0, %omp.loop_nest.region277 ]
-  %20 = icmp slt i64 %19, 10000
+  %20 = icmp slt i64 %19, 1000
   br i1 %20, label %omp.loop_nest.region279, label %omp.loop_nest.region280
 
 omp.loop_nest.region280:                          ; preds = %omp.loop_nest.region278
@@ -2341,26 +2341,26 @@ omp.loop_nest.region280:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region279:                          ; preds = %omp.loop_nest.region278
   %22 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %3, 1
-  %23 = getelementptr float, ptr %22, i32 50000000
-  %24 = mul nuw nsw i64 %10, 10000
+  %23 = getelementptr float, ptr %22, i32 500000
+  %24 = mul nuw nsw i64 %10, 1000
   %25 = add nuw nsw i64 %24, %19
   %26 = getelementptr inbounds nuw float, ptr %23, i64 %25
   %27 = load float, ptr %26, align 4
-  %28 = mul nuw nsw i64 %19, 10000
+  %28 = mul nuw nsw i64 %19, 1000
   %29 = add nuw nsw i64 %28, %12
   %30 = getelementptr inbounds nuw float, ptr %loadgep_, i64 %29
   %31 = load float, ptr %30, align 4
   %32 = fmul float %27, %31
   %33 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %34 = getelementptr float, ptr %33, i32 50000000
-  %35 = mul nuw nsw i64 %10, 10000
+  %34 = getelementptr float, ptr %33, i32 500000
+  %35 = mul nuw nsw i64 %10, 1000
   %36 = add nuw nsw i64 %35, %12
   %37 = getelementptr inbounds nuw float, ptr %34, i64 %36
   %38 = load float, ptr %37, align 4
   %39 = fadd float %38, %32
   %40 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %41 = getelementptr float, ptr %40, i32 50000000
-  %42 = mul nuw nsw i64 %10, 10000
+  %41 = getelementptr float, ptr %40, i32 500000
+  %42 = mul nuw nsw i64 %10, 1000
   %43 = add nuw nsw i64 %42, %12
   %44 = getelementptr inbounds nuw float, ptr %41, i64 %43
   store float %39, ptr %44, align 4
@@ -2409,7 +2409,7 @@ omp.wsloop.region216:                             ; preds = %omp.par.region213
 
 omp_loop.preheader217:                            ; preds = %omp.wsloop.region216
   store i64 0, ptr %p.lowerbound238, align 4
-  store i64 2499, ptr %p.upperbound239, align 4
+  store i64 249, ptr %p.upperbound239, align 4
   store i64 1, ptr %p.stride240, align 4
   %omp_global_thread_num241 = call i32 @__kmpc_global_thread_num(ptr @1)
   call void @__kmpc_for_static_init_8u(ptr @1, i32 %omp_global_thread_num241, i32 34, ptr %p.lastiter237, ptr %p.lowerbound238, ptr %p.upperbound239, ptr %p.stride240, i64 1, i64 0)
@@ -2463,7 +2463,7 @@ omp.loop_nest.region229:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region230:                          ; preds = %omp.loop_nest.region234, %omp.loop_nest.region229
   %12 = phi i64 [ %21, %omp.loop_nest.region234 ], [ 0, %omp.loop_nest.region229 ]
-  %13 = icmp slt i64 %12, 10000
+  %13 = icmp slt i64 %12, 1000
   br i1 %13, label %omp.loop_nest.region231, label %omp.loop_nest.region235
 
 omp.loop_nest.region235:                          ; preds = %omp.loop_nest.region230
@@ -2482,8 +2482,8 @@ omp_loop.inc221:                                  ; preds = %omp.region.cont227
 
 omp.loop_nest.region231:                          ; preds = %omp.loop_nest.region230
   %14 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %15 = getelementptr float, ptr %14, i32 25000000
-  %16 = mul nuw nsw i64 %10, 10000
+  %15 = getelementptr float, ptr %14, i32 250000
+  %16 = mul nuw nsw i64 %10, 1000
   %17 = add nuw nsw i64 %16, %12
   %18 = getelementptr inbounds nuw float, ptr %15, i64 %17
   store float 0.000000e+00, ptr %18, align 4
@@ -2491,7 +2491,7 @@ omp.loop_nest.region231:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region232:                          ; preds = %omp.loop_nest.region233, %omp.loop_nest.region231
   %19 = phi i64 [ %45, %omp.loop_nest.region233 ], [ 0, %omp.loop_nest.region231 ]
-  %20 = icmp slt i64 %19, 10000
+  %20 = icmp slt i64 %19, 1000
   br i1 %20, label %omp.loop_nest.region233, label %omp.loop_nest.region234
 
 omp.loop_nest.region234:                          ; preds = %omp.loop_nest.region232
@@ -2500,26 +2500,26 @@ omp.loop_nest.region234:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region233:                          ; preds = %omp.loop_nest.region232
   %22 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %3, 1
-  %23 = getelementptr float, ptr %22, i32 25000000
-  %24 = mul nuw nsw i64 %10, 10000
+  %23 = getelementptr float, ptr %22, i32 250000
+  %24 = mul nuw nsw i64 %10, 1000
   %25 = add nuw nsw i64 %24, %19
   %26 = getelementptr inbounds nuw float, ptr %23, i64 %25
   %27 = load float, ptr %26, align 4
-  %28 = mul nuw nsw i64 %19, 10000
+  %28 = mul nuw nsw i64 %19, 1000
   %29 = add nuw nsw i64 %28, %12
   %30 = getelementptr inbounds nuw float, ptr %loadgep_, i64 %29
   %31 = load float, ptr %30, align 4
   %32 = fmul float %27, %31
   %33 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %34 = getelementptr float, ptr %33, i32 25000000
-  %35 = mul nuw nsw i64 %10, 10000
+  %34 = getelementptr float, ptr %33, i32 250000
+  %35 = mul nuw nsw i64 %10, 1000
   %36 = add nuw nsw i64 %35, %12
   %37 = getelementptr inbounds nuw float, ptr %34, i64 %36
   %38 = load float, ptr %37, align 4
   %39 = fadd float %38, %32
   %40 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %41 = getelementptr float, ptr %40, i32 25000000
-  %42 = mul nuw nsw i64 %10, 10000
+  %41 = getelementptr float, ptr %40, i32 250000
+  %42 = mul nuw nsw i64 %10, 1000
   %43 = add nuw nsw i64 %42, %12
   %44 = getelementptr inbounds nuw float, ptr %41, i64 %43
   store float %39, ptr %44, align 4
@@ -2568,7 +2568,7 @@ omp.wsloop.region170:                             ; preds = %omp.par.region167
 
 omp_loop.preheader171:                            ; preds = %omp.wsloop.region170
   store i64 0, ptr %p.lowerbound192, align 4
-  store i64 2499, ptr %p.upperbound193, align 4
+  store i64 249, ptr %p.upperbound193, align 4
   store i64 1, ptr %p.stride194, align 4
   %omp_global_thread_num195 = call i32 @__kmpc_global_thread_num(ptr @1)
   call void @__kmpc_for_static_init_8u(ptr @1, i32 %omp_global_thread_num195, i32 34, ptr %p.lastiter191, ptr %p.lowerbound192, ptr %p.upperbound193, ptr %p.stride194, i64 1, i64 0)
@@ -2622,7 +2622,7 @@ omp.loop_nest.region183:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region184:                          ; preds = %omp.loop_nest.region188, %omp.loop_nest.region183
   %12 = phi i64 [ %20, %omp.loop_nest.region188 ], [ 0, %omp.loop_nest.region183 ]
-  %13 = icmp slt i64 %12, 10000
+  %13 = icmp slt i64 %12, 1000
   br i1 %13, label %omp.loop_nest.region185, label %omp.loop_nest.region189
 
 omp.loop_nest.region189:                          ; preds = %omp.loop_nest.region184
@@ -2641,7 +2641,7 @@ omp_loop.inc175:                                  ; preds = %omp.region.cont181
 
 omp.loop_nest.region185:                          ; preds = %omp.loop_nest.region184
   %14 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %15 = mul nuw nsw i64 %10, 10000
+  %15 = mul nuw nsw i64 %10, 1000
   %16 = add nuw nsw i64 %15, %12
   %17 = getelementptr inbounds nuw float, ptr %14, i64 %16
   store float 0.000000e+00, ptr %17, align 4
@@ -2649,7 +2649,7 @@ omp.loop_nest.region185:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region186:                          ; preds = %omp.loop_nest.region187, %omp.loop_nest.region185
   %18 = phi i64 [ %41, %omp.loop_nest.region187 ], [ 0, %omp.loop_nest.region185 ]
-  %19 = icmp slt i64 %18, 10000
+  %19 = icmp slt i64 %18, 1000
   br i1 %19, label %omp.loop_nest.region187, label %omp.loop_nest.region188
 
 omp.loop_nest.region188:                          ; preds = %omp.loop_nest.region186
@@ -2658,23 +2658,23 @@ omp.loop_nest.region188:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region187:                          ; preds = %omp.loop_nest.region186
   %21 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %3, 1
-  %22 = mul nuw nsw i64 %10, 10000
+  %22 = mul nuw nsw i64 %10, 1000
   %23 = add nuw nsw i64 %22, %18
   %24 = getelementptr inbounds nuw float, ptr %21, i64 %23
   %25 = load float, ptr %24, align 4
-  %26 = mul nuw nsw i64 %18, 10000
+  %26 = mul nuw nsw i64 %18, 1000
   %27 = add nuw nsw i64 %26, %12
   %28 = getelementptr inbounds nuw float, ptr %loadgep_, i64 %27
   %29 = load float, ptr %28, align 4
   %30 = fmul float %25, %29
   %31 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %32 = mul nuw nsw i64 %10, 10000
+  %32 = mul nuw nsw i64 %10, 1000
   %33 = add nuw nsw i64 %32, %12
   %34 = getelementptr inbounds nuw float, ptr %31, i64 %33
   %35 = load float, ptr %34, align 4
   %36 = fadd float %35, %30
   %37 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %38 = mul nuw nsw i64 %10, 10000
+  %38 = mul nuw nsw i64 %10, 1000
   %39 = add nuw nsw i64 %38, %12
   %40 = getelementptr inbounds nuw float, ptr %37, i64 %39
   store float %36, ptr %40, align 4
@@ -2723,7 +2723,7 @@ omp.wsloop.region124:                             ; preds = %omp.par.region121
 
 omp_loop.preheader125:                            ; preds = %omp.wsloop.region124
   store i64 0, ptr %p.lowerbound146, align 4
-  store i64 2499, ptr %p.upperbound147, align 4
+  store i64 249, ptr %p.upperbound147, align 4
   store i64 1, ptr %p.stride148, align 4
   %omp_global_thread_num149 = call i32 @__kmpc_global_thread_num(ptr @1)
   call void @__kmpc_for_static_init_8u(ptr @1, i32 %omp_global_thread_num149, i32 34, ptr %p.lastiter145, ptr %p.lowerbound146, ptr %p.upperbound147, ptr %p.stride148, i64 1, i64 0)
@@ -2777,7 +2777,7 @@ omp.loop_nest.region137:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region138:                          ; preds = %omp.loop_nest.region142, %omp.loop_nest.region137
   %12 = phi i64 [ %21, %omp.loop_nest.region142 ], [ 0, %omp.loop_nest.region137 ]
-  %13 = icmp slt i64 %12, 10000
+  %13 = icmp slt i64 %12, 1000
   br i1 %13, label %omp.loop_nest.region139, label %omp.loop_nest.region143
 
 omp.loop_nest.region143:                          ; preds = %omp.loop_nest.region138
@@ -2796,8 +2796,8 @@ omp_loop.inc129:                                  ; preds = %omp.region.cont135
 
 omp.loop_nest.region139:                          ; preds = %omp.loop_nest.region138
   %14 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %15 = getelementptr float, ptr %14, i32 75000000
-  %16 = mul nuw nsw i64 %10, 10000
+  %15 = getelementptr float, ptr %14, i32 750000
+  %16 = mul nuw nsw i64 %10, 1000
   %17 = add nuw nsw i64 %16, %12
   %18 = getelementptr inbounds nuw float, ptr %15, i64 %17
   store float 0.000000e+00, ptr %18, align 4
@@ -2805,7 +2805,7 @@ omp.loop_nest.region139:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region140:                          ; preds = %omp.loop_nest.region141, %omp.loop_nest.region139
   %19 = phi i64 [ %45, %omp.loop_nest.region141 ], [ 0, %omp.loop_nest.region139 ]
-  %20 = icmp slt i64 %19, 10000
+  %20 = icmp slt i64 %19, 1000
   br i1 %20, label %omp.loop_nest.region141, label %omp.loop_nest.region142
 
 omp.loop_nest.region142:                          ; preds = %omp.loop_nest.region140
@@ -2814,26 +2814,26 @@ omp.loop_nest.region142:                          ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region141:                          ; preds = %omp.loop_nest.region140
   %22 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %3, 1
-  %23 = getelementptr float, ptr %22, i32 75000000
-  %24 = mul nuw nsw i64 %10, 10000
+  %23 = getelementptr float, ptr %22, i32 750000
+  %24 = mul nuw nsw i64 %10, 1000
   %25 = add nuw nsw i64 %24, %19
   %26 = getelementptr inbounds nuw float, ptr %23, i64 %25
   %27 = load float, ptr %26, align 4
-  %28 = mul nuw nsw i64 %19, 10000
+  %28 = mul nuw nsw i64 %19, 1000
   %29 = add nuw nsw i64 %28, %12
   %30 = getelementptr inbounds nuw float, ptr %loadgep_, i64 %29
   %31 = load float, ptr %30, align 4
   %32 = fmul float %27, %31
   %33 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %34 = getelementptr float, ptr %33, i32 75000000
-  %35 = mul nuw nsw i64 %10, 10000
+  %34 = getelementptr float, ptr %33, i32 750000
+  %35 = mul nuw nsw i64 %10, 1000
   %36 = add nuw nsw i64 %35, %12
   %37 = getelementptr inbounds nuw float, ptr %34, i64 %36
   %38 = load float, ptr %37, align 4
   %39 = fadd float %38, %32
   %40 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %41 = getelementptr float, ptr %40, i32 75000000
-  %42 = mul nuw nsw i64 %10, 10000
+  %41 = getelementptr float, ptr %40, i32 750000
+  %42 = mul nuw nsw i64 %10, 1000
   %43 = add nuw nsw i64 %42, %12
   %44 = getelementptr inbounds nuw float, ptr %41, i64 %43
   store float %39, ptr %44, align 4
@@ -2882,7 +2882,7 @@ omp.wsloop.region78:                              ; preds = %omp.par.region75
 
 omp_loop.preheader79:                             ; preds = %omp.wsloop.region78
   store i64 0, ptr %p.lowerbound100, align 4
-  store i64 2499, ptr %p.upperbound101, align 4
+  store i64 249, ptr %p.upperbound101, align 4
   store i64 1, ptr %p.stride102, align 4
   %omp_global_thread_num103 = call i32 @__kmpc_global_thread_num(ptr @1)
   call void @__kmpc_for_static_init_8u(ptr @1, i32 %omp_global_thread_num103, i32 34, ptr %p.lastiter99, ptr %p.lowerbound100, ptr %p.upperbound101, ptr %p.stride102, i64 1, i64 0)
@@ -2936,7 +2936,7 @@ omp.loop_nest.region91:                           ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region92:                           ; preds = %omp.loop_nest.region96, %omp.loop_nest.region91
   %12 = phi i64 [ %21, %omp.loop_nest.region96 ], [ 0, %omp.loop_nest.region91 ]
-  %13 = icmp slt i64 %12, 10000
+  %13 = icmp slt i64 %12, 1000
   br i1 %13, label %omp.loop_nest.region93, label %omp.loop_nest.region97
 
 omp.loop_nest.region97:                           ; preds = %omp.loop_nest.region92
@@ -2955,8 +2955,8 @@ omp_loop.inc83:                                   ; preds = %omp.region.cont89
 
 omp.loop_nest.region93:                           ; preds = %omp.loop_nest.region92
   %14 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %15 = getelementptr float, ptr %14, i32 50000000
-  %16 = mul nuw nsw i64 %10, 10000
+  %15 = getelementptr float, ptr %14, i32 500000
+  %16 = mul nuw nsw i64 %10, 1000
   %17 = add nuw nsw i64 %16, %12
   %18 = getelementptr inbounds nuw float, ptr %15, i64 %17
   store float 0.000000e+00, ptr %18, align 4
@@ -2964,7 +2964,7 @@ omp.loop_nest.region93:                           ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region94:                           ; preds = %omp.loop_nest.region95, %omp.loop_nest.region93
   %19 = phi i64 [ %45, %omp.loop_nest.region95 ], [ 0, %omp.loop_nest.region93 ]
-  %20 = icmp slt i64 %19, 10000
+  %20 = icmp slt i64 %19, 1000
   br i1 %20, label %omp.loop_nest.region95, label %omp.loop_nest.region96
 
 omp.loop_nest.region96:                           ; preds = %omp.loop_nest.region94
@@ -2973,26 +2973,26 @@ omp.loop_nest.region96:                           ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region95:                           ; preds = %omp.loop_nest.region94
   %22 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %3, 1
-  %23 = getelementptr float, ptr %22, i32 50000000
-  %24 = mul nuw nsw i64 %10, 10000
+  %23 = getelementptr float, ptr %22, i32 500000
+  %24 = mul nuw nsw i64 %10, 1000
   %25 = add nuw nsw i64 %24, %19
   %26 = getelementptr inbounds nuw float, ptr %23, i64 %25
   %27 = load float, ptr %26, align 4
-  %28 = mul nuw nsw i64 %19, 10000
+  %28 = mul nuw nsw i64 %19, 1000
   %29 = add nuw nsw i64 %28, %12
   %30 = getelementptr inbounds nuw float, ptr %loadgep_, i64 %29
   %31 = load float, ptr %30, align 4
   %32 = fmul float %27, %31
   %33 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %34 = getelementptr float, ptr %33, i32 50000000
-  %35 = mul nuw nsw i64 %10, 10000
+  %34 = getelementptr float, ptr %33, i32 500000
+  %35 = mul nuw nsw i64 %10, 1000
   %36 = add nuw nsw i64 %35, %12
   %37 = getelementptr inbounds nuw float, ptr %34, i64 %36
   %38 = load float, ptr %37, align 4
   %39 = fadd float %38, %32
   %40 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %41 = getelementptr float, ptr %40, i32 50000000
-  %42 = mul nuw nsw i64 %10, 10000
+  %41 = getelementptr float, ptr %40, i32 500000
+  %42 = mul nuw nsw i64 %10, 1000
   %43 = add nuw nsw i64 %42, %12
   %44 = getelementptr inbounds nuw float, ptr %41, i64 %43
   store float %39, ptr %44, align 4
@@ -3041,7 +3041,7 @@ omp.wsloop.region32:                              ; preds = %omp.par.region29
 
 omp_loop.preheader33:                             ; preds = %omp.wsloop.region32
   store i64 0, ptr %p.lowerbound54, align 4
-  store i64 2499, ptr %p.upperbound55, align 4
+  store i64 249, ptr %p.upperbound55, align 4
   store i64 1, ptr %p.stride56, align 4
   %omp_global_thread_num57 = call i32 @__kmpc_global_thread_num(ptr @1)
   call void @__kmpc_for_static_init_8u(ptr @1, i32 %omp_global_thread_num57, i32 34, ptr %p.lastiter53, ptr %p.lowerbound54, ptr %p.upperbound55, ptr %p.stride56, i64 1, i64 0)
@@ -3095,7 +3095,7 @@ omp.loop_nest.region45:                           ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region46:                           ; preds = %omp.loop_nest.region50, %omp.loop_nest.region45
   %12 = phi i64 [ %21, %omp.loop_nest.region50 ], [ 0, %omp.loop_nest.region45 ]
-  %13 = icmp slt i64 %12, 10000
+  %13 = icmp slt i64 %12, 1000
   br i1 %13, label %omp.loop_nest.region47, label %omp.loop_nest.region51
 
 omp.loop_nest.region51:                           ; preds = %omp.loop_nest.region46
@@ -3114,8 +3114,8 @@ omp_loop.inc37:                                   ; preds = %omp.region.cont43
 
 omp.loop_nest.region47:                           ; preds = %omp.loop_nest.region46
   %14 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %15 = getelementptr float, ptr %14, i32 25000000
-  %16 = mul nuw nsw i64 %10, 10000
+  %15 = getelementptr float, ptr %14, i32 250000
+  %16 = mul nuw nsw i64 %10, 1000
   %17 = add nuw nsw i64 %16, %12
   %18 = getelementptr inbounds nuw float, ptr %15, i64 %17
   store float 0.000000e+00, ptr %18, align 4
@@ -3123,7 +3123,7 @@ omp.loop_nest.region47:                           ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region48:                           ; preds = %omp.loop_nest.region49, %omp.loop_nest.region47
   %19 = phi i64 [ %45, %omp.loop_nest.region49 ], [ 0, %omp.loop_nest.region47 ]
-  %20 = icmp slt i64 %19, 10000
+  %20 = icmp slt i64 %19, 1000
   br i1 %20, label %omp.loop_nest.region49, label %omp.loop_nest.region50
 
 omp.loop_nest.region50:                           ; preds = %omp.loop_nest.region48
@@ -3132,26 +3132,26 @@ omp.loop_nest.region50:                           ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region49:                           ; preds = %omp.loop_nest.region48
   %22 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %3, 1
-  %23 = getelementptr float, ptr %22, i32 25000000
-  %24 = mul nuw nsw i64 %10, 10000
+  %23 = getelementptr float, ptr %22, i32 250000
+  %24 = mul nuw nsw i64 %10, 1000
   %25 = add nuw nsw i64 %24, %19
   %26 = getelementptr inbounds nuw float, ptr %23, i64 %25
   %27 = load float, ptr %26, align 4
-  %28 = mul nuw nsw i64 %19, 10000
+  %28 = mul nuw nsw i64 %19, 1000
   %29 = add nuw nsw i64 %28, %12
   %30 = getelementptr inbounds nuw float, ptr %loadgep_, i64 %29
   %31 = load float, ptr %30, align 4
   %32 = fmul float %27, %31
   %33 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %34 = getelementptr float, ptr %33, i32 25000000
-  %35 = mul nuw nsw i64 %10, 10000
+  %34 = getelementptr float, ptr %33, i32 250000
+  %35 = mul nuw nsw i64 %10, 1000
   %36 = add nuw nsw i64 %35, %12
   %37 = getelementptr inbounds nuw float, ptr %34, i64 %36
   %38 = load float, ptr %37, align 4
   %39 = fadd float %38, %32
   %40 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %41 = getelementptr float, ptr %40, i32 25000000
-  %42 = mul nuw nsw i64 %10, 10000
+  %41 = getelementptr float, ptr %40, i32 250000
+  %42 = mul nuw nsw i64 %10, 1000
   %43 = add nuw nsw i64 %42, %12
   %44 = getelementptr inbounds nuw float, ptr %41, i64 %43
   store float %39, ptr %44, align 4
@@ -3200,7 +3200,7 @@ omp.wsloop.region:                                ; preds = %omp.par.region1
 
 omp_loop.preheader:                               ; preds = %omp.wsloop.region
   store i64 0, ptr %p.lowerbound, align 4
-  store i64 2499, ptr %p.upperbound, align 4
+  store i64 249, ptr %p.upperbound, align 4
   store i64 1, ptr %p.stride, align 4
   %omp_global_thread_num13 = call i32 @__kmpc_global_thread_num(ptr @1)
   call void @__kmpc_for_static_init_8u(ptr @1, i32 %omp_global_thread_num13, i32 34, ptr %p.lastiter, ptr %p.lowerbound, ptr %p.upperbound, ptr %p.stride, i64 1, i64 0)
@@ -3254,7 +3254,7 @@ omp.loop_nest.region5:                            ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region6:                            ; preds = %omp.loop_nest.region10, %omp.loop_nest.region5
   %12 = phi i64 [ %20, %omp.loop_nest.region10 ], [ 0, %omp.loop_nest.region5 ]
-  %13 = icmp slt i64 %12, 10000
+  %13 = icmp slt i64 %12, 1000
   br i1 %13, label %omp.loop_nest.region7, label %omp.loop_nest.region11
 
 omp.loop_nest.region11:                           ; preds = %omp.loop_nest.region6
@@ -3273,7 +3273,7 @@ omp_loop.inc:                                     ; preds = %omp.region.cont4
 
 omp.loop_nest.region7:                            ; preds = %omp.loop_nest.region6
   %14 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %15 = mul nuw nsw i64 %10, 10000
+  %15 = mul nuw nsw i64 %10, 1000
   %16 = add nuw nsw i64 %15, %12
   %17 = getelementptr inbounds nuw float, ptr %14, i64 %16
   store float 0.000000e+00, ptr %17, align 4
@@ -3281,7 +3281,7 @@ omp.loop_nest.region7:                            ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region8:                            ; preds = %omp.loop_nest.region9, %omp.loop_nest.region7
   %18 = phi i64 [ %41, %omp.loop_nest.region9 ], [ 0, %omp.loop_nest.region7 ]
-  %19 = icmp slt i64 %18, 10000
+  %19 = icmp slt i64 %18, 1000
   br i1 %19, label %omp.loop_nest.region9, label %omp.loop_nest.region10
 
 omp.loop_nest.region10:                           ; preds = %omp.loop_nest.region8
@@ -3290,23 +3290,23 @@ omp.loop_nest.region10:                           ; preds = %omp.loop_nest.regio
 
 omp.loop_nest.region9:                            ; preds = %omp.loop_nest.region8
   %21 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %3, 1
-  %22 = mul nuw nsw i64 %10, 10000
+  %22 = mul nuw nsw i64 %10, 1000
   %23 = add nuw nsw i64 %22, %18
   %24 = getelementptr inbounds nuw float, ptr %21, i64 %23
   %25 = load float, ptr %24, align 4
-  %26 = mul nuw nsw i64 %18, 10000
+  %26 = mul nuw nsw i64 %18, 1000
   %27 = add nuw nsw i64 %26, %12
   %28 = getelementptr inbounds nuw float, ptr %loadgep_, i64 %27
   %29 = load float, ptr %28, align 4
   %30 = fmul float %25, %29
   %31 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %32 = mul nuw nsw i64 %10, 10000
+  %32 = mul nuw nsw i64 %10, 1000
   %33 = add nuw nsw i64 %32, %12
   %34 = getelementptr inbounds nuw float, ptr %31, i64 %33
   %35 = load float, ptr %34, align 4
   %36 = fadd float %35, %30
   %37 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %2, 1
-  %38 = mul nuw nsw i64 %10, 10000
+  %38 = mul nuw nsw i64 %10, 1000
   %39 = add nuw nsw i64 %38, %12
   %40 = getelementptr inbounds nuw float, ptr %37, i64 %39
   store float %36, ptr %40, align 4

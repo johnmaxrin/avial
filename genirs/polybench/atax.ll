@@ -135,40 +135,40 @@ define void @kernel_atax(i32 %0, i32 %1, ptr %2, ptr %3, i64 %4, i64 %5, i64 %6,
   br i1 %83, label %84, label %466
 
 84:                                               ; preds = %81
-  %85 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 0
-  %86 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 1
+  %85 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 0
+  %86 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 1
   %87 = insertvalue { ptr, ptr, i64 } poison, ptr %85, 0
   %88 = insertvalue { ptr, ptr, i64 } %87, ptr %86, 1
   %89 = insertvalue { ptr, ptr, i64 } %88, i64 0, 2
-  %90 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 2
-  %91 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 3, 0
-  %92 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 3, 1
-  %93 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 4, 0
-  %94 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 4, 1
-  %95 = extractvalue { ptr, ptr, i64 } %89, 0
-  %96 = extractvalue { ptr, ptr, i64 } %89, 1
-  %97 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %95, 0
-  %98 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %97, ptr %96, 1
-  %99 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %98, i64 0, 2
-  %100 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %99, i64 32, 3, 0
-  %101 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %100, i64 128, 4, 0
-  %102 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %101, i64 128, 3, 1
-  %103 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %102, i64 1, 4, 1
-  %104 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 0
-  %105 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 1
-  %106 = insertvalue { ptr, ptr, i64 } poison, ptr %104, 0
-  %107 = insertvalue { ptr, ptr, i64 } %106, ptr %105, 1
-  %108 = insertvalue { ptr, ptr, i64 } %107, i64 0, 2
-  %109 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 2
-  %110 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 3, 0
-  %111 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 4, 0
-  %112 = extractvalue { ptr, ptr, i64 } %108, 0
-  %113 = extractvalue { ptr, ptr, i64 } %108, 1
-  %114 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } poison, ptr %112, 0
-  %115 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %114, ptr %113, 1
-  %116 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %115, i64 0, 2
-  %117 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %116, i64 32, 3, 0
-  %118 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %117, i64 1, 4, 0
+  %90 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 2
+  %91 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 3, 0
+  %92 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 4, 0
+  %93 = extractvalue { ptr, ptr, i64 } %89, 0
+  %94 = extractvalue { ptr, ptr, i64 } %89, 1
+  %95 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } poison, ptr %93, 0
+  %96 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %95, ptr %94, 1
+  %97 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %96, i64 0, 2
+  %98 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %97, i64 32, 3, 0
+  %99 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %98, i64 1, 4, 0
+  %100 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 0
+  %101 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 1
+  %102 = insertvalue { ptr, ptr, i64 } poison, ptr %100, 0
+  %103 = insertvalue { ptr, ptr, i64 } %102, ptr %101, 1
+  %104 = insertvalue { ptr, ptr, i64 } %103, i64 0, 2
+  %105 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 2
+  %106 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 3, 0
+  %107 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 3, 1
+  %108 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 4, 0
+  %109 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 4, 1
+  %110 = extractvalue { ptr, ptr, i64 } %104, 0
+  %111 = extractvalue { ptr, ptr, i64 } %104, 1
+  %112 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %110, 0
+  %113 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %112, ptr %111, 1
+  %114 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %113, i64 0, 2
+  %115 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %114, i64 32, 3, 0
+  %116 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %115, i64 128, 4, 0
+  %117 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %116, i64 128, 3, 1
+  %118 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %117, i64 1, 4, 1
   %119 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %34, 0
   %120 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %34, 1
   %121 = insertvalue { ptr, ptr, i64 } poison, ptr %119, 0
@@ -184,40 +184,40 @@ define void @kernel_atax(i32 %0, i32 %1, ptr %2, ptr %3, i64 %4, i64 %5, i64 %6,
   %131 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %130, i64 0, 2
   %132 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %131, i64 32, 3, 0
   %133 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %132, i64 1, 4, 0
-  %134 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 0
-  %135 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 1
+  %134 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 0
+  %135 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 1
   %136 = insertvalue { ptr, ptr, i64 } poison, ptr %134, 0
   %137 = insertvalue { ptr, ptr, i64 } %136, ptr %135, 1
   %138 = insertvalue { ptr, ptr, i64 } %137, i64 0, 2
-  %139 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 2
-  %140 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 3, 0
-  %141 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 3, 1
-  %142 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 4, 0
-  %143 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 4, 1
-  %144 = extractvalue { ptr, ptr, i64 } %138, 0
-  %145 = extractvalue { ptr, ptr, i64 } %138, 1
-  %146 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %144, 0
-  %147 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %146, ptr %145, 1
-  %148 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %147, i64 4096, 2
-  %149 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %148, i64 32, 3, 0
-  %150 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %149, i64 128, 4, 0
-  %151 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %150, i64 128, 3, 1
-  %152 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %151, i64 1, 4, 1
-  %153 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 0
-  %154 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 1
-  %155 = insertvalue { ptr, ptr, i64 } poison, ptr %153, 0
-  %156 = insertvalue { ptr, ptr, i64 } %155, ptr %154, 1
-  %157 = insertvalue { ptr, ptr, i64 } %156, i64 0, 2
-  %158 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 2
-  %159 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 3, 0
-  %160 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 4, 0
-  %161 = extractvalue { ptr, ptr, i64 } %157, 0
-  %162 = extractvalue { ptr, ptr, i64 } %157, 1
-  %163 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } poison, ptr %161, 0
-  %164 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %163, ptr %162, 1
-  %165 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %164, i64 32, 2
-  %166 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %165, i64 32, 3, 0
-  %167 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %166, i64 1, 4, 0
+  %139 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 2
+  %140 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 3, 0
+  %141 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 4, 0
+  %142 = extractvalue { ptr, ptr, i64 } %138, 0
+  %143 = extractvalue { ptr, ptr, i64 } %138, 1
+  %144 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } poison, ptr %142, 0
+  %145 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %144, ptr %143, 1
+  %146 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %145, i64 32, 2
+  %147 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %146, i64 32, 3, 0
+  %148 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %147, i64 1, 4, 0
+  %149 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 0
+  %150 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 1
+  %151 = insertvalue { ptr, ptr, i64 } poison, ptr %149, 0
+  %152 = insertvalue { ptr, ptr, i64 } %151, ptr %150, 1
+  %153 = insertvalue { ptr, ptr, i64 } %152, i64 0, 2
+  %154 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 2
+  %155 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 3, 0
+  %156 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 3, 1
+  %157 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 4, 0
+  %158 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 4, 1
+  %159 = extractvalue { ptr, ptr, i64 } %153, 0
+  %160 = extractvalue { ptr, ptr, i64 } %153, 1
+  %161 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %159, 0
+  %162 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %161, ptr %160, 1
+  %163 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %162, i64 4096, 2
+  %164 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %163, i64 32, 3, 0
+  %165 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %164, i64 128, 4, 0
+  %166 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %165, i64 128, 3, 1
+  %167 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %166, i64 1, 4, 1
   %168 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %34, 0
   %169 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %34, 1
   %170 = insertvalue { ptr, ptr, i64 } poison, ptr %168, 0
@@ -233,40 +233,40 @@ define void @kernel_atax(i32 %0, i32 %1, ptr %2, ptr %3, i64 %4, i64 %5, i64 %6,
   %180 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %179, i64 32, 2
   %181 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %180, i64 32, 3, 0
   %182 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %181, i64 1, 4, 0
-  %183 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 0
-  %184 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 1
+  %183 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 0
+  %184 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 1
   %185 = insertvalue { ptr, ptr, i64 } poison, ptr %183, 0
   %186 = insertvalue { ptr, ptr, i64 } %185, ptr %184, 1
   %187 = insertvalue { ptr, ptr, i64 } %186, i64 0, 2
-  %188 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 2
-  %189 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 3, 0
-  %190 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 3, 1
-  %191 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 4, 0
-  %192 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 4, 1
-  %193 = extractvalue { ptr, ptr, i64 } %187, 0
-  %194 = extractvalue { ptr, ptr, i64 } %187, 1
-  %195 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %193, 0
-  %196 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %195, ptr %194, 1
-  %197 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %196, i64 8192, 2
-  %198 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %197, i64 32, 3, 0
-  %199 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %198, i64 128, 4, 0
-  %200 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %199, i64 128, 3, 1
-  %201 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %200, i64 1, 4, 1
-  %202 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 0
-  %203 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 1
-  %204 = insertvalue { ptr, ptr, i64 } poison, ptr %202, 0
-  %205 = insertvalue { ptr, ptr, i64 } %204, ptr %203, 1
-  %206 = insertvalue { ptr, ptr, i64 } %205, i64 0, 2
-  %207 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 2
-  %208 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 3, 0
-  %209 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 4, 0
-  %210 = extractvalue { ptr, ptr, i64 } %206, 0
-  %211 = extractvalue { ptr, ptr, i64 } %206, 1
-  %212 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } poison, ptr %210, 0
-  %213 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %212, ptr %211, 1
-  %214 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %213, i64 64, 2
-  %215 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %214, i64 32, 3, 0
-  %216 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %215, i64 1, 4, 0
+  %188 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 2
+  %189 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 3, 0
+  %190 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 4, 0
+  %191 = extractvalue { ptr, ptr, i64 } %187, 0
+  %192 = extractvalue { ptr, ptr, i64 } %187, 1
+  %193 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } poison, ptr %191, 0
+  %194 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %193, ptr %192, 1
+  %195 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %194, i64 64, 2
+  %196 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %195, i64 32, 3, 0
+  %197 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %196, i64 1, 4, 0
+  %198 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 0
+  %199 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 1
+  %200 = insertvalue { ptr, ptr, i64 } poison, ptr %198, 0
+  %201 = insertvalue { ptr, ptr, i64 } %200, ptr %199, 1
+  %202 = insertvalue { ptr, ptr, i64 } %201, i64 0, 2
+  %203 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 2
+  %204 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 3, 0
+  %205 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 3, 1
+  %206 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 4, 0
+  %207 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 4, 1
+  %208 = extractvalue { ptr, ptr, i64 } %202, 0
+  %209 = extractvalue { ptr, ptr, i64 } %202, 1
+  %210 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %208, 0
+  %211 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %210, ptr %209, 1
+  %212 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %211, i64 8192, 2
+  %213 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %212, i64 32, 3, 0
+  %214 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %213, i64 128, 4, 0
+  %215 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %214, i64 128, 3, 1
+  %216 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %215, i64 1, 4, 1
   %217 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %34, 0
   %218 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %34, 1
   %219 = insertvalue { ptr, ptr, i64 } poison, ptr %217, 0
@@ -282,40 +282,40 @@ define void @kernel_atax(i32 %0, i32 %1, ptr %2, ptr %3, i64 %4, i64 %5, i64 %6,
   %229 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %228, i64 64, 2
   %230 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %229, i64 32, 3, 0
   %231 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %230, i64 1, 4, 0
-  %232 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 0
-  %233 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 1
+  %232 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 0
+  %233 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 1
   %234 = insertvalue { ptr, ptr, i64 } poison, ptr %232, 0
   %235 = insertvalue { ptr, ptr, i64 } %234, ptr %233, 1
   %236 = insertvalue { ptr, ptr, i64 } %235, i64 0, 2
-  %237 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 2
-  %238 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 3, 0
-  %239 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 3, 1
-  %240 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 4, 0
-  %241 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 4, 1
-  %242 = extractvalue { ptr, ptr, i64 } %236, 0
-  %243 = extractvalue { ptr, ptr, i64 } %236, 1
-  %244 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %242, 0
-  %245 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %244, ptr %243, 1
-  %246 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %245, i64 12288, 2
-  %247 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %246, i64 32, 3, 0
-  %248 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %247, i64 128, 4, 0
-  %249 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %248, i64 128, 3, 1
-  %250 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %249, i64 1, 4, 1
-  %251 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 0
-  %252 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 1
-  %253 = insertvalue { ptr, ptr, i64 } poison, ptr %251, 0
-  %254 = insertvalue { ptr, ptr, i64 } %253, ptr %252, 1
-  %255 = insertvalue { ptr, ptr, i64 } %254, i64 0, 2
-  %256 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 2
-  %257 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 3, 0
-  %258 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 4, 0
-  %259 = extractvalue { ptr, ptr, i64 } %255, 0
-  %260 = extractvalue { ptr, ptr, i64 } %255, 1
-  %261 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } poison, ptr %259, 0
-  %262 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %261, ptr %260, 1
-  %263 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %262, i64 96, 2
-  %264 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %263, i64 32, 3, 0
-  %265 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %264, i64 1, 4, 0
+  %237 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 2
+  %238 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 3, 0
+  %239 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %29, 4, 0
+  %240 = extractvalue { ptr, ptr, i64 } %236, 0
+  %241 = extractvalue { ptr, ptr, i64 } %236, 1
+  %242 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } poison, ptr %240, 0
+  %243 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %242, ptr %241, 1
+  %244 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %243, i64 96, 2
+  %245 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %244, i64 32, 3, 0
+  %246 = insertvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %245, i64 1, 4, 0
+  %247 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 0
+  %248 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 1
+  %249 = insertvalue { ptr, ptr, i64 } poison, ptr %247, 0
+  %250 = insertvalue { ptr, ptr, i64 } %249, ptr %248, 1
+  %251 = insertvalue { ptr, ptr, i64 } %250, i64 0, 2
+  %252 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 2
+  %253 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 3, 0
+  %254 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 3, 1
+  %255 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 4, 0
+  %256 = extractvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %41, 4, 1
+  %257 = extractvalue { ptr, ptr, i64 } %251, 0
+  %258 = extractvalue { ptr, ptr, i64 } %251, 1
+  %259 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } poison, ptr %257, 0
+  %260 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %259, ptr %258, 1
+  %261 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %260, i64 12288, 2
+  %262 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %261, i64 32, 3, 0
+  %263 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %262, i64 128, 4, 0
+  %264 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %263, i64 128, 3, 1
+  %265 = insertvalue { ptr, ptr, i64, [2 x i64], [2 x i64] } %264, i64 1, 4, 1
   %266 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %34, 0
   %267 = extractvalue { ptr, ptr, i64, [1 x i64], [1 x i64] } %34, 1
   %268 = insertvalue { ptr, ptr, i64 } poison, ptr %266, 0
@@ -362,8 +362,8 @@ define void @kernel_atax(i32 %0, i32 %1, ptr %2, ptr %3, i64 %4, i64 %5, i64 %6,
   %omp_global_thread_num = call i32 @__kmpc_global_thread_num(ptr @1)
   store { ptr, ptr, i64, [1 x i64], [1 x i64] } %133, ptr %.reloaded, align 8
   store i64 %82, ptr %.reloaded9, align 4
-  store { ptr, ptr, i64, [2 x i64], [2 x i64] } %103, ptr %.reloaded10, align 8
-  store { ptr, ptr, i64, [1 x i64], [1 x i64] } %118, ptr %.reloaded11, align 8
+  store { ptr, ptr, i64, [2 x i64], [2 x i64] } %118, ptr %.reloaded10, align 8
+  store { ptr, ptr, i64, [1 x i64], [1 x i64] } %99, ptr %.reloaded11, align 8
   br label %omp_parallel
 
 omp_parallel:                                     ; preds = %299
@@ -389,8 +389,8 @@ omp.par.exit:                                     ; preds = %omp_parallel
   %omp_global_thread_num12 = call i32 @__kmpc_global_thread_num(ptr @1)
   store { ptr, ptr, i64, [1 x i64], [1 x i64] } %182, ptr %.reloaded49, align 8
   store i64 %82, ptr %.reloaded50, align 4
-  store { ptr, ptr, i64, [2 x i64], [2 x i64] } %152, ptr %.reloaded51, align 8
-  store { ptr, ptr, i64, [1 x i64], [1 x i64] } %167, ptr %.reloaded52, align 8
+  store { ptr, ptr, i64, [2 x i64], [2 x i64] } %167, ptr %.reloaded51, align 8
+  store { ptr, ptr, i64, [1 x i64], [1 x i64] } %148, ptr %.reloaded52, align 8
   br label %omp_parallel139
 
 omp_parallel139:                                  ; preds = %302
@@ -416,8 +416,8 @@ omp.par.exit18:                                   ; preds = %omp_parallel139
   %omp_global_thread_num54 = call i32 @__kmpc_global_thread_num(ptr @1)
   store { ptr, ptr, i64, [1 x i64], [1 x i64] } %231, ptr %.reloaded91, align 8
   store i64 %82, ptr %.reloaded92, align 4
-  store { ptr, ptr, i64, [2 x i64], [2 x i64] } %201, ptr %.reloaded93, align 8
-  store { ptr, ptr, i64, [1 x i64], [1 x i64] } %216, ptr %.reloaded94, align 8
+  store { ptr, ptr, i64, [2 x i64], [2 x i64] } %216, ptr %.reloaded93, align 8
+  store { ptr, ptr, i64, [1 x i64], [1 x i64] } %197, ptr %.reloaded94, align 8
   br label %omp_parallel141
 
 omp_parallel141:                                  ; preds = %305
@@ -443,8 +443,8 @@ omp.par.exit60:                                   ; preds = %omp_parallel141
   %omp_global_thread_num96 = call i32 @__kmpc_global_thread_num(ptr @1)
   store { ptr, ptr, i64, [1 x i64], [1 x i64] } %280, ptr %.reloaded133, align 8
   store i64 %82, ptr %.reloaded134, align 4
-  store { ptr, ptr, i64, [2 x i64], [2 x i64] } %250, ptr %.reloaded135, align 8
-  store { ptr, ptr, i64, [1 x i64], [1 x i64] } %265, ptr %.reloaded136, align 8
+  store { ptr, ptr, i64, [2 x i64], [2 x i64] } %265, ptr %.reloaded135, align 8
+  store { ptr, ptr, i64, [1 x i64], [1 x i64] } %246, ptr %.reloaded136, align 8
   br label %omp_parallel143
 
 omp_parallel143:                                  ; preds = %308
