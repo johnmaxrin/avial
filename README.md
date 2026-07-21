@@ -1,5 +1,5 @@
-# 🥗 Avial : An MLIR Dialect for Distributed Heterogeneous Computing
-Avial is a compiler infrastructure built using MLIR that enables efficient execution of programs across distributed and heterogeneous computing systems (CPU, GPU, cluster). Avial introduces a novel task-centric intermediate representation (IR) where tasks are first-class citizens, capturing their parallelism, device targets, and interdependencies. 
+# 🥗 DHIR : An MLIR Dialect for Distributed Heterogeneous Computing
+DHIR is a compiler infrastructure built using MLIR that enables efficient execution of programs across distributed and heterogeneous computing systems (CPU, GPU, cluster). DHIR introduces a novel task-centric intermediate representation (IR) where tasks are first-class citizens, capturing their parallelism, device targets, and interdependencies. 
 ## 🚧 Project Status  
 ![Current Focus](https://img.shields.io/badge/Current_Focus-Topology_Aware_Optimizations-blue) <br>
 ![Next Release](https://img.shields.io/badge/Next_Release-Multicore_+_GPU_+_Topology_Aware_Scheduling-white) <br>
@@ -15,7 +15,7 @@ Parallel programming is notoriously difficult. Developers must reason about conc
 
 Unifying these paradigms into a single coherent programming or compilation model is non-trivial due to fundamental differences in their memory models, synchronization semantics, and communication mechanisms. While there have been commendable efforts at unifying heterogeneous computing within a node. Such as OpenCL, OpenACC, and more recently Mojo. There is a noticeable gap when it comes to extending these unifications across distributed environments. The gap remains largely due to the complexity of distributed computing: issues such as explicit data movement between the nodes and network topology cannot be abstracted away as easily.
 
-## Why Avial Is Unique?
+## Why DHIR Is Unique?
 
 While MLIR includes dialects like omp for shared-memory parallelism and gpu for targeting accelerators such as CUDA or ROCm, there is currently no dialect that provides a unified abstraction for distributed heterogeneous computing, that is, for clusters of nodes with diverse compute units like CPUs and GPUs.
 
@@ -38,6 +38,6 @@ Here's how it works in practice:
   - Lowers the task to the different backend (e.g., LLVM, CUDA, ROCm)
   - Handles device setup and data movement
 
-Thanks to the `CodeDrop` approach, integrating the Avial dialect into existing compiler pipelines is both trivial and non-intrusive. The process begins by identifying performance-critical regions such as loops, compute kernels, or math-heavy operations regardless of which dialect they're written in. These regions are then wrapped in a TaskOp. That’s it. From there, Avial takes full control, automatically lowering tasks to the appropriate execution backends including MPI for distributed execution and ultimately to LLVM IR.
+Thanks to the `CodeDrop` approach, integrating the DHIR dialect into existing compiler pipelines is both trivial and non-intrusive. The process begins by identifying performance-critical regions such as loops, compute kernels, or math-heavy operations regardless of which dialect they're written in. These regions are then wrapped in a TaskOp. That’s it. From there, DHIR takes full control, automatically lowering tasks to the appropriate execution backends including MPI for distributed execution and ultimately to LLVM IR.
 
-This approach not only simplifies integration but also scales easily across heterogeneous and distributed environments. Whether running on a single multicore CPU or across a CPU-GPU cluster with MPI, Avial ensures consistent handling of task distribution and coordination.
+This approach not only simplifies integration but also scales easily across heterogeneous and distributed environments. Whether running on a single multicore CPU or across a CPU-GPU cluster with MPI, DHIR ensures consistent handling of task distribution and coordination.

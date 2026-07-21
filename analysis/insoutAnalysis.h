@@ -9,8 +9,8 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/BuiltinOps.h"
 
-#include "includes/avialOps.h"
-#include "includes/avialDialect.h"
+#include "includes/dhirOps.h"
+#include "includes/dhirDialect.h"
 
 struct InsOutsAnalysis
 {
@@ -19,7 +19,7 @@ struct InsOutsAnalysis
 
     InsOutsAnalysis(mlir::Operation *op)
     {
-        if (auto schOp = mlir::dyn_cast<mlir::avial::ScheduleOp>(op))
+        if (auto schOp = mlir::dyn_cast<mlir::dhir::ScheduleOp>(op))
         {
             if (mlir::Block *block = &schOp.getRegion().front())
             {

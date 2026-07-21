@@ -11,7 +11,7 @@
 
 namespace mlir
 {
-    namespace avial
+    namespace dhir
     {
         struct ArrayPartitioningInfo
         {
@@ -752,7 +752,7 @@ namespace mlir
             return analysis.analyzeArray(memref);
         }
 
-    } // namespace avial
+    } // namespace dhir
 } // namespace mlir
 
 #endif

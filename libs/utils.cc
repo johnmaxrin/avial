@@ -70,25 +70,25 @@ void attachDLTISpec(mlir::ModuleOp module, mlir::MLIRContext *context, SystemTop
 
     // Attach to module
     module->setAttr(
-        "avial.target_devices",
+        "dhir.target_devices",
         builder.getArrayAttr(deviceAttrs));
 }
 
 llvm::SmallVector<mlir::TargetDeviceSpecAttr> extractTargetDeviceSpecs(ModuleOp module)
 {
     llvm::SmallVector<mlir::TargetDeviceSpecAttr> targetSpecVec;
-    auto attr = module->getAttr("avial.target_devices");
+    auto attr = module->getAttr("dhir.target_devices");
 
     if (!attr)
     {
-        llvm::errs() << "No avial.target_devices attribute found!\n";
+        llvm::errs() << "No dhir.target_devices attribute found!\n";
         exit(0);
     }
 
     auto arrayAttr = mlir::dyn_cast<mlir::ArrayAttr>(attr);
     if (!arrayAttr)
     {
-        llvm::errs() << "avial.target_devices is not an ArrayAttr!\n";
+        llvm::errs() << "dhir.target_devices is not an ArrayAttr!\n";
         exit(0);
     }
 

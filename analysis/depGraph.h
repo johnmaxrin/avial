@@ -1,9 +1,9 @@
 #include "mlir/Conversion/Passes.h"
 #include "mlir/Pass/PassManager.h"
 
-#include "includes/avialDialect.h"
+#include "includes/dhirDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "includes/avialOps.h"
+#include "includes/dhirOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 
 enum class TargetType
@@ -146,7 +146,7 @@ bool memoryAccessesConflict(mlir::Value val1, mlir::Value val2)
 
 namespace mlir
 {
-  namespace avial
+  namespace dhir
   {
 
     struct DependencyGraph
@@ -158,7 +158,7 @@ namespace mlir
       bool hasLoop;  // Whether tasks are inside a loop
       mlir::scf::ForOp forLoop;  // The loop containing tasks (if any)
 
-      void build(avial::ScheduleOp schedule)
+      void build(dhir::ScheduleOp schedule)
       {
         llvm::errs() << "-- Building task dependency graph\n";
 
