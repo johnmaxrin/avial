@@ -13,7 +13,7 @@
 
 namespace mlir
 {
-    namespace avial
+    namespace dhir
     {
         int checkLoopDependence(mlir::affine::AffineForOp op, int depth)
         {

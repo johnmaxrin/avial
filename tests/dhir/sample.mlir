@@ -1,5 +1,5 @@
 module {
-    avial.schedule()
+    dhir.schedule()
     {
 
     }
