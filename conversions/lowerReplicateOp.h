@@ -394,12 +394,16 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
                     {
                         if (mlir::isa<mlir::arith::ConstantIndexOp>(ubOp))
                         {
-                            mlir::dyn_cast<mlir::arith::ConstantIndexOp>(ubOp)
-                                .setValueAttr(rewriter.getIndexAttr(chunk));
+                            mlir::Value newUb = rewriter.create<mlir::arith::ConstantIndexOp>(
+                                clonedScfFor.getLoc(), chunk);
+                            clonedScfFor.getUpperBoundMutable().assign(newUb);
 
                             if (i != 0)
-                                mlir::dyn_cast<mlir::arith::ConstantIndexOp>(lbOp)
-                                    .setValueAttr(rewriter.getIndexAttr(0));
+                            {
+                                mlir::Value newLb = rewriter.create<mlir::arith::ConstantIndexOp>(
+                                clonedScfFor.getLoc(), 0);
+                                clonedScfFor.getLowerBoundMutable().assign(newLb);
+                            }
                         }
                     }
                     auto parallelOp = rewriter.create<scf::ParallelOp>(
