@@ -29,6 +29,11 @@ void attachDLTISpec(mlir::ModuleOp module, mlir::MLIRContext *context, SystemTop
             builder.getStringAttr("cost"),
             builder.getF32FloatAttr(cost));
 
+        // bandwidth entry
+        auto bwEntry = mlir::DataLayoutEntryAttr::get(
+            builder.getStringAttr("bandwidth"),
+            builder.getF32FloatAttr(node.bandwidth));
+
         // Node ID entry
         auto nodeIDEntry = mlir::DataLayoutEntryAttr::get(
             builder.getStringAttr("node_id"),
@@ -63,7 +68,8 @@ void attachDLTISpec(mlir::ModuleOp module, mlir::MLIRContext *context, SystemTop
              nodeIDEntry,
              gpuCountEntry,
              gpuArch,
-             gpuId});
+             gpuId,
+             bwEntry});
 
         deviceAttrs.push_back(nodeAttr);
     }

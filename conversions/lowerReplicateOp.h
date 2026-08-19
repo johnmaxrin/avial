@@ -227,19 +227,59 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
 
             for (Value memref : insVec)
             {
-                mlir::dhir::ArrayPartitioningAnalysis analysis(outerForOp);
+                mlir::dhir::ArrayPartitioningAnalysis analysis(outerForOp, (outerScfFor ? outerScfFor.getInductionVar() : outerAffineFor.getInductionVar()));
                 arrayPartitionInfoInVec.push_back(analysis.analyzeArray(memref));
             }
 
             for (Value memref : outsVec)
             {
-                mlir::dhir::ArrayPartitioningAnalysis analysis(outerForOp);
+                mlir::dhir::ArrayPartitioningAnalysis analysis(outerForOp, (outerScfFor ? outerScfFor.getInductionVar() : outerAffineFor.getInductionVar()));
                 arrayPartitionInfoOutVec.push_back(analysis.analyzeArray(memref));
             }
         }
         else
         {
             llvm::errs() << "Warning: No for loop found in schedule body\n";
+        }
+
+        // R1: Check for per-access rebasing
+        bool hasUnslicedAccessOnPartitionedIV = false;
+        Value partitionedIV = outerForOp ? 
+            (outerScfFor ? outerScfFor.getInductionVar() : outerAffineFor.getInductionVar()) 
+            : nullptr;
+
+        if (partitionedIV) {
+            mlir::dhir::ArrayPartitioningAnalysis analysis(outerForOp, partitionedIV);
+            
+            auto checkAccess = [&](Value memref, mlir::Operation* nestedOp) {
+                bool isSliced = false;
+                for (size_t i = 0; i < insVec.size(); ++i) {
+                    if (insVec[i] == memref && arrayPartitionInfoInVec[i].strategy == mlir::dhir::ArrayPartitioningInfo::ROW_PARTITION)
+                        isSliced = true;
+                }
+                for (size_t i = 0; i < outsVec.size(); ++i) {
+                    if (outsVec[i] == memref && arrayPartitionInfoOutVec[i].strategy == mlir::dhir::ArrayPartitioningInfo::ROW_PARTITION)
+                        isSliced = true;
+                }
+                if (isSliced) return;
+
+                if (analysis.getDimensionForIV(nestedOp, partitionedIV) >= 0) {
+                    hasUnslicedAccessOnPartitionedIV = true;
+                }
+            };
+            
+            op.getBody().front().walk([&](mlir::Operation* nestedOp) {
+                if (auto load = dyn_cast<mlir::affine::AffineLoadOp>(nestedOp)) checkAccess(load.getMemRef(), nestedOp);
+                else if (auto store = dyn_cast<mlir::affine::AffineStoreOp>(nestedOp)) checkAccess(store.getMemRef(), nestedOp);
+                else if (auto load = dyn_cast<mlir::memref::LoadOp>(nestedOp)) checkAccess(load.getMemRef(), nestedOp);
+                else if (auto store = dyn_cast<mlir::memref::StoreOp>(nestedOp)) checkAccess(store.getMemRef(), nestedOp);
+            });
+
+            if (hasUnslicedAccessOnPartitionedIV) {
+                llvm::errs() << "Found unsliced access on partitioned IV. Falling back to NO_PARTITION for all arrays to prevent partial rebasing.\n";
+                for (auto &info : arrayPartitionInfoInVec) info.strategy = mlir::dhir::ArrayPartitioningInfo::NO_PARTITION;
+                for (auto &info : arrayPartitionInfoOutVec) info.strategy = mlir::dhir::ArrayPartitioningInfo::NO_PARTITION;
+            }
         }
 
         llvm::SmallVector<mlir::Value> subViewIns;
@@ -258,6 +298,13 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
             rewriter.setInsertionPoint(op);
 
             bool needBroadcast = false;
+
+            // Tracks whether any operand was replaced by a subview along the
+            // partitioned dimension. If so the task body indexes the slice from
+            // 0, so the loop must run over [0, chunk). If nothing was
+            // subviewed the task still indexes the full array, so the loop must
+            // run over the absolute range [start, end).
+            bool indicesRebased = false;
 
             for (int i = 0; i < (int)insVec.size(); ++i)
             {
@@ -290,6 +337,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
 
                         subViewIns.push_back(subview);
                         mapping.map(in, subview);
+                        indicesRebased = true;
                     }
                 }
                 else
@@ -329,6 +377,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
 
                     subViewOuts.push_back(subview);
                     mapping.map(out, subview);
+                    indicesRebased = true;
                 }
 
                 else
@@ -363,6 +412,17 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
 
             rewriter.setInsertionPointToStart(&taskOp.getRegion().front());
 
+            //   rebased  -> [0,chunk)
+            //   otherwise -> [start,end), global
+            // The second case covers any replicate who uses NO_PARTITION
+            const int64_t loopLb = indicesRebased ? 0 : start;
+            const int64_t loopUb = indicesRebased ? chunk : end;
+
+            if (!indicesRebased)
+                llvm::errs() << "No operand was partitioned; task " << i
+                             << " iterates the absolute range [" << loopLb << ", "
+                             << loopUb << ")\n";
+
             for (auto &innerOp : op.getRegion().front().without_terminator())
             {
                 auto cloned = rewriter.clone(innerOp, mapping);
@@ -373,39 +433,25 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
                     auto ubOp = clonedScfFor.getUpperBound().getDefiningOp();
                     auto lbOp = clonedScfFor.getLowerBound().getDefiningOp();
 
-                    if (isStencil)
+                    if (!mlir::isa_and_nonnull<mlir::arith::ConstantIndexOp>(ubOp) ||
+                        !mlir::isa_and_nonnull<mlir::arith::ConstantIndexOp>(lbOp))
                     {
-                        if (mlir::isa<mlir::arith::ConstantIndexOp>(ubOp))
-                        {
-                            mlir::dyn_cast<mlir::arith::ConstantIndexOp>(ubOp)
-                                .setValueAttr(rewriter.getIndexAttr(end));
-
-                            mlir::dyn_cast<mlir::arith::ConstantIndexOp>(lbOp)
-                                .setValueAttr(rewriter.getIndexAttr(start));
-                        }
-
-                        else
-                        {
-                            llvm::errs() << "Error: Not a constant upper bound!\n";
-                            exit(0);
-                        }
+                        llvm::errs() << "Error: Not a constant loop bound!\n";
+                        return failure();
                     }
-                    else
-                    {
-                        if (mlir::isa<mlir::arith::ConstantIndexOp>(ubOp))
-                        {
-                            mlir::dyn_cast<mlir::arith::ConstantIndexOp>(ubOp)
-                                .setValueAttr(rewriter.getIndexAttr(chunk));
+                    // Emit fresh independent constants for loop bounds,
+                    // otherwise overwriting causes bugs
+                    // Eg: operand (a [1, N) loop with step 1 shares the value),
+                    // overwriting it in place would silently rewrite the step also
+                    Value lbVal = rewriter.create<arith::ConstantIndexOp>(
+                        clonedScfFor.getLoc(), loopLb);
+                    Value ubVal = rewriter.create<arith::ConstantIndexOp>(
+                        clonedScfFor.getLoc(), loopUb);
 
-                            if (i != 0)
-                                mlir::dyn_cast<mlir::arith::ConstantIndexOp>(lbOp)
-                                    .setValueAttr(rewriter.getIndexAttr(0));
-                        }
-                    }
                     auto parallelOp = rewriter.create<scf::ParallelOp>(
                         clonedScfFor.getLoc(),
-                        ValueRange{clonedScfFor.getLowerBound()},
-                        ValueRange{clonedScfFor.getUpperBound()},
+                        ValueRange{lbVal},
+                        ValueRange{ubVal},
                         ValueRange{clonedScfFor.getStep()},
                         ValueRange{});
 
@@ -421,27 +467,26 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
                 // ── affine.for ───────────────────────────────────────────────
                 else if (auto clonedAffineFor = mlir::dyn_cast<mlir::affine::AffineForOp>(cloned))
                 {
-                    // Rewrite the bounds to [0, chunk) so each task only sees its slice.
-                    // affine.for bounds live in the AffineMap, not in SSA constants,
-                    // so we replace the maps directly.
+                    // Applied the exact same [loopLb, loopUb) logic to the
+                    // affine.for lowering path by updating its AffineMaps
                     clonedAffineFor.setLowerBoundMap(
-                        AffineMap::getConstantMap(0, rewriter.getContext()));
+                        AffineMap::getConstantMap(loopLb, rewriter.getContext()));
                     clonedAffineFor.setUpperBoundMap(
-                        AffineMap::getConstantMap(chunk, rewriter.getContext()));
+                        AffineMap::getConstantMap(loopUb, rewriter.getContext()));
 
                     // Build an scf.parallel with the same trip count so downstream
                     // lowering can parallelise it the same way as the scf.for path.
-                    Value zeroVal = rewriter.create<arith::ConstantIndexOp>(
-                        clonedAffineFor.getLoc(), 0);
-                    Value chunkVal = rewriter.create<arith::ConstantIndexOp>(
-                        clonedAffineFor.getLoc(), chunk);
+                    Value lbVal = rewriter.create<arith::ConstantIndexOp>(
+                        clonedAffineFor.getLoc(), loopLb);
+                    Value ubVal = rewriter.create<arith::ConstantIndexOp>(
+                        clonedAffineFor.getLoc(), loopUb);
                     Value stepVal = rewriter.create<arith::ConstantIndexOp>(
                         clonedAffineFor.getLoc(), clonedAffineFor.getStepAsInt());
 
                     auto parallelOp = rewriter.create<scf::ParallelOp>(
                         clonedAffineFor.getLoc(),
-                        ValueRange{zeroVal},
-                        ValueRange{chunkVal},
+                        ValueRange{lbVal},
+                        ValueRange{ubVal},
                         ValueRange{stepVal},
                         ValueRange{});
 

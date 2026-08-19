@@ -5,6 +5,7 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "includes/dhirOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "includes/utils.h"
 
 enum class TargetType
 {
@@ -37,8 +38,9 @@ TargetType getTargetTypeFromAttr(mlir::Attribute attr)
 
   if (auto dltiAttr = mlir::dyn_cast<mlir::TargetDeviceSpecAttr>(attr))
   {
-    auto gpucntAttr = mlir::dyn_cast<mlir::IntegerAttr>(dltiAttr.getEntries()[4].getValue());
-    return (gpucntAttr.getInt() > 0 ? TargetType::GPU : TargetType::CPU);
+    if (auto gpucntAttr = mlir::dyn_cast_or_null<mlir::IntegerAttr>(getDeviceAttribute(dltiAttr, "gpu_count"))) {
+      return (gpucntAttr.getInt() > 0 ? TargetType::GPU : TargetType::CPU);
+    }
   }
 
   return TargetType::CPU;
@@ -163,13 +165,21 @@ namespace mlir
         llvm::errs() << "-- Building task dependency graph\n";
 
         hasLoop = false;
-        
-        // Check if tasks are inside a for loop
-        schedule.getBody().walk([&](mlir::scf::ForOp loop) {
-          hasLoop = true;
-          forLoop = loop;
-          llvm::errs() << "Found tasks inside scf.for loop\n";
-        });
+
+        // Look for a for loop wrapping the tasks. Only loops that are direct
+        // children of the schedule body count: every task body contains loops
+        // of its own, and walking into them would report a wrapping loop for
+        // schedules that have none.
+        for (mlir::Operation &bodyOp : schedule.getBody().front())
+        {
+          if (auto loop = mlir::dyn_cast<mlir::scf::ForOp>(bodyOp))
+          {
+            hasLoop = true;
+            forLoop = loop;
+            llvm::errs() << "Found tasks inside scf.for loop\n";
+            break;
+          }
+        }
 
         // Collect allocations
         for (memref::AllocaOp alloc : schedule.getBody().getOps<memref::AllocaOp>())
@@ -183,7 +193,10 @@ namespace mlir
           TaskOpInfo info;
           info.target = getTargetTypeFromAttr(task->getAttr("target"));
           info.op = task.getOperation();
-          info.insideLoop = hasLoop;
+          // Per task, not schedule-wide: a schedule can mix replicates that sit
+          // inside the wrapping loop with siblings that sit outside it, and the
+          // two must be emitted at different nesting depths.
+          info.insideLoop = hasLoop && forLoop->isProperAncestor(task.getOperation());
           
           // Get repId
           auto repIdAttr = task->getAttrOfType<mlir::IntegerAttr>("repId");

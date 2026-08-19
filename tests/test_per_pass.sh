@@ -118,7 +118,7 @@ for i in {1..6}; do
     echo "Pass: --${PASS}"
     
     # Run pass
-    if "${DHIR_OPT}" "--${PASS}" "${CURRENT_FILE}" > "${OUTPUT_FILE}" 2> "${ERROR_FILE}"; then
+    if "${DHIR_OPT}" "--${PASS}" "${CURRENT_FILE}" "${SCRIPT_DIR}/configs/system_config_4_cpu.json" > "${OUTPUT_FILE}" 2> "${ERROR_FILE}"; then
         echo -e "${GREEN}✓ Success${NC}"
         
         # Show stats

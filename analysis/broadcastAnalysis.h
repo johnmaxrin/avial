@@ -166,16 +166,11 @@ namespace mlir
             bool isReadByReplicate(mlir::Operation *replicate, Value memref)
             {
                 llvm::SmallVector<Value> readArgs = mlir::dyn_cast<mlir::dhir::ReplicateOp>(replicate).getReads(); 
-                llvm::errs() << "Memref: ";
-                memref.dump();
                 for (Value readArg : readArgs) {
-                    readArg.dump();
-                    if (readArg == memref)
+                    if (readArg == memref) {
                         return true;
+                    }
                 }
-
-                llvm::errs() << "\n";
-                llvm::errs() << "\n";
                 return false;
             }
 

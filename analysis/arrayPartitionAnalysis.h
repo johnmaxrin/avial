@@ -32,7 +32,10 @@ namespace mlir
         class ArrayPartitioningAnalysis
         {
         public:
-            ArrayPartitioningAnalysis(mlir::Operation *rootOp) : rootOp(rootOp) {}
+            mlir::Operation *rootOp;
+            Value partitionedIV;
+
+            ArrayPartitioningAnalysis(mlir::Operation *rootOp, mlir::Value partitionedIV) : rootOp(rootOp), partitionedIV(partitionedIV) {}
 
             ArrayPartitioningInfo analyzeArray(Value memref)
             {
@@ -87,8 +90,8 @@ namespace mlir
                     llvm::errs() << "=== 1D Array Analysis ===\n";
                     llvm::errs() << "Is input: " << isInput << ", Is output: " << isOutput << "\n";
                     
-                    // Find the loop IV that actually accesses the array
-                    Value loopIV = findLoopIVForArrayAccess(loads, stores);
+                    // Use the provided partitioned IV
+                    Value loopIV = partitionedIV;
                     
                     if (!loopIV)
                     {
@@ -161,9 +164,8 @@ namespace mlir
                     llvm::errs() << "=== 3D Array Analysis ===\n";
                     llvm::errs() << "Is input: " << isInput << ", Is output: " << isOutput << "\n";
 
-                    // Reuse the existing helper that walks up from the first access
-                    // and returns the outermost loop IV it finds.
-                    Value outerIV = findOutermostLoopIV(loads, stores);
+                    // Use the provided partitioned IV
+                    Value outerIV = partitionedIV;
 
                     if (!outerIV)
                     {
@@ -216,8 +218,8 @@ namespace mlir
                     return info;
                 }
 
-                // Find the outermost loop (affine or scf)
-                Value outerIV = findOutermostLoopIV(loads, stores);
+                // Use the provided partitioned IV
+                Value outerIV = partitionedIV;
 
                 if (!outerIV)
                 {
@@ -294,7 +296,6 @@ namespace mlir
             }
 
         private:
-            mlir::Operation *rootOp;
 
             // Extract the constant integer offset of an index expression relative to
             // a loop IV. Handles the common stencil patterns:
@@ -678,6 +679,7 @@ namespace mlir
                 return loopIVs.back();
             }
 
+        public:
             // Get which dimension uses a specific IV
             int getDimensionForIV(Operation *memOp, Value targetIV)
             {
@@ -711,22 +713,51 @@ namespace mlir
                     Value idx = indices[dim];
 
                     // Direct match
-                    if (idx == targetIV)
+                    if (idx == targetIV) {
                         return dim;
+                    }
 
                     // Check if it's derived from the IV (through arith ops)
-                    if (isDerivedFromValue(idx, targetIV))
+                    if (isDerivedFromValue(idx, targetIV)) {
                         return dim;
+                    }
                 }
 
                 return -1;
             }
 
             // Check if a value is derived from another (simple version)
-            bool isDerivedFromValue(Value derived, Value source)
+            bool isDerivedFromValue(Value derived, Value source, int maxDepth = 5)
             {
                 if (derived == source)
                     return true;
+
+                if (maxDepth <= 0) 
+                    return false;
+
+                // Handle block arguments by looking at the parent loop's iter_args/yields
+                if (auto blockArg = mlir::dyn_cast<mlir::BlockArgument>(derived)) {
+                    mlir::Operation *parentOp = blockArg.getOwner()->getParentOp();
+                    if (auto forOp = mlir::dyn_cast<mlir::scf::ForOp>(parentOp)) {
+                        if (blockArg.getArgNumber() > 0) { // arg 0 is IV
+                            Value initVal = forOp.getInitArgs()[blockArg.getArgNumber() - 1];
+                            if (isDerivedFromValue(initVal, source, maxDepth - 1)) return true;
+                            if (auto yieldOp = mlir::dyn_cast_or_null<mlir::scf::YieldOp>(forOp.getBody()->getTerminator())) {
+                                Value yieldVal = yieldOp.getOperand(blockArg.getArgNumber() - 1);
+                                if (isDerivedFromValue(yieldVal, source, maxDepth - 1)) return true;
+                            }
+                        }
+                    } else if (auto affineFor = mlir::dyn_cast<mlir::affine::AffineForOp>(parentOp)) {
+                        if (blockArg.getArgNumber() > 0) { // arg 0 is IV
+                            Value initVal = affineFor.getInits()[blockArg.getArgNumber() - 1];
+                            if (isDerivedFromValue(initVal, source, maxDepth - 1)) return true;
+                            if (auto yieldOp = mlir::dyn_cast_or_null<mlir::affine::AffineYieldOp>(affineFor.getBody()->getTerminator())) {
+                                Value yieldVal = yieldOp.getOperand(blockArg.getArgNumber() - 1);
+                                if (isDerivedFromValue(yieldVal, source, maxDepth - 1)) return true;
+                            }
+                        }
+                    }
+                }
 
                 // Check if it's an arithmetic operation using the source
                 if (auto defOp = derived.getDefiningOp())
@@ -735,9 +766,8 @@ namespace mlir
                     {
                         if (operand == source)
                             return true;
-                        // Recursive check (limit depth to avoid infinite loops)
-                        if (operand.getDefiningOp() &&
-                            isDerivedFromValue(operand, source))
+                        // Recursive check 
+                        if (isDerivedFromValue(operand, source, maxDepth - 1))
                             return true;
                     }
                 }
@@ -748,7 +778,25 @@ namespace mlir
 
         ArrayPartitioningInfo analyzeArrayForPartitioning(mlir::Operation *op, Value memref)
         {
-            ArrayPartitioningAnalysis analysis(op);
+            mlir::Value partitionedIV;
+            op->walk<mlir::WalkOrder::PreOrder>([&](mlir::Operation *childOp) {
+                if (partitionedIV) return mlir::WalkResult::interrupt();
+                if (auto affineFor = mlir::dyn_cast<mlir::affine::AffineForOp>(childOp)) {
+                    partitionedIV = affineFor.getInductionVar();
+                    return mlir::WalkResult::interrupt();
+                }
+                if (auto scfFor = mlir::dyn_cast<mlir::scf::ForOp>(childOp)) {
+                    partitionedIV = scfFor.getInductionVar();
+                    return mlir::WalkResult::interrupt();
+                }
+                if (auto scfParallel = mlir::dyn_cast<mlir::scf::ParallelOp>(childOp)) {
+                    partitionedIV = scfParallel.getInductionVars()[0];
+                    return mlir::WalkResult::interrupt();
+                }
+                return mlir::WalkResult::advance();
+            });
+
+            ArrayPartitioningAnalysis analysis(op, partitionedIV);
             return analysis.analyzeArray(memref);
         }
 
