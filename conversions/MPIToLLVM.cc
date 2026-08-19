@@ -53,9 +53,45 @@ static LLVM::LLVMFuncOp getOrDefineFunction(ModuleOp &moduleOp,
       moduleOp, loc, rewriter, name, name, type, LLVM::Linkage::External);
 }
 
+// MPI_Send with a raw pointer and element count only works if elements are contiguous(row slices)
+static bool isProvablyNonContiguous(MemRefType type) {
+  int64_t offset;
+  SmallVector<int64_t, 4> strides;
+  if (failed(type.getStridesAndOffset(strides, offset)))
+    return false; // not strided
+
+  int64_t expectedStride = 1;
+  for (int i = strides.size() - 1; i >= 0; --i) {
+    int64_t dim = type.getDimSize(i);
+    if (strides[i] == ShapedType::kDynamic || dim == ShapedType::kDynamic)
+      return false; // assume contiguous, as can't check with dynamic
+
+    // A unit-extent dim is addressed once, so its stride cannot introduce a gap.
+    if (dim != 1 && strides[i] != expectedStride)
+      return true;
+
+    expectedStride *= dim;
+  }
+  return false;
+}
+
 std::pair<Value, Value> getRawPtrAndSize(const Location loc,
                                          ConversionPatternRewriter &rewriter,
+                                         Value originalMemRef,
                                          Value memRef, Type elType) {
+
+  if (auto memRefType = dyn_cast<MemRefType>(originalMemRef.getType())) {
+    // MPI transfer of non-contiguous is not supported
+    if (isProvablyNonContiguous(memRefType)) {
+      mlir::emitError(loc)
+          << "cannot lower an MPI transfer of non-contiguous memref "
+          << memRefType
+          << ": raw pointer & element count can't describe strided";
+      llvm::report_fatal_error(
+          "MPI transfer of non-contiguous buffer is not supported for now");
+    }
+  }
+
   Type ptrType = LLVM::LLVMPointerType::get(rewriter.getContext());
   Value dataPtr =
       rewriter.create<LLVM::ExtractValueOp>(loc, ptrType, memRef, 1);
@@ -64,9 +100,18 @@ std::pair<Value, Value> getRawPtrAndSize(const Location loc,
   Value resPtr =
       rewriter.create<LLVM::GEPOp>(loc, ptrType, elType, dataPtr, offset);
   Value size;
-  if (cast<LLVM::LLVMStructType>(memRef.getType()).getBody().size() > 3) {
+  auto structType = cast<LLVM::LLVMStructType>(memRef.getType());
+  if (structType.getBody().size() > 3) {
+    auto sizesArrayType = cast<LLVM::LLVMArrayType>(structType.getBody()[3]);
+    unsigned rank = sizesArrayType.getNumElements();
+
     size = rewriter.create<LLVM::ExtractValueOp>(loc, memRef,
                                                  ArrayRef<int64_t>{3, 0});
+    for (unsigned k = 1; k < rank; ++k) {
+      Value dimSize = rewriter.create<LLVM::ExtractValueOp>(loc, memRef,
+                                                            ArrayRef<int64_t>{3, k});
+      size = rewriter.create<LLVM::MulOp>(loc, size, dimSize);
+    }
     size = rewriter.create<LLVM::TruncOp>(loc, rewriter.getI32Type(), size);
   } else {
     size = rewriter.create<arith::ConstantIntOp>(loc, 1, 32);
@@ -730,7 +775,7 @@ struct SendOpLowering : public ConvertOpToLLVMPattern<mpi::SendOp> {
 
     // get MPI_COMM_WORLD, dataType and pointer
     auto [dataPtr, size] =
-        getRawPtrAndSize(loc, rewriter, adaptor.getRef(), elemType);
+        getRawPtrAndSize(loc, rewriter, op.getRef(), adaptor.getRef(), elemType);
     auto mpiTraits = MPIImplTraits::get(moduleOp);
     Value dataType = mpiTraits->getDataType(loc, rewriter, elemType);
     Value comm = mpiTraits->castComm(loc, rewriter, adaptor.getComm());
@@ -782,7 +827,7 @@ struct RecvOpLowering : public ConvertOpToLLVMPattern<mpi::RecvOp> {
 
     // get MPI_COMM_WORLD, dataType, status_ignore and pointer
     auto [dataPtr, size] =
-        getRawPtrAndSize(loc, rewriter, adaptor.getRef(), elemType);
+        getRawPtrAndSize(loc, rewriter, op.getRef(), adaptor.getRef(), elemType);
     auto mpiTraits = MPIImplTraits::get(moduleOp);
     Value dataType = mpiTraits->getDataType(loc, rewriter, elemType);
     Value comm = mpiTraits->castComm(loc, rewriter, adaptor.getComm());
@@ -835,9 +880,9 @@ struct AllReduceOpLowering : public ConvertOpToLLVMPattern<mpi::AllReduceOp> {
     auto moduleOp = op->getParentOfType<ModuleOp>();
     auto mpiTraits = MPIImplTraits::get(moduleOp);
     auto [sendPtr, sendSize] =
-        getRawPtrAndSize(loc, rewriter, adaptor.getSendbuf(), elemType);
+        getRawPtrAndSize(loc, rewriter, op.getSendbuf(), adaptor.getSendbuf(), elemType);
     auto [recvPtr, recvSize] =
-        getRawPtrAndSize(loc, rewriter, adaptor.getRecvbuf(), elemType);
+        getRawPtrAndSize(loc, rewriter, op.getRecvbuf(), adaptor.getRecvbuf(), elemType);
 
     // If input and output are the same, request in-place operation.
     if (adaptor.getSendbuf() == adaptor.getRecvbuf()) {

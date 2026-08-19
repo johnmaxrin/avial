@@ -15,35 +15,51 @@
   "nodes": {
     "node0": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node1": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node2": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node3": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node4": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node5": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node6": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node7": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     }
   }
 }

@@ -49,7 +49,7 @@ namespace mlir
                     mlir::affine::MemRefAccess dst(memOpVector[j]); // src
 
                     SmallVector<mlir::affine::DependenceComponent, 2> comps;
-                    mlir::affine::DependenceResult res = mlir::affine::checkMemrefAccessDependence(src, dst, depth, &constraints, &comps, true);
+                    mlir::affine::DependenceResult res = mlir::affine::checkMemrefAccessDependence(src, dst, depth, &constraints, &comps);
 
                     for(auto comp: comps)
                         llvm::errs() << "(" <<comp.lb<<", "<<comp.ub<<")\n";

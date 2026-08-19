@@ -12,22 +12,26 @@
     "node0": {
       "cpu_arch": "x86_64",
       "gpus": [],
-      "cost": 0.25
+      "cost": 0.25,
+      "bandwidth": 1.0
     },
     "node1": {
       "cpu_arch": "x86_64",
       "gpus": [],
-      "cost": 0.90
+      "cost": 0.9,
+      "bandwidth": 1.0
     },
     "node2": {
       "cpu_arch": "x86_64",
       "gpus": [],
-      "cost": 1.5
+      "cost": 1.5,
+      "bandwidth": 1.0
     },
     "node3": {
       "cpu_arch": "x86_64",
       "gpus": [],
-      "cost": 0.55
+      "cost": 0.55,
+      "bandwidth": 1.0
     }
   }
 }

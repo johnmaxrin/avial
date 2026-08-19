@@ -12,10 +12,12 @@
 #include "includes/dhirOps.h"
 #include "includes/dhirDialect.h"
 
+#include "llvm/ADT/SetVector.h"
+
 struct InsOutsAnalysis
 {
-    llvm::SmallDenseSet<mlir::Value> ins;
-    llvm::SmallDenseSet<mlir::Value> outs;
+    llvm::SetVector<mlir::Value> ins;
+    llvm::SetVector<mlir::Value> outs;
 
     InsOutsAnalysis(mlir::Operation *op)
     {
@@ -39,7 +41,7 @@ struct InsOutsAnalysis
             llvm::errs() << "Use InsOuts Analysis with ScheduleOp!\n";
     }
 
-    void collect(mlir::Operation *op, llvm::ArrayRef<mlir::Value> schArgs, llvm::SmallDenseSet<mlir::Value> &vec)
+    void collect(mlir::Operation *op, llvm::ArrayRef<mlir::Value> schArgs, llvm::SetVector<mlir::Value> &vec)
     {
         for (auto operand : op->getOperands())
         {
@@ -75,8 +77,8 @@ struct InsOutsAnalysis
     static llvm::SmallVector<llvm::SmallVector<mlir::Value>> getInsandOut(mlir::Operation *op)
     {
         llvm::SmallVector<llvm::SmallVector<mlir::Value>> result(2);
-        llvm::SmallDenseSet<mlir::Value> insSet;
-        llvm::SmallDenseSet<mlir::Value> outsSet;
+        llvm::SetVector<mlir::Value> insSet;
+        llvm::SetVector<mlir::Value> outsSet;
 
         // Walk through all nested operations
         op->walk([&](mlir::Operation *nestedOp)
@@ -111,7 +113,7 @@ struct InsOutsAnalysis
 
         for (auto val : toRemove)
         {
-            insSet.erase(val);
+            insSet.remove(val);
         }
 
         // Convert sets to vectors
