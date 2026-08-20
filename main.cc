@@ -9,6 +9,7 @@
 #include "mlir/Parser/Parser.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
+#include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Conversion/Passes.h"
 #include "mlir/Transforms/Passes.h"
 
@@ -38,6 +39,7 @@
 #include "conversions/lowerConvergeOp.h"
 #include "conversions/affinetodhir.h"
 #include "conversions/stdtodhir.h"
+#include "conversions/linalgtodhir.h"
 
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
@@ -102,6 +104,11 @@ static llvm::cl::opt<bool> stdTodhir(
     llvm::cl::desc("Enable Std Dialects to DHIR conversion"),
     llvm::cl::init(false));
 
+static llvm::cl::opt<bool> linalgTodhir(
+    "linalg-to-dhir",
+    llvm::cl::desc("Enable Linalg to DHIR conversion"),
+    llvm::cl::init(false));
+
 static llvm::cl::opt<bool> lowerTollvm(
     "lower-to-llvm",
     llvm::cl::desc("Lower everything to LLVM IR"),
@@ -122,6 +129,7 @@ int main(int argc, char *argv[])
     registry.insert<mlir::math::MathDialect>();
     registry.insert<mlir::omp::OpenMPDialect>();
     registry.insert<mlir::mpi::MPIDialect>();
+    registry.insert<mlir::linalg::LinalgDialect>();
 
     MLIRContext context;
     context.allowUnregisteredDialects();
@@ -185,6 +193,12 @@ int main(int argc, char *argv[])
     {
         pm.addPass(mlir::dhir::createConvertAffineToDhirPass());
         pm.addPass(mlir::createLowerAffinePass());
+    }
+
+    if (linalgTodhir)
+    {
+        pm.addPass(mlir::dhir::createConvertLinalgToDhirPass());
+        pm.addPass(mlir::createConvertLinalgToLoopsPass());
     }
 
     if (stdTodhir)
