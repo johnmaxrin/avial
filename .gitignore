@@ -1,2 +1,16 @@
-build
-.vscode
+# Build and IDE
+build/
+.vscode/
+.idea/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+*.egg-info/
+.venv/
+venv/
+
+# OS artifacts
+.DS_Store
