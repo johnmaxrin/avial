@@ -14,6 +14,7 @@
 
 #include "mlir/Conversion/MPIToLLVM/MPIToLLVM.h"
 #include "mlir/Conversion/ConvertToLLVM/ToLLVMInterface.h"
+#include "mlir/Conversion/LLVMCommon/MemRefBuilder.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
@@ -55,22 +56,32 @@ static LLVM::LLVMFuncOp getOrDefineFunction(ModuleOp &moduleOp,
 
 // MPI_Send with a raw pointer and element count only works if elements are contiguous(row slices)
 static bool isProvablyNonContiguous(MemRefType type) {
+  // Identity layout is canonical contiguous row-major dense storage.
+  if (type.getLayout().isIdentity())
+    return false;
+
   int64_t offset;
   SmallVector<int64_t, 4> strides;
   if (failed(type.getStridesAndOffset(strides, offset)))
     return false; // not strided
 
   int64_t expectedStride = 1;
-  for (int i = strides.size() - 1; i >= 0; --i) {
+  for (int i = static_cast<int>(strides.size()) - 1; i >= 0; --i) {
     int64_t dim = type.getDimSize(i);
-    if (strides[i] == ShapedType::kDynamic || dim == ShapedType::kDynamic)
-      return false; // assume contiguous, as can't check with dynamic
+    int64_t stride = strides[i];
 
-    // A unit-extent dim is addressed once, so its stride cannot introduce a gap.
-    if (dim != 1 && strides[i] != expectedStride)
-      return true;
+    // If both current stride and expectedStride are known, we can check for gaps
+    // even if dim is dynamic! (Unit-extent dim is addressed once, so its stride cannot introduce a gap).
+    if (stride != ShapedType::kDynamic && expectedStride != ShapedType::kDynamic) {
+      if (dim != 1 && stride != expectedStride)
+        return true;
+    }
 
-    expectedStride *= dim;
+    if (dim == ShapedType::kDynamic || expectedStride == ShapedType::kDynamic) {
+      expectedStride = ShapedType::kDynamic;
+    } else {
+      expectedStride *= dim;
+    }
   }
   return false;
 }
@@ -80,7 +91,8 @@ std::pair<Value, Value> getRawPtrAndSize(const Location loc,
                                          Value originalMemRef,
                                          Value memRef, Type elType) {
 
-  if (auto memRefType = dyn_cast<MemRefType>(originalMemRef.getType())) {
+  auto memRefType = dyn_cast<MemRefType>(originalMemRef.getType());
+  if (memRefType) {
     // MPI transfer of non-contiguous is not supported
     if (isProvablyNonContiguous(memRefType)) {
       mlir::emitError(loc)
@@ -93,28 +105,39 @@ std::pair<Value, Value> getRawPtrAndSize(const Location loc,
   }
 
   Type ptrType = LLVM::LLVMPointerType::get(rewriter.getContext());
-  Value dataPtr =
-      rewriter.create<LLVM::ExtractValueOp>(loc, ptrType, memRef, 1);
-  Value offset = rewriter.create<LLVM::ExtractValueOp>(
-      loc, rewriter.getI64Type(), memRef, 2);
+  Type i32Type = rewriter.getI32Type();
+
+  // Use MLIR's MemRefDescriptor abstraction
+  MemRefDescriptor desc(memRef);
+  Value dataPtr = desc.alignedPtr(rewriter, loc);
+  Value offset = desc.offset(rewriter, loc);
   Value resPtr =
       rewriter.create<LLVM::GEPOp>(loc, ptrType, elType, dataPtr, offset);
-  Value size;
-  auto structType = cast<LLVM::LLVMStructType>(memRef.getType());
-  if (structType.getBody().size() > 3) {
-    auto sizesArrayType = cast<LLVM::LLVMArrayType>(structType.getBody()[3]);
-    unsigned rank = sizesArrayType.getNumElements();
 
-    size = rewriter.create<LLVM::ExtractValueOp>(loc, memRef,
-                                                 ArrayRef<int64_t>{3, 0});
-    for (unsigned k = 1; k < rank; ++k) {
-      Value dimSize = rewriter.create<LLVM::ExtractValueOp>(loc, memRef,
-                                                            ArrayRef<int64_t>{3, k});
-      size = rewriter.create<LLVM::MulOp>(loc, size, dimSize);
-    }
-    size = rewriter.create<LLVM::TruncOp>(loc, rewriter.getI32Type(), size);
+  Value size;
+  if (memRefType && memRefType.hasStaticShape()) {
+    // 1. Static shape: compute count at compile time, emit single constant
+    int64_t numElements = memRefType.getNumElements();
+    size = rewriter.create<LLVM::ConstantOp>(
+        loc, i32Type,
+        rewriter.getI32IntegerAttr(static_cast<int32_t>(numElements)));
   } else {
-    size = rewriter.create<arith::ConstantIntOp>(loc, 1, 32);
+    // 2. Dynamic shape / fallback: extract from descriptor using MemRefDescriptor helper
+    auto structType = dyn_cast<LLVM::LLVMStructType>(memRef.getType());
+    if (structType && structType.getBody().size() > 3) {
+      auto sizesArrayType = cast<LLVM::LLVMArrayType>(structType.getBody()[3]);
+      unsigned rank = sizesArrayType.getNumElements();
+
+      size = desc.size(rewriter, loc, 0);
+      for (unsigned k = 1; k < rank; ++k) {
+        Value dimSize = desc.size(rewriter, loc, k);
+        size = rewriter.create<LLVM::MulOp>(loc, size, dimSize);
+      }
+      size = rewriter.create<LLVM::TruncOp>(loc, i32Type, size);
+    } else {
+      size = rewriter.create<LLVM::ConstantOp>(
+          loc, i32Type, rewriter.getI32IntegerAttr(1));
+    }
   }
   return {resPtr, size};
 }
