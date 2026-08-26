@@ -80,6 +80,17 @@ SPECS = {
     "doitgen": Spec("kernel_doitgen", ["NR", "NQ", "NP", "NP", "NP"],
                     [("A", ["NR", "NQ", "NP"]), ("C4", ["NP", "NP"]),
                      ("sum", ["NR", "NQ", "NP"])]),
+
+    # tmp = A*x ; y = B*x ; y = alpha*tmp + beta*y
+    "gesummv": Spec("kernel_gesummv", ["N", "N"],
+                    [("A", ["N", "N"]), ("B", ["N", "N"]), ("tmp", ["N"]),
+                     ("x", ["N"]), ("y", ["N"])]),
+
+    # A = A + u1*v1^T + u2*v2^T ; x = x + beta*A^T*y + z ; w = w + alpha*A*x
+    "gemver": Spec("kernel_gemver", ["N", "N", "N", "N", "N", "N", "N"],
+                   [("A", ["N", "N"]), ("u1", ["N"]), ("v1", ["N"]),
+                    ("u2", ["N"]), ("v2", ["N"]), ("w", ["N"]),
+                    ("x", ["N"]), ("y", ["N"]), ("z", ["N"])]),
 }
 
 # Stencils write [1, N-1), so the array is one wider than the loop's upper
