@@ -7,6 +7,10 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "includes/utils.h"
 
+#include <functional>
+#include <limits>
+#include <optional>
+
 enum class TargetType
 {
   CPU,
@@ -24,7 +28,8 @@ struct TaskOpInfo
   TargetType target;
   
   int64_t repId;  // Which replicate this task came from
-  bool insideLoop;  // Whether this task is inside a loop
+  std::optional<int64_t> shardGroup;  // Present only on lowered replicate shards
+  size_t emissionGroup;  // Consecutive tasks that can share one emission point
 
   bool isGPU() const { return target == TargetType::GPU; }
   bool isCPU() const { return target == TargetType::CPU; }
@@ -51,14 +56,18 @@ bool rangesOverlap(const std::vector<int64_t> &offset1, const std::vector<int64_
                    const std::vector<int64_t> &offset2, const std::vector<int64_t> &size2)
 {
   if (offset1.size() != offset2.size() || size1.size() != size2.size())
-    return false;
+    return true;
 
   for (size_t dim = 0; dim < offset1.size(); ++dim)
   {
-    int64_t start1 = offset1[dim];
-    int64_t end1 = start1 + size1[dim];
-    int64_t start2 = offset2[dim];
-    int64_t end2 = start2 + size2[dim];
+    if (size1[dim] <= 0 || size2[dim] <= 0)
+      return false;
+
+    // Keep interval arithmetic from wrapping on extreme offsets.
+    __int128 start1 = offset1[dim];
+    __int128 end1 = start1 + static_cast<__int128>(size1[dim]);
+    __int128 start2 = offset2[dim];
+    __int128 end2 = start2 + static_cast<__int128>(size2[dim]);
 
     // No overlap in this dimension means no overall overlap
     if (end1 <= start2 || end2 <= start1)
@@ -75,12 +84,14 @@ struct MemRefAccess
   std::vector<int64_t> offsets;
   std::vector<int64_t> sizes;
   bool isSubview;
+  bool rangeKnown;
 };
 
 MemRefAccess getMemRefAccess(mlir::Value val)
 {
   MemRefAccess access;
   access.isSubview = false;
+  access.rangeKnown = true;
 
   // Check if this is a subview
   if (auto defOp = val.getDefiningOp())
@@ -88,17 +99,60 @@ MemRefAccess getMemRefAccess(mlir::Value val)
     if (auto subviewOp = mlir::dyn_cast<mlir::memref::SubViewOp>(defOp))
     {
       access.isSubview = true;
-      access.baseMemRef = subviewOp.getSource();
+      MemRefAccess source = getMemRefAccess(subviewOp.getSource());
+      access.baseMemRef = source.baseMemRef;
+      access.rangeKnown = source.rangeKnown;
 
-      // Extract offsets
       auto offsetsAttr = subviewOp.getStaticOffsets();
-      for (auto offset : offsetsAttr)
-        access.offsets.push_back(offset);
-
-      // Extract sizes
       auto sizesAttr = subviewOp.getStaticSizes();
-      for (auto size : sizesAttr)
-        access.sizes.push_back(size);
+      auto stridesAttr = subviewOp.getStaticStrides();
+
+      // Only static, unit-stride, rank-preserving views can be compared
+      // exactly.  Dynamic metadata is conservatively considered overlapping.
+      if (offsetsAttr.size() != sizesAttr.size() ||
+          offsetsAttr.size() != stridesAttr.size() ||
+          (!source.offsets.empty() && source.offsets.size() != offsetsAttr.size()))
+      {
+        access.rangeKnown = false;
+        return access;
+      }
+
+      for (unsigned i = 0; i < offsetsAttr.size(); ++i)
+      {
+        if (offsetsAttr[i] == mlir::ShapedType::kDynamic ||
+            sizesAttr[i] == mlir::ShapedType::kDynamic ||
+            stridesAttr[i] == mlir::ShapedType::kDynamic ||
+            stridesAttr[i] != 1)
+        {
+          access.rangeKnown = false;
+          return access;
+        }
+
+        int64_t baseOffset = source.offsets.empty() ? 0 : source.offsets[i];
+        __int128 combinedOffset = static_cast<__int128>(baseOffset) + offsetsAttr[i];
+        if (combinedOffset < std::numeric_limits<int64_t>::min() ||
+            combinedOffset > std::numeric_limits<int64_t>::max())
+        {
+          access.rangeKnown = false;
+          return access;
+        }
+        access.offsets.push_back(static_cast<int64_t>(combinedOffset));
+        access.sizes.push_back(sizesAttr[i]);
+      }
+
+      if (!source.offsets.empty())
+      {
+        for (unsigned i = 0; i < access.sizes.size(); ++i)
+        {
+          if (access.offsets[i] < source.offsets[i] ||
+              access.offsets[i] - source.offsets[i] > source.sizes[i] ||
+              access.sizes[i] > source.sizes[i] - (access.offsets[i] - source.offsets[i]))
+          {
+            access.rangeKnown = false;
+            return access;
+          }
+        }
+      }
     }
     else
     {
@@ -138,6 +192,9 @@ bool memoryAccessesConflict(mlir::Value val1, mlir::Value val2)
   }
   else
   {
+    if (!access1.rangeKnown || !access2.rangeKnown)
+      return true;
+
     // Both are subviews - check if ranges overlap
     return rangesOverlap(access1.offsets, access1.sizes,
                          access2.offsets, access2.sizes);
@@ -157,29 +214,59 @@ namespace mlir
       std::vector<mlir::memref::AllocaOp> allocs;
       std::vector<std::vector<TaskOpInfo *>> levelVector;
       
-      bool hasLoop;  // Whether tasks are inside a loop
-      mlir::scf::ForOp forLoop;  // The loop containing tasks (if any)
-
       void build(dhir::ScheduleOp schedule)
       {
         llvm::errs() << "-- Building task dependency graph\n";
 
-        hasLoop = false;
+        tasks.clear();
+        allocs.clear();
+        levelVector.clear();
 
-        // Look for a for loop wrapping the tasks. Only loops that are direct
-        // children of the schedule body count: every task body contains loops
-        // of its own, and walking into them would report a wrapping loop for
-        // schedules that have none.
-        for (mlir::Operation &bodyOp : schedule.getBody().front())
-        {
-          if (auto loop = mlir::dyn_cast<mlir::scf::ForOp>(bodyOp))
+        llvm::DenseMap<mlir::Operation *, size_t> taskEmissionGroups;
+        size_t nextEmissionGroup = 0;
+
+        auto isSetup = [](mlir::Operation *op) {
+          return mlir::isMemoryEffectFree(op) ||
+                 mlir::isa<mlir::memref::AllocOp, mlir::memref::AllocaOp>(op);
+        };
+
+        std::function<void(mlir::Block &)> assignEmissionGroups =
+            [&](mlir::Block &body) {
+          std::optional<size_t> activeGroup;
+
+          for (mlir::Operation &bodyOp : body)
           {
-            hasLoop = true;
-            forLoop = loop;
-            llvm::errs() << "Found tasks inside scf.for loop\n";
-            break;
+            if (mlir::isa<mlir::dhir::YieldOp, mlir::scf::YieldOp>(bodyOp) ||
+                isSetup(&bodyOp))
+              continue;
+
+            if (mlir::isa<mlir::dhir::TaskOp>(bodyOp))
+            {
+              if (!activeGroup)
+                activeGroup = nextEmissionGroup++;
+              taskEmissionGroups[&bodyOp] = *activeGroup;
+              continue;
+            }
+
+            if (auto forOp = mlir::dyn_cast<mlir::scf::ForOp>(bodyOp))
+            {
+              bool wrapsTasks = false;
+              forOp.walk([&](mlir::dhir::TaskOp) { wrapsTasks = true; });
+              if (wrapsTasks)
+              {
+                activeGroup.reset();
+                assignEmissionGroups(*forOp.getBody());
+                activeGroup.reset();
+                continue;
+              }
+            }
+
+            // Serial work and unsupported control flow are ordering barriers.
+            activeGroup.reset();
           }
-        }
+        };
+
+        assignEmissionGroups(schedule.getBody().front());
 
         // Collect allocations
         for (memref::AllocaOp alloc : schedule.getBody().getOps<memref::AllocaOp>())
@@ -193,14 +280,17 @@ namespace mlir
           TaskOpInfo info;
           info.target = getTargetTypeFromAttr(task->getAttr("target"));
           info.op = task.getOperation();
-          // Per task, not schedule-wide: a schedule can mix replicates that sit
-          // inside the wrapping loop with siblings that sit outside it, and the
-          // two must be emitted at different nesting depths.
-          info.insideLoop = hasLoop && forLoop->isProperAncestor(task.getOperation());
+          auto groupIt = taskEmissionGroups.find(task.getOperation());
+          if (groupIt == taskEmissionGroups.end())
+            llvm::report_fatal_error(
+                "Task is nested in control flow unsupported by DHIR-to-MPI");
+          info.emissionGroup = groupIt->second;
           
           // Get repId
           auto repIdAttr = task->getAttrOfType<mlir::IntegerAttr>("repId");
           info.repId = repIdAttr ? repIdAttr.getInt() : -1;
+          if (auto shardGroupAttr = task->getAttrOfType<mlir::IntegerAttr>("shardGroup"))
+            info.shardGroup = shardGroupAttr.getInt();
           
           // Get inputs and outputs
           for (auto in : task.getInputs())
@@ -237,53 +327,26 @@ namespace mlir
             llvm::errs() << "\nChecking dependency: Task " << i << " (repId=" << repIdI 
                          << ") -> Task " << j << " (repId=" << repIdJ << ")\n";
 
-            // Dependency rules based on repId and loop context
-            if (hasLoop)
+            // A level is emitted at the position of its first task. Tasks in
+            // different program-order groups therefore cannot share a level;
+            // this covers sibling loops, tasks before/after a loop, and serial
+            // work between otherwise independent replicates.
+            if (tasks[i].emissionGroup != tasks[j].emissionGroup)
             {
-              // Tasks are inside a loop - different rules apply
-              
-              if (repIdI == repIdJ)
-              {
-                // Same repId means same replicate (iteration)
-                // These tasks can execute in parallel within the same iteration
-                llvm::errs() << "  Same repId - no dependency (parallel within iteration)\n";
-                continue;
-              }
-              else
-              {
-                // Different repId means different replicates
-                // Check for loop-carried dependencies
-                
-                // If repIdI < repIdJ, task i executes before task j in each iteration
-                // Need to check if j depends on i's output from the SAME iteration
-                
-                depends = checkMemoryDependency(tasks[i], tasks[j]);
-                
-                if (depends)
-                {
-                  llvm::errs() << "  Loop-carried dependency detected (repId " 
-                               << repIdI << " -> " << repIdJ << ")\n";
-                }
-              }
+              depends = true;
+              llvm::errs() << "  Different emission groups - preserve program order\n";
+            }
+            else if (tasks[i].shardGroup && tasks[j].shardGroup &&
+                     tasks[i].shardGroup == tasks[j].shardGroup)
+            {
+              llvm::errs() << "  Same shard group - no dependency (parallel shards)\n";
+              continue;
             }
             else
             {
-              // Tasks are NOT inside a loop
-              // Standard sequential dependency checking
-              
-              if (repIdI == repIdJ)
-              {
-                // Same repId - these are from the same replicate, no dependency
-                llvm::errs() << "  Same repId - no dependency\n";
-                continue;
-              }
-              
               depends = checkMemoryDependency(tasks[i], tasks[j]);
-              
               if (depends)
-              {
-                llvm::errs() << "  Sequential dependency detected\n";
-              }
+                llvm::errs() << "  Memory dependency detected\n";
             }
 
             if (depends)

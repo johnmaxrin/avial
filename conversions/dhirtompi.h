@@ -448,6 +448,11 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
         Value topology = createRuntimeTopology(module, rewriter, loc);
 
         auto devicesAttr = module->getAttrOfType<ArrayAttr>("dhir.target_devices");
+        if (!devicesAttr || devicesAttr.empty())
+        {
+            op.emitError("requires a non-empty dhir.target_devices attribute");
+            return failure();
+        }
         int numNodes = devicesAttr.size();
 
         auto mapType = MemRefType::get({numNodes}, rewriter.getI32Type());
@@ -517,9 +522,11 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                 auto taskOp = dyn_cast<dhir::TaskOp>(task->op);
                 Attribute targetDevice = taskOp.getTarget();
 
-                // if task target device has no matches in the deviceToIndex map, something is broken on our end.
-                // this should not create UB on the users' end
-                assert(deviceToIndex.count(targetDevice) && "Task target device not found in deviceToIndex map");
+                if (!deviceToIndex.count(targetDevice))
+                {
+                    taskOp.emitError("target device is not present in dhir.target_devices");
+                    return failure();
+                }
 
                 int targetNodeIdx = deviceToIndex[targetDevice];
 
@@ -645,7 +652,11 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                 auto taskOp = dyn_cast<mlir::dhir::TaskOp>(task->op);
                 Attribute targetDevice = taskOp.getTarget();
 
-                assert(deviceToIndex.count(targetDevice) && "Task target device not found in deviceToIndex map");
+                if (!deviceToIndex.count(targetDevice))
+                {
+                    taskOp.emitError("target device is not present in dhir.target_devices");
+                    return failure();
+                }
 
                 int targetNodeIdx = deviceToIndex[targetDevice];
 

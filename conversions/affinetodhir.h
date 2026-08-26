@@ -60,7 +60,12 @@ namespace mlir
                                      {
                     if (mlir::isa<mlir::affine::AffineStoreOp>(op)) {
                         memOpVector.push_back(op);
-                        if (op->getParentOp() == loop.getOperation()) {
+                        // A memory operation is owned by the loop body block,
+                        // not directly by the AffineForOp.  Compare the
+                        // nearest enclosing loop so invariant stores in this
+                        // loop are actually rejected while nested-loop stores
+                        // remain part of the nested loop's analysis.
+                        if (op->getParentOfType<mlir::affine::AffineForOp>() == loop) {
                             if (analysis.getDimensionForIV(op, iv) == -1) {
                                 hasInvariantStore = true;
                             }

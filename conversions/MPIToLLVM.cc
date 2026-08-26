@@ -22,6 +22,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/MPI/IR/MPI.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include <limits>
 #include <memory>
 
 
@@ -54,53 +55,58 @@ static LLVM::LLVMFuncOp getOrDefineFunction(ModuleOp &moduleOp,
       moduleOp, loc, rewriter, name, name, type, LLVM::Linkage::External);
 }
 
-// MPI_Send with a raw pointer and element count only works if elements are contiguous(row slices)
-static bool isProvablyNonContiguous(MemRefType type) {
+// A raw pointer and element count can only describe a contiguous memref.
+// Unknown layouts/strides are rejected: assuming contiguity here would turn a
+// legal dynamic view into a silent wrong-data transfer.
+static bool isProvablyContiguous(MemRefType type) {
   // Identity layout is canonical contiguous row-major dense storage.
   if (type.getLayout().isIdentity())
-    return false;
+    return true;
 
   int64_t offset;
   SmallVector<int64_t, 4> strides;
   if (failed(type.getStridesAndOffset(strides, offset)))
-    return false; // not strided
+    return false;
 
   int64_t expectedStride = 1;
   for (int i = static_cast<int>(strides.size()) - 1; i >= 0; --i) {
     int64_t dim = type.getDimSize(i);
     int64_t stride = strides[i];
 
-    // If both current stride and expectedStride are known, we can check for gaps
-    // even if dim is dynamic! (Unit-extent dim is addressed once, so its stride cannot introduce a gap).
-    if (stride != ShapedType::kDynamic && expectedStride != ShapedType::kDynamic) {
-      if (dim != 1 && stride != expectedStride)
-        return true;
-    }
+    if (dim == 0)
+      return true;
+
+    // A unit-extent dimension is addressed once, so its stride is irrelevant.
+    if (dim != 1 &&
+        (stride == ShapedType::kDynamic ||
+         expectedStride == ShapedType::kDynamic ||
+         stride != expectedStride))
+      return false;
 
     if (dim == ShapedType::kDynamic || expectedStride == ShapedType::kDynamic) {
       expectedStride = ShapedType::kDynamic;
     } else {
+      if (dim > 0 && expectedStride > std::numeric_limits<int64_t>::max() / dim)
+        return false;
       expectedStride *= dim;
     }
   }
-  return false;
+  return true;
 }
 
-std::pair<Value, Value> getRawPtrAndSize(const Location loc,
-                                         ConversionPatternRewriter &rewriter,
-                                         Value originalMemRef,
-                                         Value memRef, Type elType) {
+FailureOr<std::pair<Value, Value>> getRawPtrAndSize(
+    const Location loc, ConversionPatternRewriter &rewriter,
+    Value originalMemRef, Value memRef, Type elType) {
 
   auto memRefType = dyn_cast<MemRefType>(originalMemRef.getType());
   if (memRefType) {
-    // MPI transfer of non-contiguous is not supported
-    if (isProvablyNonContiguous(memRefType)) {
+    // MPI transfer of non-contiguous or layout-unknown buffers is not supported.
+    if (!isProvablyContiguous(memRefType)) {
       mlir::emitError(loc)
-          << "cannot lower an MPI transfer of non-contiguous memref "
+          << "cannot lower an MPI transfer whose contiguity is not proven: "
           << memRefType
           << ": raw pointer & element count can't describe strided";
-      llvm::report_fatal_error(
-          "MPI transfer of non-contiguous buffer is not supported for now");
+      return failure();
     }
   }
 
@@ -118,11 +124,19 @@ std::pair<Value, Value> getRawPtrAndSize(const Location loc,
   if (memRefType && memRefType.hasStaticShape()) {
     // 1. Static shape: compute count at compile time, emit single constant
     int64_t numElements = memRefType.getNumElements();
+    if (numElements > std::numeric_limits<int32_t>::max())
+    {
+      mlir::emitError(loc)
+          << "MPI transfer element count exceeds the signed 32-bit count limit";
+      return failure();
+    }
     size = rewriter.create<LLVM::ConstantOp>(
         loc, i32Type,
         rewriter.getI32IntegerAttr(static_cast<int32_t>(numElements)));
   } else {
     // 2. Dynamic shape / fallback: extract from descriptor using MemRefDescriptor helper
+    // TODO: emit a runtime overflow guard before narrowing the dynamic product
+    // to MPI's signed 32-bit count parameter.
     auto structType = dyn_cast<LLVM::LLVMStructType>(memRef.getType());
     if (structType && structType.getBody().size() > 3) {
       auto sizesArrayType = cast<LLVM::LLVMArrayType>(structType.getBody()[3]);
@@ -139,7 +153,7 @@ std::pair<Value, Value> getRawPtrAndSize(const Location loc,
           loc, i32Type, rewriter.getI32IntegerAttr(1));
     }
   }
-  return {resPtr, size};
+  return std::make_pair(resPtr, size);
 }
 
 /// When lowering the mpi dialect to functions calls certain details
@@ -797,8 +811,11 @@ struct SendOpLowering : public ConvertOpToLLVMPattern<mpi::SendOp> {
     auto moduleOp = op->getParentOfType<ModuleOp>();
 
     // get MPI_COMM_WORLD, dataType and pointer
-    auto [dataPtr, size] =
+    auto rawPtrAndSize =
         getRawPtrAndSize(loc, rewriter, op.getRef(), adaptor.getRef(), elemType);
+    if (failed(rawPtrAndSize))
+      return failure();
+    auto [dataPtr, size] = *rawPtrAndSize;
     auto mpiTraits = MPIImplTraits::get(moduleOp);
     Value dataType = mpiTraits->getDataType(loc, rewriter, elemType);
     Value comm = mpiTraits->castComm(loc, rewriter, adaptor.getComm());
@@ -849,8 +866,11 @@ struct RecvOpLowering : public ConvertOpToLLVMPattern<mpi::RecvOp> {
     auto moduleOp = op->getParentOfType<ModuleOp>();
 
     // get MPI_COMM_WORLD, dataType, status_ignore and pointer
-    auto [dataPtr, size] =
+    auto rawPtrAndSize =
         getRawPtrAndSize(loc, rewriter, op.getRef(), adaptor.getRef(), elemType);
+    if (failed(rawPtrAndSize))
+      return failure();
+    auto [dataPtr, size] = *rawPtrAndSize;
     auto mpiTraits = MPIImplTraits::get(moduleOp);
     Value dataType = mpiTraits->getDataType(loc, rewriter, elemType);
     Value comm = mpiTraits->castComm(loc, rewriter, adaptor.getComm());
@@ -902,10 +922,14 @@ struct AllReduceOpLowering : public ConvertOpToLLVMPattern<mpi::AllReduceOp> {
     Type ptrType = LLVM::LLVMPointerType::get(context);
     auto moduleOp = op->getParentOfType<ModuleOp>();
     auto mpiTraits = MPIImplTraits::get(moduleOp);
-    auto [sendPtr, sendSize] =
+    auto sendRawPtrAndSize =
         getRawPtrAndSize(loc, rewriter, op.getSendbuf(), adaptor.getSendbuf(), elemType);
-    auto [recvPtr, recvSize] =
+    auto recvRawPtrAndSize =
         getRawPtrAndSize(loc, rewriter, op.getRecvbuf(), adaptor.getRecvbuf(), elemType);
+    if (failed(sendRawPtrAndSize) || failed(recvRawPtrAndSize))
+      return failure();
+    auto [sendPtr, sendSize] = *sendRawPtrAndSize;
+    auto [recvPtr, recvSize] = *recvRawPtrAndSize;
 
     // If input and output are the same, request in-place operation.
     if (adaptor.getSendbuf() == adaptor.getRecvbuf()) {

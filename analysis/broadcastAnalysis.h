@@ -81,28 +81,36 @@ namespace mlir
                     llvm::errs() << "  Found " << subsequentReplicates.size() 
                                 << " subsequent replicate(s)\n";
 
-                    // Analyze the first subsequent replicate that uses this output
-                    // (You can extend this to analyze all of them if needed)
-                    mlir::Operation *nextReplicate = subsequentReplicates[0];
+                    // Every later consumer must be able to see the producer's
+                    // data. A single NO_PARTITION consumer requires broadcast,
+                    // even if an earlier consumer is row-partitioned.
+                    bool needsAnyBroadcast = false;
+                    ArrayPartitioningInfo firstPartInfo{};
+                    bool havePartInfo = false;
+                    for (mlir::Operation *nextReplicate : subsequentReplicates)
+                    {
+                        ArrayPartitioningInfo partInfo =
+                            analyzeArrayForPartitioning(nextReplicate, writeArg);
+                        if (!havePartInfo)
+                        {
+                            firstPartInfo = partInfo;
+                            havePartInfo = true;
+                        }
+                        needsAnyBroadcast |= needsBroadcast(partInfo);
+                    }
 
-                    // Use the existing partitioning analysis to determine if the 
-                    // subsequent replicate needs partitioning for this memref
-                    ArrayPartitioningInfo partInfo = 
-                        analyzeArrayForPartitioning(nextReplicate, writeArg);
+                    info.partInfo = firstPartInfo;
 
-                    info.partInfo = partInfo;
-
-                    // Determine if broadcast is needed based on partitioning strategy
-                    if (needsBroadcast(partInfo)) {
+                    if (needsAnyBroadcast) {
                         info.needsBroadcast = true;
-                        info.reason = "Subsequent replicate needs NO_PARTITION (replicate/broadcast)";
+                        info.reason = "A subsequent replicate needs NO_PARTITION (replicate/broadcast)";
                         llvm::errs() << "  ✓ BROADCAST NEEDED: " << info.reason << "\n";
                     } else {
                         info.needsBroadcast = false;
                         
-                        if (partInfo.strategy == ArrayPartitioningInfo::ROW_PARTITION) {
+                        if (firstPartInfo.strategy == ArrayPartitioningInfo::ROW_PARTITION) {
                             info.reason = "Subsequent replicate uses ROW_PARTITION (no broadcast)";
-                        } else if (partInfo.strategy == ArrayPartitioningInfo::COL_PARTITION) {
+                        } else if (firstPartInfo.strategy == ArrayPartitioningInfo::COL_PARTITION) {
                             info.reason = "Subsequent replicate uses COL_PARTITION (no broadcast)";
                         } else {
                             info.reason = "Partitioning strategy allows direct usage";
@@ -151,6 +159,9 @@ namespace mlir
 
                     // Only look at operations after the current replicate
                     if (!foundCurrentReplicate)
+                        return;
+
+                    if (replicateOp->isProperAncestor(op.getOperation()))
                         return;
 
                     // Check if this operation is a replicate that reads our memref
