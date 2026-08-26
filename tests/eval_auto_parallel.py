@@ -22,9 +22,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 RUN_BENCH = ROOT / "tests" / "run_bench.sh"
 
-# The F8 works list: kernels that lower to tasks and have a driver.
+# kernels that lower to tasks and have a driver.
+# bicg, symm, trmm, floyd_warshall, trisol, seidel : NO Parallelization so excluded
+# syrk : not supported
 KERNELS = ["gemm", "2mm", "3mm", "syr2k", "mvt", "atax",
-           "jacobi", "jacobi2d", "add2d", "doitgen"]
+           "jacobi", "jacobi2d", "add2d", "doitgen", "gesummv", "gemver"]
 
 DEFAULT_RANKS = [1, 2, 4]
 
