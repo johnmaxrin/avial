@@ -16,6 +16,11 @@
 #include "analysis/insoutAnalysis.h"
 #include "analysis/broadcastAnalysis.h"
 
+#include <cmath>
+#include <limits>
+#include <map>
+#include <set>
+
 using namespace mlir;
 
 struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
@@ -49,14 +54,22 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
         int64_t constlowerBound = 0;
         mlir::scf::ForOp outerScfFor = nullptr;
         mlir::affine::AffineForOp outerAffineFor = nullptr;
+        bool foundOuterLoop = false;
 
         for (auto &innerOp : op.getBody().front().getOperations())
         {
             if (mlir::isa<mlir::scf::ForOp>(innerOp))
             {
+                if (foundOuterLoop)
+                {
+                    llvm::errs() << "Error: Replicate body has multiple top-level loops; cannot choose a single partitioning loop\n";
+                    return failure();
+                }
                 outerScfFor = mlir::dyn_cast<mlir::scf::ForOp>(innerOp);
+                foundOuterLoop = true;
 
-                if (mlir::isa<mlir::arith::ConstantIndexOp>(outerScfFor.getUpperBound().getDefiningOp()))
+                if (mlir::isa<mlir::arith::ConstantIndexOp>(outerScfFor.getUpperBound().getDefiningOp()) &&
+                    mlir::isa<mlir::arith::ConstantIndexOp>(outerScfFor.getLowerBound().getDefiningOp()))
                 {
                     auto constUB = mlir::dyn_cast<mlir::arith::ConstantIndexOp>(outerScfFor.getUpperBound().getDefiningOp());
                     auto constLB = mlir::dyn_cast<mlir::arith::ConstantIndexOp>(outerScfFor.getLowerBound().getDefiningOp());
@@ -68,10 +81,24 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
                     llvm::errs() << "Error: Not a constant upper bound bro!\n";
                     return failure();
                 }
+
+                if (outerScfFor.getStep().getDefiningOp() == nullptr ||
+                    !mlir::isa<mlir::arith::ConstantIndexOp>(outerScfFor.getStep().getDefiningOp()) ||
+                    mlir::cast<mlir::arith::ConstantIndexOp>(outerScfFor.getStep().getDefiningOp()).value() != 1)
+                {
+                    llvm::errs() << "Error: Only unit-step scf.for loops can be partitioned\n";
+                    return failure();
+                }
             }
             else if (mlir::isa<mlir::affine::AffineForOp>(innerOp))
             {
+                if (foundOuterLoop)
+                {
+                    llvm::errs() << "Error: Replicate body has multiple top-level loops; cannot choose a single partitioning loop\n";
+                    return failure();
+                }
                 outerAffineFor = mlir::dyn_cast<mlir::affine::AffineForOp>(innerOp);
+                foundOuterLoop = true;
 
                 AffineMap ubMap = outerAffineFor.getUpperBoundMap();
                 AffineMap lbMap = outerAffineFor.getLowerBoundMap();
@@ -109,40 +136,72 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
                     llvm::errs() << "Error: Not a constant lower bound bro!\n";
                     return failure();
                 }
+
+                if (outerAffineFor.getStepAsInt() != 1)
+                {
+                    llvm::errs() << "Error: Only unit-step affine.for loops can be partitioned\n";
+                    return failure();
+                }
             }
         }
 
-        if (!constupperBound)
+        if (!foundOuterLoop)
         {
-            llvm::errs() << "Error: Upper Bound cannot be Zero. UB: " << constupperBound << "\n";
+            llvm::errs() << "Error: Replicate body does not contain a supported top-level loop\n";
             return failure();
         }
 
         int64_t ub = constupperBound;
         int64_t lb = constlowerBound;
         int64_t num_devices = deviceVec.size();
+        if (num_devices == 0)
+        {
+            llvm::errs() << "Error: No target devices are configured\n";
+            return failure();
+        }
+        if (ub < lb)
+        {
+            llvm::errs() << "Error: Replicate loop upper bound is below its lower bound\n";
+            return failure();
+        }
         llvm::SmallVector<mlir::dhir::ArrayPartitioningInfo> arrayPartitionInfoInVec;
         llvm::SmallVector<mlir::dhir::ArrayPartitioningInfo> arrayPartitionInfoOutVec;
 
-        int64_t total_iters = ub - lb;
+        __int128 totalItersWide = static_cast<__int128>(ub) - static_cast<__int128>(lb);
+        if (totalItersWide > std::numeric_limits<int64_t>::max())
+        {
+            llvm::errs() << "Error: Replicate loop iteration count is too large\n";
+            return failure();
+        }
+        int64_t total_iters = static_cast<int64_t>(totalItersWide);
 
         // weight = 1/cost for each node, cost cannot be 0
-        std::vector<float> weights;
-        float weight_sum = 0.0f;
+        std::vector<double> weights;
+        double weight_sum = 0.0;
 
         for (int i = 0; i < num_devices; i++)
         {
-            float cost = 1.0f;
+            double cost = 1.0;
             if (auto costAttr = mlir::dyn_cast<mlir::FloatAttr>(getDeviceAttribute(deviceVec[i], "cost")))
             {
-                cost = costAttr.getValue().convertToFloat();
+                cost = costAttr.getValue().convertToDouble();
             }
 
-            if (cost <= 0.0f) llvm::report_fatal_error("cost needs to be > 0");
+            if (!std::isfinite(cost) || cost <= 0.0)
+            {
+                llvm::errs() << "Error: device cost must be finite and > 0\n";
+                return failure();
+            }
 
-            float weight = 1.0f / cost;
+            double weight = 1.0 / cost;
             weights.push_back(weight);
             weight_sum += weight;
+        }
+
+        if (!std::isfinite(weight_sum) || weight_sum <= 0.0)
+        {
+            llvm::errs() << "Error: device costs produce an invalid shard weighting\n";
+            return failure();
         }
 
         std::vector<int64_t> chunk_sizes;
@@ -150,14 +209,19 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
 
         for (int i = 0; i < num_devices; i++)
         {
-            int64_t chunk = static_cast<int64_t>((weights[i] / weight_sum) * total_iters);
+            int64_t chunk = static_cast<int64_t>(
+                (weights[i] / weight_sum) * static_cast<double>(total_iters));
             chunk_sizes.push_back(chunk);
             assigned_iters += chunk;
         }
 
         // handle remainder iterations by adding 1 iteration to each device till all remainder iterations are assigned
         int64_t remainder = total_iters - assigned_iters;
-        assert(remainder >= 0 && remainder < num_devices && "remainder should be in [0,num_devices)");
+        if (remainder < 0 || remainder >= num_devices)
+        {
+            llvm::errs() << "Error: shard weighting did not produce a valid remainder\n";
+            return failure();
+        }
 
         for (int i = 0; i < remainder; i++)
         {
@@ -252,6 +316,16 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
             mlir::dhir::ArrayPartitioningAnalysis analysis(outerForOp, partitionedIV);
             
             auto checkAccess = [&](Value memref, mlir::Operation* nestedOp) {
+                // Local scratch buffers are cloned into every task and do not
+                // participate in the replicate operand rebasing contract.
+                bool isReplicateOperand = false;
+                for (Value input : insVec)
+                    isReplicateOperand |= input == memref;
+                for (Value output : outsVec)
+                    isReplicateOperand |= output == memref;
+                if (!isReplicateOperand)
+                    return;
+
                 bool isSliced = false;
                 for (size_t i = 0; i < insVec.size(); ++i) {
                     if (insVec[i] == memref && arrayPartitionInfoInVec[i].strategy == mlir::dhir::ArrayPartitioningInfo::ROW_PARTITION)
@@ -404,8 +478,12 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
             if (auto attr = op->getAttrOfType<mlir::IntegerAttr>("replicateID"))
                 repIdAttr = attr;
             else
-                repIdAttr = rewriter.getI32IntegerAttr(0);
+            {
+                llvm::errs() << "Error: ReplicateOp is missing replicateID\n";
+                return failure();
+            }
             taskOp->setAttr("repId", repIdAttr);
+            taskOp->setAttr("shardGroup", repIdAttr);
 
             if (taskOp.getRegion().empty())
                 rewriter.createBlock(&taskOp.getRegion());
@@ -528,6 +606,32 @@ namespace mlir
             {
                 mlir::MLIRContext *context = &getContext();
                 auto *module = getOperation();
+
+                std::map<mlir::Operation *, std::set<int64_t>> scheduleReplicateIds;
+                bool invalidReplicateId = false;
+                module->walk([&](mlir::dhir::ReplicateOp replicate) {
+                    auto schedule = replicate->getParentOfType<mlir::dhir::ScheduleOp>();
+                    auto idAttr = replicate->getAttrOfType<mlir::IntegerAttr>("replicateID");
+                    if (!schedule || !idAttr || idAttr.getInt() < 0)
+                    {
+                        replicate.emitError("must have a non-negative replicateID and be nested in a ScheduleOp");
+                        invalidReplicateId = true;
+                        return;
+                    }
+
+                    auto &ids = scheduleReplicateIds[schedule.getOperation()];
+                    if (!ids.insert(idAttr.getInt()).second)
+                    {
+                        replicate.emitError("duplicate replicateID in one schedule");
+                        invalidReplicateId = true;
+                    }
+                });
+                if (invalidReplicateId)
+                {
+                    signalPassFailure();
+                    return;
+                }
+
                 ConversionTarget targetReplicateOp(getContext());
 
                 targetReplicateOp.addLegalDialect<mlir::arith::ArithDialect>();
