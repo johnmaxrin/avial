@@ -17,8 +17,10 @@
 #include "analysis/broadcastAnalysis.h"
 
 #include <cmath>
+#include <functional>
 #include <limits>
 #include <map>
+#include <optional>
 #include <set>
 
 using namespace mlir;
@@ -41,8 +43,8 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
         {
             if (mlir::isa<mlir::ModuleOp>(schOp))
             {
-                llvm::errs() << "Lowering Replicate Op too early! Replicate Op needs schedule op to get lowered correctly.\n";
-                exit(0);
+                op.emitError("cannot lower dhir.replicate outside a dhir.schedule");
+                return failure();
             }
 
             schOp = schOp->getParentOp();
@@ -78,7 +80,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
                 }
                 else
                 {
-                    llvm::errs() << "Error: Not a constant upper bound bro!\n";
+                    llvm::errs() << "Error: scf.for upper and lower bounds must be constant\n";
                     return failure();
                 }
 
@@ -87,6 +89,12 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
                     mlir::cast<mlir::arith::ConstantIndexOp>(outerScfFor.getStep().getDefiningOp()).value() != 1)
                 {
                     llvm::errs() << "Error: Only unit-step scf.for loops can be partitioned\n";
+                    return failure();
+                }
+
+                if (!outerScfFor.getInitArgs().empty())
+                {
+                    llvm::errs() << "Error: scf.for loops with iter_args cannot be partitioned\n";
                     return failure();
                 }
             }
@@ -110,13 +118,13 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
                         constupperBound = constExpr.getValue();
                     else
                     {
-                        llvm::errs() << "Error: Not a constant upper bound bro!\n";
+                        llvm::errs() << "Error: affine.for upper bound must be constant\n";
                         return failure();
                     }
                 }
                 else
                 {
-                    llvm::errs() << "Error: Not a constant upper bound bro!\n";
+                    llvm::errs() << "Error: affine.for upper bound must be constant\n";
                     return failure();
                 }
 
@@ -127,19 +135,25 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
                         constlowerBound = constExpr.getValue();
                     else
                     {
-                        llvm::errs() << "Error: Not a constant lower bound bro!\n";
+                        llvm::errs() << "Error: affine.for lower bound must be constant\n";
                         return failure();
                     }
                 }
                 else
                 {
-                    llvm::errs() << "Error: Not a constant lower bound bro!\n";
+                    llvm::errs() << "Error: affine.for lower bound must be constant\n";
                     return failure();
                 }
 
                 if (outerAffineFor.getStepAsInt() != 1)
                 {
                     llvm::errs() << "Error: Only unit-step affine.for loops can be partitioned\n";
+                    return failure();
+                }
+
+                if (outerAffineFor.getNumRegionIterArgs() != 0)
+                {
+                    llvm::errs() << "Error: affine.for loops with iter_args cannot be partitioned\n";
                     return failure();
                 }
             }
@@ -306,54 +320,217 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
             llvm::errs() << "Warning: No for loop found in schedule body\n";
         }
 
-        // R1: Check for per-access rebasing
-        bool hasUnslicedAccessOnPartitionedIV = false;
-        Value partitionedIV = outerForOp ? 
-            (outerScfFor ? outerScfFor.getInductionVar() : outerAffineFor.getInductionVar()) 
-            : nullptr;
+        Value partitionedIV = outerScfFor ? outerScfFor.getInductionVar()
+                                          : outerAffineFor.getInductionVar();
 
-        if (partitionedIV) {
-            mlir::dhir::ArrayPartitioningAnalysis analysis(outerForOp, partitionedIV);
-            
-            auto checkAccess = [&](Value memref, mlir::Operation* nestedOp) {
-                // Local scratch buffers are cloned into every task and do not
-                // participate in the replicate operand rebasing contract.
-                bool isReplicateOperand = false;
-                for (Value input : insVec)
-                    isReplicateOperand |= input == memref;
-                for (Value output : outsVec)
-                    isReplicateOperand |= output == memref;
-                if (!isReplicateOperand)
+        auto supportsContiguousRowTransfer = [](MemRefType type) {
+            // A row transfer still needs concrete trailing extents.  Check
+            // those before the zero-extent fast path; otherwise memref<0x?xf32>
+            // would reach the MPI gather with the dynamic sentinel as a static
+            // subview size.
+            for (int64_t dim = 1; dim < type.getRank(); ++dim)
+                if (type.isDynamicDim(dim))
+                    return false;
+
+            for (int64_t dim = 0; dim < type.getRank(); ++dim)
+                if (type.getDimSize(dim) == 0)
+                    return true;
+
+            if (type.getLayout().isIdentity())
+                return true;
+
+            int64_t offset = 0;
+            SmallVector<int64_t> strides;
+            if (failed(type.getStridesAndOffset(strides, offset)))
+                return false;
+
+            int64_t expectedStride = 1;
+            for (int64_t dim = type.getRank() - 1; dim >= 0; --dim) {
+                int64_t extent = type.getDimSize(dim);
+                if (extent != 1 &&
+                    (strides[dim] == ShapedType::kDynamic ||
+                     strides[dim] != expectedStride))
+                    return false;
+
+                if (dim == 0)
+                    break;
+                if (extent <= 0 ||
+                    expectedStride > std::numeric_limits<int64_t>::max() / extent)
+                    return false;
+                expectedStride *= extent;
+            }
+            return true;
+        };
+
+        // DHIR-to-MPI gathers every task output as [start,end) on dimension 0.
+        // Reject output patterns that cannot be represented by that transfer;
+        // merely keeping the memref whole would still gather the wrong elements.
+        for (Value out : outsVec) {
+            auto type = dyn_cast<MemRefType>(out.getType());
+            if (!type || !supportsContiguousRowTransfer(type)) {
+                op.emitError("output cannot be gathered as a contiguous dimension-0 row slab");
+                return failure();
+            }
+
+            bool sawStore = false;
+            bool unsupportedStore = false;
+            mlir::dhir::ArrayPartitioningAnalysis outputAnalysis(
+                outerForOp, outerScfFor ? outerScfFor.getInductionVar()
+                                        : outerAffineFor.getInductionVar());
+            outerForOp->walk([&](Operation *nestedOp) {
+                Value storedMemref;
+                if (auto store = dyn_cast<mlir::affine::AffineStoreOp>(nestedOp))
+                    storedMemref = store.getMemRef();
+                else if (auto store = dyn_cast<mlir::memref::StoreOp>(nestedOp))
+                    storedMemref = store.getMemRef();
+                else
                     return;
 
-                bool isSliced = false;
-                for (size_t i = 0; i < insVec.size(); ++i) {
-                    if (insVec[i] == memref && arrayPartitionInfoInVec[i].strategy == mlir::dhir::ArrayPartitioningInfo::ROW_PARTITION)
-                        isSliced = true;
-                }
-                for (size_t i = 0; i < outsVec.size(); ++i) {
-                    if (outsVec[i] == memref && arrayPartitionInfoOutVec[i].strategy == mlir::dhir::ArrayPartitioningInfo::ROW_PARTITION)
-                        isSliced = true;
-                }
-                if (isSliced) return;
-
-                if (analysis.getDimensionForIV(nestedOp, partitionedIV) >= 0) {
-                    hasUnslicedAccessOnPartitionedIV = true;
-                }
-            };
-            
-            op.getBody().front().walk([&](mlir::Operation* nestedOp) {
-                if (auto load = dyn_cast<mlir::affine::AffineLoadOp>(nestedOp)) checkAccess(load.getMemRef(), nestedOp);
-                else if (auto store = dyn_cast<mlir::affine::AffineStoreOp>(nestedOp)) checkAccess(store.getMemRef(), nestedOp);
-                else if (auto load = dyn_cast<mlir::memref::LoadOp>(nestedOp)) checkAccess(load.getMemRef(), nestedOp);
-                else if (auto store = dyn_cast<mlir::memref::StoreOp>(nestedOp)) checkAccess(store.getMemRef(), nestedOp);
+                if (storedMemref != out)
+                    return;
+                sawStore = true;
+                auto access = outputAnalysis.getUnitStrideDimensionAndOffset(
+                    nestedOp, partitionedIV);
+                if (!access || access->first != 0 || access->second != 0)
+                    unsupportedStore = true;
             });
 
-            if (hasUnslicedAccessOnPartitionedIV) {
-                llvm::errs() << "Found unsliced access on partitioned IV. Falling back to NO_PARTITION for all arrays to prevent partial rebasing.\n";
-                for (auto &info : arrayPartitionInfoInVec) info.strategy = mlir::dhir::ArrayPartitioningInfo::NO_PARTITION;
-                for (auto &info : arrayPartitionInfoOutVec) info.strategy = mlir::dhir::ArrayPartitioningInfo::NO_PARTITION;
+            if (!sawStore || unsupportedStore) {
+                op.emitError("output stores must use the partitioned IV exactly once "
+                             "on dimension 0 for row-slab gathering");
+                return failure();
             }
+        }
+
+        // Decide which whole operands need an explicit shard-start rebase when
+        // another operand is represented by a row subview. The old implementation
+        // demoted every operand if one access was whole; that was correct only for
+        // the narrowest case and unnecessarily removed legal slices.
+        llvm::SmallVector<Value> unslicedIVMemrefs;
+        bool forceAbsoluteBounds = false;
+        mlir::dhir::ArrayPartitioningAnalysis *partitionAnalysis = nullptr;
+        std::optional<mlir::dhir::ArrayPartitioningAnalysis> analysisStorage;
+
+        auto isReplicateOperand = [&](Value memref) {
+            return llvm::is_contained(insVec, memref) || llvm::is_contained(outsVec, memref);
+        };
+        auto isSlicedOperand = [&](Value memref) {
+            for (size_t i = 0; i < insVec.size(); ++i)
+                if (insVec[i] == memref && arrayPartitionInfoInVec[i].strategy == mlir::dhir::ArrayPartitioningInfo::ROW_PARTITION)
+                    return true;
+            for (size_t i = 0; i < outsVec.size(); ++i)
+                if (outsVec[i] == memref && arrayPartitionInfoOutVec[i].strategy == mlir::dhir::ArrayPartitioningInfo::ROW_PARTITION)
+                    return true;
+            return false;
+        };
+
+        if (partitionedIV) {
+            analysisStorage.emplace(outerForOp, partitionedIV);
+            partitionAnalysis = &*analysisStorage;
+
+            std::function<bool(Value, llvm::SmallVectorImpl<Value> &)> supportedIVUse;
+            supportedIVUse = [&](Value value, llvm::SmallVectorImpl<Value> &seen) -> bool {
+                if (llvm::is_contained(seen, value))
+                    return true;
+                seen.push_back(value);
+                for (Operation *user : value.getUsers()) {
+                    if (user == outerForOp)
+                        continue;
+
+                    if (auto load = dyn_cast<mlir::affine::AffineLoadOp>(user)) {
+                        if (llvm::is_contained(load.getMapOperands(), value) &&
+                            partitionAnalysis->getUnitStrideDimensionAndOffset(user, value))
+                            continue;
+                        return false;
+                    }
+                    if (auto store = dyn_cast<mlir::affine::AffineStoreOp>(user)) {
+                        if (llvm::is_contained(store.getMapOperands(), value) &&
+                            partitionAnalysis->getUnitStrideDimensionAndOffset(user, value))
+                            continue;
+                        return false;
+                    }
+                    if (auto load = dyn_cast<mlir::memref::LoadOp>(user)) {
+                        if (llvm::is_contained(load.getIndices(), value) &&
+                            partitionAnalysis->getUnitStrideDimensionAndOffset(user, value))
+                            continue;
+                        return false;
+                    }
+                    if (auto store = dyn_cast<mlir::memref::StoreOp>(user)) {
+                        if (llvm::is_contained(store.getIndices(), value) &&
+                            partitionAnalysis->getUnitStrideDimensionAndOffset(user, value))
+                            continue;
+                        return false;
+                    }
+
+                    if (auto add = dyn_cast<mlir::arith::AddIOp>(user)) {
+                        int64_t offset = 0;
+                        if (partitionAnalysis->getConstantOffsetFromIV(
+                                add.getResult(), partitionedIV, offset)) {
+                            if (supportedIVUse(add.getResult(), seen))
+                                continue;
+                        }
+                        return false;
+                    }
+                    if (auto sub = dyn_cast<mlir::arith::SubIOp>(user)) {
+                        int64_t offset = 0;
+                        if (partitionAnalysis->getConstantOffsetFromIV(
+                                sub.getResult(), partitionedIV, offset)) {
+                            if (supportedIVUse(sub.getResult(), seen))
+                                continue;
+                        }
+                        return false;
+                    }
+                    return false;
+                }
+                return true;
+            };
+
+            llvm::SmallVector<Value> seen;
+            if (!supportedIVUse(partitionedIV, seen)) {
+                forceAbsoluteBounds = true;
+                llvm::errs() << "Partitioned IV escapes supported memory indices; "
+                                "disabling slicing for this replicate\n";
+            }
+
+            auto collectUnsliced = [&](Value memref, bool sliced) {
+                if (!isReplicateOperand(memref) || sliced ||
+                    llvm::is_contained(unslicedIVMemrefs, memref))
+                    return;
+                bool usesIV = false;
+                op.getBody().front().walk([&](Operation *nestedOp) {
+                    if (auto load = dyn_cast<mlir::affine::AffineLoadOp>(nestedOp))
+                        usesIV |= load.getMemRef() == memref &&
+                                  partitionAnalysis->getDimensionForIV(nestedOp, partitionedIV) >= 0;
+                    else if (auto store = dyn_cast<mlir::affine::AffineStoreOp>(nestedOp))
+                        usesIV |= store.getMemRef() == memref &&
+                                  partitionAnalysis->getDimensionForIV(nestedOp, partitionedIV) >= 0;
+                    else if (auto load = dyn_cast<mlir::memref::LoadOp>(nestedOp))
+                        usesIV |= load.getMemRef() == memref &&
+                                  partitionAnalysis->getDimensionForIV(nestedOp, partitionedIV) >= 0;
+                    else if (auto store = dyn_cast<mlir::memref::StoreOp>(nestedOp))
+                        usesIV |= store.getMemRef() == memref &&
+                                  partitionAnalysis->getDimensionForIV(nestedOp, partitionedIV) >= 0;
+                });
+                if (usesIV)
+                    unslicedIVMemrefs.push_back(memref);
+            };
+
+            for (size_t i = 0; i < insVec.size(); ++i)
+                collectUnsliced(insVec[i], isSlicedOperand(insVec[i]));
+            for (size_t i = 0; i < outsVec.size(); ++i)
+                collectUnsliced(outsVec[i], isSlicedOperand(outsVec[i]));
+        }
+
+        if (forceAbsoluteBounds) {
+            for (auto &info : arrayPartitionInfoInVec) {
+                info.strategy = mlir::dhir::ArrayPartitioningInfo::NO_PARTITION;
+                info.partitionReason = "partitioned IV escapes supported memory-index forms";
+            }
+            for (auto &info : arrayPartitionInfoOutVec) {
+                info.strategy = mlir::dhir::ArrayPartitioningInfo::NO_PARTITION;
+                info.partitionReason = "partitioned IV escapes supported memory-index forms";
+            }
+            unslicedIVMemrefs.clear();
         }
 
         llvm::SmallVector<mlir::Value> subViewIns;
@@ -501,6 +678,133 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
                              << " iterates the absolute range [" << loopLb << ", "
                              << loopUb << ")\n";
 
+            auto isUnslicedMemref = [&](Value value) {
+                for (Value original : unslicedIVMemrefs) {
+                    if (mapping.lookupOrDefault(original) == value)
+                        return true;
+                }
+                return false;
+            };
+
+            // Once a legal operand is represented by a subview, its accesses are
+            // expressed in the local [0, chunk) coordinate system. Whole operands
+            // must be rebased at the individual access that still uses the outer
+            // IV; accesses through another (e.g. inner-loop) IV remain untouched.
+            auto rebaseUnslicedAccesses = [&](Operation *container, Value localIV) {
+                if (!indicesRebased || unslicedIVMemrefs.empty())
+                    return;
+
+                container->walk([&](Operation *nestedOp) {
+                    if (auto load = dyn_cast<mlir::affine::AffineLoadOp>(nestedOp)) {
+                        if (!isUnslicedMemref(load.getMemRef()))
+                            return;
+                        auto access = partitionAnalysis
+                            ? partitionAnalysis->getUnitStrideDimensionAndOffset(
+                                  load.getOperation(), localIV)
+                            : std::nullopt;
+                        if (!access)
+                            return;
+
+                        AffineMap map = load.getAffineMap();
+                        SmallVector<AffineExpr> results(map.getResults().begin(),
+                                                         map.getResults().end());
+                        bool changed = false;
+                        auto operands = load.getMapOperands();
+                        for (unsigned operandPos = 0; operandPos < operands.size(); ++operandPos) {
+                            int64_t operandOffset = 0;
+                            if (!partitionAnalysis->getConstantOffsetFromIV(
+                                    operands[operandPos], localIV, operandOffset))
+                                continue;
+                            int64_t mapOffset = 0;
+                            unsigned dim = static_cast<unsigned>(access->first);
+                            if (partitionAnalysis->getSimpleAffineIVOffset(
+                                    results[dim], operandPos, map.getNumDims(), mapOffset)) {
+                                results[dim] = results[dim] + start;
+                                changed = true;
+                                break;
+                            }
+                        }
+                        if (changed)
+                            load.setMap(AffineMap::get(map.getNumDims(), map.getNumSymbols(),
+                                                       results, load.getContext()));
+                        return;
+                    }
+                    if (auto store = dyn_cast<mlir::affine::AffineStoreOp>(nestedOp)) {
+                        if (!isUnslicedMemref(store.getMemRef()))
+                            return;
+                        auto access = partitionAnalysis
+                            ? partitionAnalysis->getUnitStrideDimensionAndOffset(
+                                  store.getOperation(), localIV)
+                            : std::nullopt;
+                        if (!access)
+                            return;
+
+                        AffineMap map = store.getAffineMap();
+                        SmallVector<AffineExpr> results(map.getResults().begin(),
+                                                         map.getResults().end());
+                        bool changed = false;
+                        auto operands = store.getMapOperands();
+                        for (unsigned operandPos = 0; operandPos < operands.size(); ++operandPos) {
+                            int64_t operandOffset = 0;
+                            if (!partitionAnalysis->getConstantOffsetFromIV(
+                                    operands[operandPos], localIV, operandOffset))
+                                continue;
+                            int64_t mapOffset = 0;
+                            unsigned dim = static_cast<unsigned>(access->first);
+                            if (partitionAnalysis->getSimpleAffineIVOffset(
+                                    results[dim], operandPos, map.getNumDims(), mapOffset)) {
+                                results[dim] = results[dim] + start;
+                                changed = true;
+                                break;
+                            }
+                        }
+                        if (changed)
+                            store.setMap(AffineMap::get(map.getNumDims(), map.getNumSymbols(),
+                                                        results, store.getContext()));
+                        return;
+                    }
+                    if (auto load = dyn_cast<mlir::memref::LoadOp>(nestedOp)) {
+                        if (!isUnslicedMemref(load.getMemRef()))
+                            return;
+                        auto access = partitionAnalysis
+                            ? partitionAnalysis->getUnitStrideDimensionAndOffset(
+                                  load.getOperation(), localIV)
+                            : std::nullopt;
+                        if (!access)
+                            return;
+                        unsigned dim = static_cast<unsigned>(access->first);
+                        Value index = load.getIndices()[dim];
+                        rewriter.setInsertionPoint(load);
+                        Value offset = rewriter.create<arith::ConstantIndexOp>(
+                            load.getLoc(), start);
+                        Value rebased = rewriter.create<arith::AddIOp>(
+                            load.getLoc(), index, offset);
+                        load->setOperand(1 + dim, rebased);
+                        return;
+                    }
+                    if (auto store = dyn_cast<mlir::memref::StoreOp>(nestedOp)) {
+                        if (!isUnslicedMemref(store.getMemRef()))
+                            return;
+                        auto access = partitionAnalysis
+                            ? partitionAnalysis->getUnitStrideDimensionAndOffset(
+                                  store.getOperation(), localIV)
+                            : std::nullopt;
+                        if (!access)
+                            return;
+                        unsigned dim = static_cast<unsigned>(access->first);
+                        Value index = store.getIndices()[dim];
+                        rewriter.setInsertionPoint(store);
+                        Value offset = rewriter.create<arith::ConstantIndexOp>(
+                            store.getLoc(), start);
+                        Value rebased = rewriter.create<arith::AddIOp>(
+                            store.getLoc(), index, offset);
+                        // memref.store operands are value, memref, then indices;
+                        // the index list therefore starts at operand two.
+                        store->setOperand(2 + dim, rebased);
+                    }
+                });
+            };
+
             for (auto &innerOp : op.getRegion().front().without_terminator())
             {
                 auto cloned = rewriter.clone(innerOp, mapping);
@@ -540,6 +844,8 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
                     for (auto &bodyOp : clonedScfFor.getBody()->without_terminator())
                         rewriter.clone(bodyOp, mapping);
 
+                    rebaseUnslicedAccesses(parallelOp, parallelOp.getInductionVars()[0]);
+
                     rewriter.eraseOp(clonedScfFor);
                 }
                 // ── affine.for ───────────────────────────────────────────────
@@ -574,6 +880,8 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
 
                     for (auto &bodyOp : clonedAffineFor.getBody()->without_terminator())
                         rewriter.clone(bodyOp, mapping);
+
+                    rebaseUnslicedAccesses(parallelOp, parallelOp.getInductionVars()[0]);
 
                     rewriter.eraseOp(clonedAffineFor);
                 }

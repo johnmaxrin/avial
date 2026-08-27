@@ -154,6 +154,17 @@ MemRefAccess getMemRefAccess(mlir::Value val)
         }
       }
     }
+    else if (auto viewOp = mlir::dyn_cast<mlir::ViewLikeOpInterface>(defOp))
+    {
+      // Casts, reshapes, reinterpret_casts, and other view-like operations
+      // alias their source.  Their exact range/layout is not represented by
+      // the subview-only interval model below, so keep the common base but
+      // conservatively report an unknown range.
+      MemRefAccess source = getMemRefAccess(viewOp.getViewSource());
+      access.baseMemRef = source.baseMemRef;
+      access.isSubview = true;
+      access.rangeKnown = false;
+    }
     else
     {
       // Not a subview, just a regular memref
@@ -327,8 +338,7 @@ namespace mlir
             llvm::errs() << "\nChecking dependency: Task " << i << " (repId=" << repIdI 
                          << ") -> Task " << j << " (repId=" << repIdJ << ")\n";
 
-            // A level is emitted at the position of its first task. Tasks in
-            // different program-order groups therefore cannot share a level;
+            // Tasks in different program-order groups cannot share a level;
             // this covers sibling loops, tasks before/after a loop, and serial
             // work between otherwise independent replicates.
             if (tasks[i].emissionGroup != tasks[j].emissionGroup)
