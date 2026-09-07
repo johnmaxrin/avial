@@ -9,6 +9,12 @@ A row whose status is not PASS is not a slow result, and exit code is non zero
     python3 tests/eval_auto_parallel.py
     python3 tests/eval_auto_parallel.py --kernels gemm 3mm --ranks 1 4
     python3 tests/eval_auto_parallel.py --csv results.csv
+    python3 tests/eval_auto_parallel.py --workdir /mnt/mtp/avial1/build/wd
+
+--workdir is forwarded to run_bench.sh (--workdir). If omitted, run_bench.sh
+uses its own temp dir (master-local /tmp). For distributed runs it must be a
+path visible to every node (e.g. the NFS share), since the binary is compiled
+there and executed by remote ranks.
 """
 
 import argparse
@@ -34,10 +40,12 @@ RESULT_RE = re.compile(
     r"^RESULT kernel=(\S+) ranks=(\d+) seconds=([\d.]+) status=(\S+) errors=(\d+)")
 
 
-def run_one(kernel, ranks, config, timeout):
+def run_one(kernel, ranks, config, workdir, timeout):
     cmd = ["bash", str(RUN_BENCH), kernel, str(ranks)]
     if config:
         cmd += ["--config", config]
+    if workdir:
+        cmd += ["--workdir", workdir]
 
     started = time.time()
     try:
@@ -66,6 +74,10 @@ def main():
     ap.add_argument("--ranks", nargs="+", type=int, default=DEFAULT_RANKS)
     ap.add_argument("--config", default=None,
                     help="fixed system config; default generates one per rank count")
+    ap.add_argument("--workdir", default=None,
+                    help="workdir forwarded to run_bench.sh (--workdir); if omitted, "
+                         "run_bench.sh uses its own temp dir. For distributed runs pass "
+                         "a path visible to all nodes (e.g. on the NFS share)")
     ap.add_argument("--csv", default=str(ROOT / "tests" / "bench" / "results.csv"))
     ap.add_argument("--timeout", type=int, default=900)
     args = ap.parse_args()
@@ -78,7 +90,7 @@ def main():
 
     for kernel in args.kernels:
         for ranks in args.ranks:
-            row = run_one(kernel, ranks, args.config, args.timeout)
+            row = run_one(kernel, ranks, args.config, args.workdir, args.timeout)
             rows.append(row)
 
             secs = f"{row['seconds']:.6f}" if isinstance(row["seconds"], float) else ""

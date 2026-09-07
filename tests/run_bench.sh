@@ -13,7 +13,7 @@
 #   mpirun -np <ranks>
 #
 # Prints the driver's RESULT and exits nonzero error or kernel verificatin fails
-set -euo pipefail
+set -eo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BENCH="$ROOT/tests/bench"

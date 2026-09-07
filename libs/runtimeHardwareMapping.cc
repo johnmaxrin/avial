@@ -5,6 +5,7 @@
 #include <hwloc.h>
 #include <sys/utsname.h>
 
+#include <cstdlib>
 #include <cstring>
 #include <cstdio>
 #include <vector>
@@ -25,6 +26,9 @@ static void discoverNode(DiscoveredNode *node)
 
     hwloc_topology_t topology;
     hwloc_topology_init(&topology);
+    // Blacklist 'gl' discovery component so hwloc does not hang attempting
+    // to probe unreachable X11 displays (e.g. in WSL2, containers, or headless environments).
+    hwloc_topology_set_components(topology, HWLOC_TOPOLOGY_COMPONENTS_FLAG_BLACKLIST, "gl");
     hwloc_topology_set_io_types_filter(topology, HWLOC_TYPE_FILTER_KEEP_IMPORTANT);
     hwloc_topology_load(topology);
 
