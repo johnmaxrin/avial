@@ -1,5 +1,8 @@
 #include "mlir/Conversion/Passes.h"
 #include "mlir/Pass/PassManager.h"
+#include <cmath>
+#include <functional>
+#include <limits>
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Verifier.h"
 
@@ -189,14 +192,8 @@ namespace
 
             if (auto dltiAttr = mlir::dyn_cast<mlir::TargetDeviceSpecAttr>(attr))
             {
-                // Safely access the gpu_count entry
-                auto entries = dltiAttr.getEntries();
-                if (entries.size() > 4)
-                {
-                    if (auto gpuCntAttr = mlir::dyn_cast<mlir::IntegerAttr>(entries[4].getValue()))
-                    {
-                        return gpuCntAttr.getInt() > 0;
-                    }
+                if (auto gpuCntAttr = mlir::dyn_cast_or_null<mlir::IntegerAttr>(getDeviceAttribute(dltiAttr, "gpu_count"))) {
+                    return gpuCntAttr.getInt() > 0;
                 }
             }
             return false;
@@ -397,17 +394,78 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
         ConversionPatternRewriter &rewriter) const override
     {
 
+        bool unsupportedTaskNesting = false;
+        op.walk([&](mlir::dhir::TaskOp task) {
+            for (Operation *ancestor = task->getParentOp(); ancestor && ancestor != op;
+                 ancestor = ancestor->getParentOp()) {
+                auto forOp = dyn_cast<mlir::scf::ForOp>(ancestor);
+                if (!forOp) {
+                    task.emitError("task is nested in unsupported control flow; "
+                                   "only scf.for ancestors are supported");
+                    unsupportedTaskNesting = true;
+                    return;
+                }
+                if (!forOp.getInitArgs().empty()) {
+                    task.emitError("task-wrapping scf.for with iter_args is unsupported");
+                    unsupportedTaskNesting = true;
+                    return;
+                }
+            }
+        });
+        if (unsupportedTaskNesting)
+            return failure();
+
+        auto module = op->getParentOfType<mlir::ModuleOp>();
+        if (!module)
+        {
+            op.emitError("must be nested in a builtin.module");
+            return failure();
+        }
+
         // Do the dependence analysis.
         DependencyGraph dependencyGraph;
         dependencyGraph.build(op);
         dependencyGraph.printDiGraph();
         dependencyGraph.schedule();
 
+        auto devicesAttr = module->getAttrOfType<ArrayAttr>("dhir.target_devices");
+        if (!devicesAttr || devicesAttr.empty())
+        {
+            op.emitError("requires a non-empty dhir.target_devices attribute");
+            return failure();
+        }
+        if (devicesAttr.size() > std::numeric_limits<int32_t>::max())
+        {
+            op.emitError("has too many target devices for the i32 runtime topology");
+            return failure();
+        }
+        for (Attribute device : devicesAttr)
+        {
+            auto target = dyn_cast<TargetDeviceSpecAttr>(device);
+            auto gpuCount = target ? getDeviceAttribute(target, "gpu_count") : Attribute();
+            auto cost = target ? getDeviceAttribute(target, "cost") : Attribute();
+            bool valid = target &&
+                isa_and_nonnull<StringAttr>(getDeviceAttribute(target, "node_id")) &&
+                isa_and_nonnull<StringAttr>(getDeviceAttribute(target, "arch")) &&
+                isa_and_nonnull<IntegerAttr>(gpuCount) &&
+                isa_and_nonnull<FloatAttr>(cost);
+            if (valid)
+            {
+                valid = cast<IntegerAttr>(gpuCount).getInt() >= 0;
+                double costValue = cast<FloatAttr>(cost).getValueAsDouble();
+                valid = valid && std::isfinite(costValue) && costValue > 0.0;
+            }
+            if (!valid)
+            {
+                op.emitError("target devices require valid node_id, arch, gpu_count, and positive finite cost entries");
+                return failure();
+            }
+        }
+
         // Now that we have the level vector. Let's generate code for it!
 
         llvm::SmallVector<mlir::Type> inputTypes;
         auto loc = op.getLoc();
-        auto module = op->getParentOfType<mlir::ModuleOp>();
         auto oldInps = op.getInputs();
 
         mlir::IRMapping mapping;
@@ -435,12 +493,6 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
 
         rewriter.setInsertionPointToEnd(block);
 
-        for (auto allocOp : dependencyGraph.allocs)
-        {
-            auto newOp = rewriter.clone(*allocOp.getOperation());
-            allocOp.getResult().replaceAllUsesWith(newOp->getResult(0));
-        }
-
         // MPI Boilerplate
         auto retVal = mlir::mpi::RetvalType::get(rewriter.getContext());
         rewriter.create<mlir::mpi::InitOp>(loc, retVal);
@@ -452,7 +504,6 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
 
         Value topology = createRuntimeTopology(module, rewriter, loc);
 
-        auto devicesAttr = module->getAttrOfType<ArrayAttr>("dhir.target_devices");
         int numNodes = devicesAttr.size();
 
         auto mapType = MemRefType::get({numNodes}, rewriter.getI32Type());
@@ -497,70 +548,40 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
 
         for (auto [idx, dev] : llvm::enumerate(devicesAttr))
             deviceToIndex[dev] = idx;
-
-        // Check if there's a scf.for loop wrapping the tasks
-        mlir::scf::ForOp outerLoop = nullptr;
-        for (auto &innerOp : op.getBodyRegion().front().getOperations())
+        if (deviceToIndex.size() != devicesAttr.size())
         {
-            if (auto forOp = mlir::dyn_cast<mlir::scf::ForOp>(innerOp))
-            {
-                outerLoop = forOp;
-                llvm::errs() << "Found scf.for loop wrapping tasks\n";
-                break;
-            }
-        }
-
-        // Clone constants and non-task, non-loop operations
-        for (auto &innerOp : op.getBodyRegion().front().getOperations())
-        {
-            if (mlir::isa<mlir::dhir::TaskOp>(innerOp) || 
-                mlir::isa<mlir::dhir::YieldOp>(innerOp) || 
-                mlir::isa<mlir::scf::ForOp>(innerOp))
-                continue;
-
-            Operation *cloned = rewriter.clone(innerOp, mapping);
-        }
-
-        // If there's a loop, clone it and set insertion point inside
-        mlir::scf::ForOp newForOp = nullptr;
-        if (outerLoop)
-        {
-            llvm::errs() << "Cloning scf.for loop structure\n";
-            
-            // Map loop bounds
-            Value lowerBound = mapping.lookupOrDefault(outerLoop.getLowerBound());
-            Value upperBound = mapping.lookupOrDefault(outerLoop.getUpperBound());
-            Value step = mapping.lookupOrDefault(outerLoop.getStep());
-            
-            // Create new loop
-            newForOp = rewriter.create<mlir::scf::ForOp>(loc, lowerBound, upperBound, step);
-            
-            // Map the induction variable
-            mapping.map(outerLoop.getInductionVar(), newForOp.getInductionVar());
-            
-            // Clone operations inside the loop (subviews, constants, etc.) EXCEPT tasks
-            Block *loopBody = newForOp.getBody();
-            rewriter.setInsertionPointToStart(loopBody);
-            
-            for (auto &loopOp : outerLoop.getBody()->getOperations())
-            {
-                if (mlir::isa<mlir::scf::YieldOp>(loopOp) || mlir::isa<mlir::dhir::TaskOp>(loopOp))
-                    continue;
-                
-                Operation *clonedOp = rewriter.clone(loopOp, mapping);
-            }
-            
-            // Set insertion point at the END of loop body, before the yield
-            // This is where we'll insert task execution and communication
-            rewriter.setInsertionPoint(loopBody->getTerminator());
-            
-            llvm::errs() << "Insertion point set inside loop body\n";
+            op.emitError("dhir.target_devices contains duplicate device specifications");
+            return failure();
         }
 
         llvm::errs() << "Size: " << dependencyGraph.levelVector.size() << "\n";
 
-        // Lower the tasks (they will be inserted at current insertion point)
-        for (std::vector<TaskOpInfo *> level : dependencyGraph.levelVector)
+        // Which scheduling level each task belongs to. A level becomes ready
+        // when its last source task is reached, then ready levels are emitted
+        // in topological order.
+        llvm::DenseMap<mlir::Operation *, size_t> taskToLevel;
+        std::vector<size_t> levelTasksRemaining(dependencyGraph.levelVector.size(), 0);
+        for (size_t li = 0; li < dependencyGraph.levelVector.size(); ++li)
+            for (auto *task : dependencyGraph.levelVector[li])
+            {
+                taskToLevel[task->op] = li;
+                ++levelTasksRemaining[li];
+            }
+
+        std::vector<bool> levelEmitted(dependencyGraph.levelVector.size(), false);
+        size_t nextLevelToEmit = 0;
+
+        auto cloneAndMapResults = [&](OpBuilder &builder, Operation &source,
+                                      IRMapping &valueMapping) {
+            Operation *cloned = builder.clone(source, valueMapping);
+            for (auto pair : llvm::zip(source.getResults(), cloned->getResults()))
+                valueMapping.map(std::get<0>(pair), std::get<1>(pair));
+            return cloned;
+        };
+
+        // Lower one level: task bodies, barrier, gather, broadcast. Emitted at
+        // whatever the current insertion point is.
+        auto emitLevel = [&](const std::vector<TaskOpInfo *> &level) -> LogicalResult
         {
             llvm::DenseMap<Value, Value> gpuBufferMap;
             llvm::SmallVector<Value> toBroadcast;
@@ -570,9 +591,11 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                 auto taskOp = dyn_cast<dhir::TaskOp>(task->op);
                 Attribute targetDevice = taskOp.getTarget();
 
-                // if task target device has no matches in the deviceToIndex map, something is broken on our end.
-                // this should not create UB on the users' end
-                assert(deviceToIndex.count(targetDevice) && "Task target device not found in deviceToIndex map");
+                if (!deviceToIndex.count(targetDevice))
+                {
+                    taskOp.emitError("target device is not present in dhir.target_devices");
+                    return failure();
+                }
 
                 int targetNodeIdx = deviceToIndex[targetDevice];
 
@@ -665,7 +688,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                         if (mlir::isa<mlir::dhir::YieldOp>(op))
                             continue;
                     
-                        Operation *clonedOp = ifbuilder.clone(op, rankMapping);
+                        cloneAndMapResults(ifbuilder, op, rankMapping);
                     } 
 
                     if(task->isGPU())
@@ -698,119 +721,126 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                 auto taskOp = dyn_cast<mlir::dhir::TaskOp>(task->op);
                 Attribute targetDevice = taskOp.getTarget();
 
-                assert(deviceToIndex.count(targetDevice) && "Task target device not found in deviceToIndex map");
+                if (!deviceToIndex.count(targetDevice))
+                {
+                    taskOp.emitError("target device is not present in dhir.target_devices");
+                    return failure();
+                }
 
                 int targetNodeIdx = deviceToIndex[targetDevice];
 
                 llvm::ArrayRef outRanges = taskOp.getOutRanges();
                 
                 // Get the base buffer from mapping (now subviews are in mapping!)
-                Value buffer = mapping.lookupOrNull(task->writes[0]);
-
-                if (!buffer)
+                for (auto writeOp : task->writes)
                 {
-                    llvm::errs() << "ERROR: Buffer not found in mapping\n";
-                    return failure();
-                }
+                    Value buffer = mapping.lookupOrNull(writeOp);
 
-                Value sourceBuffer = buffer;
-                
-                // Unwrap subviews to get base buffer
-                while (auto defOp = sourceBuffer.getDefiningOp())
-                {
-                    if (auto subviewOp = mlir::dyn_cast<memref::SubViewOp>(defOp))
-                        sourceBuffer = subviewOp.getSource();
+                    if (!buffer)
+                    {
+                        llvm::errs() << "ERROR: Buffer not found in mapping\n";
+                        return failure();
+                    }
+
+                    Value sourceBuffer = buffer;
+                    
+                    // Unwrap subviews to get base buffer
+                    while (auto defOp = sourceBuffer.getDefiningOp())
+                    {
+                        if (auto subviewOp = mlir::dyn_cast<memref::SubViewOp>(defOp))
+                            sourceBuffer = subviewOp.getSource();
+                        else
+                            break;
+                    }
+
+                    auto sourceType = cast<MemRefType>(sourceBuffer.getType());
+                    int64_t sourceRank = sourceType.getRank();
+
+                    SmallVector<OpFoldResult> offsets;
+                    SmallVector<OpFoldResult> sizes;
+                    SmallVector<OpFoldResult> strides;
+                    
+                    if (sourceRank == 1)
+                    {
+                        offsets.push_back(rewriter.getIndexAttr(outRanges[0]));
+                        sizes.push_back(rewriter.getIndexAttr(outRanges[1] - outRanges[0]));
+                        strides.push_back(rewriter.getIndexAttr(1));
+                    }
+                    else if (sourceRank == 2)
+                    {
+                        auto shape = sourceType.getShape();
+                        offsets = {
+                            rewriter.getIndexAttr(outRanges[0]),
+                            rewriter.getIndexAttr(0)
+                        };
+                        sizes = {
+                            rewriter.getIndexAttr((outRanges[1] - outRanges[0])),
+                            rewriter.getIndexAttr(shape[1])
+                        };
+                        strides = {
+                            rewriter.getIndexAttr(1),
+                            rewriter.getIndexAttr(1)
+                        };
+                    }
+                    else if (sourceRank == 3)
+                    {
+                        // Partition along dim 0 (i), communicate the [start, end) slice.
+                        // dims 1 (j) and 2 (k) are transferred in full, matching the
+                        // same pattern used for rank-2 above.
+                        auto shape = sourceType.getShape();
+                        offsets = {
+                            rewriter.getIndexAttr(outRanges[0]),
+                            rewriter.getIndexAttr(0),
+                            rewriter.getIndexAttr(0)
+                        };
+                        sizes = {
+                            rewriter.getIndexAttr(outRanges[1] - outRanges[0]),
+                            rewriter.getIndexAttr(shape[1]),
+                            rewriter.getIndexAttr(shape[2])
+                        };
+                        strides = {
+                            rewriter.getIndexAttr(1),
+                            rewriter.getIndexAttr(1),
+                            rewriter.getIndexAttr(1)
+                        };
+                    }
                     else
-                        break;
+                    {
+                        llvm::errs() << "[Error] Unsupported Memref rank\n";
+                        return failure();
+                    }
+
+                    Value subBuffer = rewriter.create<memref::SubViewOp>(
+                        loc, sourceBuffer, offsets, sizes, strides);
+
+                    // gather non-root results onto node 0
+                    if (targetNodeIdx != 0)
+                    {
+                        Value rootNodeIndex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+                        Value rootRank = rewriter.create<memref::LoadOp>(loc, nodeToRankMap, ValueRange{rootNodeIndex});
+
+                        Value ownerNodeIndex = rewriter.create<arith::ConstantIndexOp>(loc, targetNodeIdx);
+                        Value ownerRank = rewriter.create<memref::LoadOp>(loc, nodeToRankMap, ValueRange{ownerNodeIndex});
+
+                        auto isRoot = rewriter.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), rootRank);
+                        auto isOwner = rewriter.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), ownerRank);
+
+                        auto ifOp = rewriter.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, isRoot, true);
+                        OpBuilder thenBuilder = ifOp.getThenBodyBuilder(rewriter.getListener());
+                        OpBuilder elseBuilder = ifOp.getElseBodyBuilder(rewriter.getListener());
+
+                        thenBuilder.create<mlir::mpi::RecvOp>(loc, retVal, subBuffer, tag.getResult(), ownerRank, comm->getResult(0));
+
+                        auto sendIf = elseBuilder.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, isOwner, false);
+                        auto sendBuilder = sendIf.getThenBodyBuilder(elseBuilder.getListener());
+                        sendBuilder.create<mlir::mpi::SendOp>(loc, retVal, subBuffer, tag.getResult(), rootRank, comm->getResult(0));
+                    }
+
+                    // Broadcast
+                    BoolAttr needBroadcast = mlir::dyn_cast<mlir::BoolAttr>(taskOp->getAttr("needBroadcast"));
+                    if (needBroadcast && needBroadcast.getValue())
+                        toBroadcast.push_back(subBuffer);
                 }
-
-                auto sourceType = cast<MemRefType>(sourceBuffer.getType());
-                int64_t sourceRank = sourceType.getRank();
-
-                SmallVector<OpFoldResult> offsets;
-                SmallVector<OpFoldResult> sizes;
-                SmallVector<OpFoldResult> strides;
-                
-                if (sourceRank == 1)
-                {
-                    offsets.push_back(rewriter.getIndexAttr(outRanges[0]));
-                    sizes.push_back(rewriter.getIndexAttr(outRanges[1] - outRanges[0]));
-                    strides.push_back(rewriter.getIndexAttr(1));
-                }
-                else if (sourceRank == 2)
-                {
-                    auto shape = sourceType.getShape();
-                    offsets = {
-                        rewriter.getIndexAttr(outRanges[0]),
-                        rewriter.getIndexAttr(0)
-                    };
-                    sizes = {
-                        rewriter.getIndexAttr((outRanges[1] - outRanges[0])),
-                        rewriter.getIndexAttr(shape[1])
-                    };
-                    strides = {
-                        rewriter.getIndexAttr(1),
-                        rewriter.getIndexAttr(1)
-                    };
-                }
-                else if (sourceRank == 3)
-                {
-                    // Partition along dim 0 (i), communicate the [start, end) slice.
-                    // dims 1 (j) and 2 (k) are transferred in full, matching the
-                    // same pattern used for rank-2 above.
-                    auto shape = sourceType.getShape();
-                    offsets = {
-                        rewriter.getIndexAttr(outRanges[0]),
-                        rewriter.getIndexAttr(0),
-                        rewriter.getIndexAttr(0)
-                    };
-                    sizes = {
-                        rewriter.getIndexAttr(outRanges[1] - outRanges[0]),
-                        rewriter.getIndexAttr(shape[1]),
-                        rewriter.getIndexAttr(shape[2])
-                    };
-                    strides = {
-                        rewriter.getIndexAttr(1),
-                        rewriter.getIndexAttr(1),
-                        rewriter.getIndexAttr(1)
-                    };
-                }
-                else
-                {
-                    llvm::errs() << "[Error] Unsupported Memref rank\n";
-                    return failure();
-                }
-
-                Value subBuffer = rewriter.create<memref::SubViewOp>(
-                    loc, sourceBuffer, offsets, sizes, strides);
-
-                // gather non-root results onto node 0
-                if (targetNodeIdx != 0)
-                {
-                    Value rootNodeIndex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-                    Value rootRank = rewriter.create<memref::LoadOp>(loc, nodeToRankMap, ValueRange{rootNodeIndex});
-
-                    Value ownerNodeIndex = rewriter.create<arith::ConstantIndexOp>(loc, targetNodeIdx);
-                    Value ownerRank = rewriter.create<memref::LoadOp>(loc, nodeToRankMap, ValueRange{ownerNodeIndex});
-
-                    auto isRoot = rewriter.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), rootRank);
-                    auto isOwner = rewriter.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rank.getResult(0), ownerRank);
-
-                    auto ifOp = rewriter.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, isRoot, true);
-                    OpBuilder thenBuilder = ifOp.getThenBodyBuilder(rewriter.getListener());
-                    OpBuilder elseBuilder = ifOp.getElseBodyBuilder(rewriter.getListener());
-
-                    thenBuilder.create<mlir::mpi::RecvOp>(loc, retVal, subBuffer, tag.getResult(), ownerRank, comm->getResult(0));
-
-                    auto sendIf = elseBuilder.create<mlir::scf::IfOp>(loc, mlir::TypeRange{}, isOwner, false);
-                    auto sendBuilder = sendIf.getThenBodyBuilder(elseBuilder.getListener());
-                    sendBuilder.create<mlir::mpi::SendOp>(loc, retVal, subBuffer, tag.getResult(), rootRank, comm->getResult(0));
-                }
-
-                // Broadcast
-                BoolAttr needBroadcast = mlir::dyn_cast<mlir::BoolAttr>(taskOp->getAttr("needBroadcast"));
-                if (needBroadcast && needBroadcast.getValue())
-                    toBroadcast.push_back(subBuffer);
             }
 
             Value broadcastRootNodeIndex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
@@ -821,27 +851,106 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                 comm->getResult(0), retVal, tag.getResult(), getNodes->getResult(1));
 
             toBroadcast.clear();
+
+            return success();
+        };
+
+        // Emit a block in program order. Setup operations are ordinary SSA
+        // definitions, not a module-wide prologue: moving a pure definition
+        // before preceding serial work can change the value seen by a task (and
+        // can even violate dominance for values defined in nested control flow).
+        //
+        //   atax's converge body is
+        //     replicate(tmp[i] += A[i][j]*x[j]) ; for j { y[j] += A[i][j]*tmp[i] }
+        //   second loop depends on that prev replicate, so cant mess ordering
+        //   atax failed due to this, fixed after fixing ordering
+        //
+        // Order also settles nesting depth: a replicate that was a
+        // sibling of the converge loop is reached before the loop is entered,
+        // so it is emitted once rather than once per iteration.
+        std::function<LogicalResult(Block &)> emitBody = [&](Block &body) -> LogicalResult
+        {
+            for (Operation &bodyOp : body)
+            {
+                if (mlir::isa<mlir::dhir::YieldOp>(bodyOp) ||
+                    mlir::isa<mlir::scf::YieldOp>(bodyOp))
+                    continue;
+
+                if (mlir::isa<mlir::dhir::TaskOp>(bodyOp))
+                {
+                    // Tasks of one level are independent, so the whole level is
+                    // ready as a group at the position of its last task.
+                    auto it = taskToLevel.find(&bodyOp);
+                    if (it == taskToLevel.end() || levelEmitted[it->second])
+                        continue;
+
+                    if (levelTasksRemaining[it->second] == 0) {
+                        bodyOp.emitError("task scheduling level was visited more than once");
+                        return failure();
+                    }
+                    --levelTasksRemaining[it->second];
+
+                    // Topological levels can interleave in source order. For
+                    // example, A and C may be independent while B (between
+                    // them) depends on A, producing levels {A,C}, {B}. Mark
+                    // levels ready at their last source task, but release them
+                    // only in topological order so B cannot run first.
+                    while (nextLevelToEmit < dependencyGraph.levelVector.size() &&
+                           levelTasksRemaining[nextLevelToEmit] == 0) {
+                        levelEmitted[nextLevelToEmit] = true;
+                        if (failed(emitLevel(
+                                dependencyGraph.levelVector[nextLevelToEmit])))
+                            return failure();
+                        ++nextLevelToEmit;
+                    }
+                    continue;
+                }
+
+                if (auto forOp = mlir::dyn_cast<mlir::scf::ForOp>(bodyOp))
+                {
+                    bool wrapsTasks = false;
+                    forOp.walk([&](mlir::dhir::TaskOp) { wrapsTasks = true; });
+
+                    if (wrapsTasks)
+                    {
+                        llvm::errs() << "Rebuilding scf.for that wraps tasks\n";
+
+                        Value lb = mapping.lookupOrDefault(forOp.getLowerBound());
+                        Value ub = mapping.lookupOrDefault(forOp.getUpperBound());
+                        Value step = mapping.lookupOrDefault(forOp.getStep());
+
+                        auto newForOp = rewriter.create<mlir::scf::ForOp>(loc, lb, ub, step);
+                        mapping.map(forOp.getInductionVar(), newForOp.getInductionVar());
+
+                        rewriter.setInsertionPoint(newForOp.getBody()->getTerminator());
+
+                        if (failed(emitBody(*forOp.getBody())))
+                            return failure();
+
+                        rewriter.setInsertionPointAfter(newForOp.getOperation());
+                        continue;
+                    }
+                    // A loop with no tasks is redundant work that every rank
+                    // repeats; clone it where it stands.
+                }
+
+                cloneAndMapResults(rewriter, bodyOp, mapping);
+            }
+            return success();
+        };
+
+        if (failed(emitBody(op.getBodyRegion().front())))
+            return failure();
+        if (nextLevelToEmit != dependencyGraph.levelVector.size()) {
+            op.emitError("not all task scheduling levels were emitted");
+            return failure();
         }
 
-        // If we created a loop, close it
-        if (newForOp)
-        {
-            // Insertion point is already before the loop's yield, so we're good
-            llvm::errs() << "Loop structure complete\n";
-            // Set insertion point after the loop for final barrier and return
-            rewriter.setInsertionPointAfter(newForOp.getOperation());
-        }
-        else
-        {
-            // No loop case - insertion point is already at end of block
-            llvm::errs() << "No loop - continuing at end of block\n";
-        }
-
-        // Final barrier and return (outside the loop or at end of function)
+        // Final barrier and return
         rewriter.create<mpi::Barrier>(loc, retVal, comm->getResult(0));
         rewriter.create<func::ReturnOp>(loc);
         rewriter.eraseOp(op);
-        
+
         return success();
     }
 };

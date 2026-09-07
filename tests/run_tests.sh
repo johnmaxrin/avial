@@ -115,7 +115,7 @@ run_test() {
     for pass in "${PIPELINE[@]}"; do
         cmd="${cmd} ${pass}"
     done
-    cmd="${cmd} ${test_file}"
+    cmd="${cmd} ${test_file} ${SCRIPT_DIR}/configs/system_config_4_cpu.json"
     
     if [ $VERBOSE -eq 1 ]; then
         log_info "Command: ${cmd}"

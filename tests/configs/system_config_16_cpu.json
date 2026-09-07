@@ -23,67 +23,99 @@
   "nodes": {
     "node0": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node1": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node2": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node3": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node4": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node5": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node6": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node7": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node8": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node9": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node10": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node11": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node12": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node13": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node14": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node15": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     }
   }
 }

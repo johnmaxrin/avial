@@ -102,23 +102,46 @@ int main(int argc, char **argv) {
     
     double max_elapsed;
     MPI_Reduce(&elapsed, &max_elapsed, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+    int failed = 0;
     if(rank == 0)
     {
-        
         printf("Matrix multiplication time: %.6f seconds\n", max_elapsed);
-    //     for(int i=0; i<M*N; ++i)
-    //     {
-    //             printf("%f\n", C[i]);
-    //     }
+
+        // Correctness gate (novel_4_reality.md 7.1 / 7.8). A and B are all
+        // ones and the kernel zero-inits C, so every element must be exactly
+        // K -- no fp tolerance needed. Checking *all* of C on rank 0 also
+        // covers 7.8: rank 0 only holds the whole result if every per-level
+        // gather moved its full slice, so a short transfer count or a task
+        // whose loop bounds disagree with its outRanges shows up here as
+        // untouched entries.
+        const float expected = (float) K;
+        long bad = 0;
+        float first_bad = 0.0f;
+        long first_bad_idx = -1;
+        for (long i = 0; i < (long) M * N; ++i) {
+            if (C[i] != expected) {
+                if (bad == 0) { first_bad = C[i]; first_bad_idx = i; }
+                ++bad;
+            }
+        }
+
+        if (bad == 0) {
+            printf("PASS: all %ld elements of C == %.1f\n", (long) M * N, expected);
+        } else {
+            printf("FAIL: %ld of %ld elements wrong; first at C[%ld][%ld] = %f, expected %f\n",
+                   bad, (long) M * N, first_bad_idx / N, first_bad_idx % N,
+                   first_bad, expected);
+            failed = 1;
+        }
     }
 
-
+    MPI_Bcast(&failed, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     free(A);
     free(B);
     free(C);
     MPI_Finalize();
-    return 0;
+    return failed;
 }
 
 

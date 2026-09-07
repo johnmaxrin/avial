@@ -8,6 +8,11 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "includes/dhirOps.h"
+
+#include <optional>
+#include <limits>
+#include <string>
 
 namespace mlir
 {
@@ -27,21 +32,25 @@ namespace mlir
             int partitionDimension;
             int haloLeft;
             int haloRight;
+            std::string partitionReason;
+
+            ArrayPartitioningInfo()
+                : strategy(NO_PARTITION), partitionDimension(-1), haloLeft(0),
+                  haloRight(0), partitionReason("not analyzed") {}
         };
 
         class ArrayPartitioningAnalysis
         {
         public:
-            ArrayPartitioningAnalysis(mlir::Operation *rootOp) : rootOp(rootOp) {}
+            mlir::Operation *rootOp;
+            Value partitionedIV;
+
+            ArrayPartitioningAnalysis(mlir::Operation *rootOp, mlir::Value partitionedIV) : rootOp(rootOp), partitionedIV(partitionedIV) {}
 
             ArrayPartitioningInfo analyzeArray(Value memref)
             {
                 ArrayPartitioningInfo info;
                 info.memref = memref;
-                info.strategy = ArrayPartitioningInfo::NO_PARTITION;
-                info.partitionDimension = -1;
-                info.haloLeft = 0;
-                info.haloRight = 0;
 
                 // Collect accesses (both affine and regular memref ops)
                 llvm::SmallVector<Operation *> loads;
@@ -75,226 +84,289 @@ namespace mlir
                 auto memrefType = dyn_cast<mlir::MemRefType>(memref.getType());
                 if (!memrefType)
                 {
-                    info.strategy = ArrayPartitioningInfo::NO_PARTITION;
+                    info.partitionReason = "operand is not a ranked memref";
                     return info;
                 }
 
                 int rank = memrefType.getRank();
-                
-                // ===== Handle 1D arrays (single for loop case) =====
-                if (rank == 1)
-                {
-                    llvm::errs() << "=== 1D Array Analysis ===\n";
-                    llvm::errs() << "Is input: " << isInput << ", Is output: " << isOutput << "\n";
-                    
-                    // Find the loop IV that actually accesses the array
-                    Value loopIV = findLoopIVForArrayAccess(loads, stores);
-                    
-                    if (!loopIV)
-                    {
-                        llvm::errs() << "→ NO_PARTITION (no loop IV found)\n";
-                        info.strategy = ArrayPartitioningInfo::NO_PARTITION;
-                        return info;
-                    }
-                    
-                    llvm::errs() << "Found loop IV for array access\n";
-                    
-                    // Check if the array is accessed using the loop IV
-                    bool usesLoopIV = false;
-                    
-                    // Check loads
-                    for (Operation *loadOp : loads)
-                    {
-                        int dim = getDimensionForIV(loadOp, loopIV);
-                        llvm::errs() << "  Load uses dim: " << dim << "\n";
-                        if (dim == 0)
-                        {
-                            usesLoopIV = true;
-                            break;
-                        }
-                    }
-                    
-                    // Check stores
-                    if (!usesLoopIV)
-                    {
-                        for (Operation *storeOp : stores)
-                        {
-                            int dim = getDimensionForIV(storeOp, loopIV);
-                            llvm::errs() << "  Store uses dim: " << dim << "\n";
-                            if (dim == 0)
-                            {
-                                usesLoopIV = true;
-                                break;
-                            }
-                        }
-                    }
-                    
-                    if (usesLoopIV)
-                    {
-                        // Partition along dimension 0 (the only dimension)
-                        info.strategy = ArrayPartitioningInfo::ROW_PARTITION;
-                        info.partitionDimension = 0;
-                        llvm::errs() << "→ ROW_PARTITION (1D array, loop-indexed)\n";
-                    }
-                    else
-                    {
-                        // Array doesn't use loop IV - replicate
-                        info.strategy = ArrayPartitioningInfo::NO_PARTITION;
-                        llvm::errs() << "→ NO_PARTITION (1D array, not loop-indexed)\n";
-                    }
-
-                    // Check if the loop IV and array access indices match exactly,
-                    // or if there are offsets (e.g. a[i-1], a[i+1] in stencils like Jacobi).
-                    // Compute the min and max offsets across all accesses to determine
-                    // how many halo elements are needed on the left and right boundaries.
-                    // Example: a[i-1], a[i], a[i+1]  →  haloLeft=1, haloRight=1
-                    computeHaloForAccesses(loads, stores, loopIV, info);
-                    
-                    return info;
-                }
-
-                // ===== Handle 3D arrays — partition along outermost dimension (i) =====
-                // For a[i][j][k] we split across i (dimension 0), reusing the same
-                // ROW_PARTITION strategy that the 2D row-partition path uses.
-                if (rank == 3)
-                {
-                    llvm::errs() << "=== 3D Array Analysis ===\n";
-                    llvm::errs() << "Is input: " << isInput << ", Is output: " << isOutput << "\n";
-
-                    // Reuse the existing helper that walks up from the first access
-                    // and returns the outermost loop IV it finds.
-                    Value outerIV = findOutermostLoopIV(loads, stores);
-
-                    if (!outerIV)
-                    {
-                        llvm::errs() << "→ NO_PARTITION (no outermost loop IV found)\n";
-                        info.strategy = ArrayPartitioningInfo::NO_PARTITION;
-                        return info;
-                    }
-
-                    // Verify that every load/store uses the outer IV on dimension 0.
-                    // If any access maps the outer IV to a different dimension we fall
-                    // back to NO_PARTITION to avoid incorrect partitioning.
-                    bool consistentDim0 = true;
-
-                    auto checkDim0 = [&](const llvm::SmallVector<Operation *> &ops) {
-                        for (Operation *op : ops)
-                        {
-                            int dim = getDimensionForIV(op, outerIV);
-                            if (dim != 0)
-                            {
-                                consistentDim0 = false;
-                                llvm::errs() << "  Access uses outer IV on dim " << dim
-                                             << " (expected 0)\n";
-                            }
-                        }
-                    };
-
-                    checkDim0(loads);
-                    checkDim0(stores);
-
-                    if (consistentDim0)
-                    {
-                        info.strategy = ArrayPartitioningInfo::ROW_PARTITION;
-                        info.partitionDimension = 0;
-                        llvm::errs() << "→ ROW_PARTITION (3D array, split across dim 0 / i)\n";
-                    }
-                    else
-                    {
-                        info.strategy = ArrayPartitioningInfo::NO_PARTITION;
-                        llvm::errs() << "→ NO_PARTITION (inconsistent dim-0 access pattern)\n";
-                    }
-
-                    return info;
-                }
-
-                // ===== Handle 2D arrays (nested for loop case) =====
-                if (rank != 2)
+                if (rank < 1 || rank > 3)
                 {
                     llvm::errs() << "Warning: Unsupported array rank: " << rank << "\n";
-                    info.strategy = ArrayPartitioningInfo::NO_PARTITION;
+                    info.partitionReason = "only rank-1, rank-2, and rank-3 memrefs are supported";
                     return info;
                 }
 
-                // Find the outermost loop (affine or scf)
-                Value outerIV = findOutermostLoopIV(loads, stores);
-
-                if (!outerIV)
+                // A dimension-0 subview needs concrete sizes for every trailing
+                // dimension. Keeping such an operand whole is still correct; the
+                // per-access rebaser will restore the global IV where needed.
+                for (int dim = 1; dim < rank; ++dim)
                 {
-                    info.strategy = ArrayPartitioningInfo::NO_PARTITION;
-                    return info;
-                }
-
-                // Check which dimension uses the outer IV
-                int partitionDim = -1;
-
-                if (isOutput && !stores.empty())
-                {
-                    partitionDim = getDimensionForIV(stores[0], outerIV);
-                }
-                else if (isInput && !loads.empty())
-                {
-                    partitionDim = getDimensionForIV(loads[0], outerIV);
-                }
-
-                if (partitionDim != -1)
-                {
-                    // Check all other accesses to ensure they use the same pattern
-                    auto checkConsistency = [&](const llvm::SmallVector<Operation *> &ops)
+                    if (memrefType.isDynamicDim(dim))
                     {
-                        for (Operation *op : ops)
-                        {
-                            int dim = getDimensionForIV(op, outerIV);
-                            if (dim != partitionDim)
-                            {
-                                return false; // Inconsistent!
-                            }
-                        }
-                        return true;
-                    };
-
-                    if (!checkConsistency(loads) || !checkConsistency(stores))
-                    {
-                        partitionDim = -1; // Fall back to NO_PARTITION
-                        llvm::errs() << "→ Inconsistent access pattern detected\n";
+                        info.partitionReason =
+                            "dynamic trailing dimensions cannot form a static row slice";
+                        return info;
                     }
                 }
 
-                llvm::errs() << "=== 2D Array Analysis ===\n";
-                llvm::errs() << "Is input: " << isInput << ", Is output: " << isOutput << "\n";
-                llvm::errs() << "Partition dimension: " << partitionDim << "\n";
+                if (!partitionedIV)
+                {
+                    info.partitionReason = "no partitioned loop induction variable";
+                    return info;
+                }
 
-                if (partitionDim == 0)
+                if (loads.empty() && stores.empty())
+                {
+                    info.partitionReason = "memref has no accesses in the partitioned loop";
+                    return info;
+                }
+
+                int partitionDim = -1;
+                bool sawExactIVAccess = false;
+                bool sawInvariantAccess = false;
+                bool sawUnsupportedIVAccess = false;
+                bool inconsistentDimension = false;
+                bool sawOffsetAccess = false;
+
+                auto inspectAccess = [&](Operation *access)
+                {
+                    auto exact = getUnitStrideDimensionAndOffset(access, partitionedIV);
+                    if (!exact)
+                    {
+                        if (getDimensionForIV(access, partitionedIV) >= 0)
+                            sawUnsupportedIVAccess = true;
+                        else
+                            sawInvariantAccess = true;
+                        return;
+                    }
+
+                    sawExactIVAccess = true;
+                    int dimension = exact->first;
+                    int64_t offset = exact->second;
+                    sawOffsetAccess |= offset != 0;
+                    if (partitionDim < 0)
+                        partitionDim = dimension;
+                    else if (partitionDim != dimension)
+                        inconsistentDimension = true;
+                };
+
+                for (Operation *load : loads)
+                    inspectAccess(load);
+                for (Operation *store : stores)
+                    inspectAccess(store);
+
+                llvm::errs() << "=== Array Partition Analysis ===\n";
+                llvm::errs() << "Rank: " << rank << ", Is input: " << isInput
+                             << ", Is output: " << isOutput
+                             << ", Partition dimension: " << partitionDim << "\n";
+
+                // Preserve stencil metadata even though the current lowerer does not
+                // yet materialize halos.
+                if (rank == 1)
+                    computeHaloForAccesses(loads, stores, partitionedIV, info);
+
+                if (sawUnsupportedIVAccess)
+                {
+                    info.partitionReason =
+                        "partitioned IV appears in a non-unit or compound index expression";
+                }
+                else if (!sawExactIVAccess)
+                {
+                    info.partitionReason = isOutput
+                        ? "reduction dimension: output accesses are invariant in the partitioned IV"
+                        : "input is invariant in the partitioned IV (replicated)";
+                }
+                else if (sawInvariantAccess || inconsistentDimension)
+                {
+                    info.partitionReason =
+                        "inconsistent access dimensions for the partitioned IV";
+                }
+                else if (sawOffsetAccess || info.haloLeft > 0 || info.haloRight > 0)
+                {
+                    info.partitionReason = "halo/stencil access requires deferred halo exchange";
+                }
+                else if (partitionDim == 0)
                 {
                     info.strategy = ArrayPartitioningInfo::ROW_PARTITION;
                     info.partitionDimension = 0;
-                    llvm::errs() << "→ ROW_PARTITION\n";
+                    info.partitionReason = "all accesses use the partitioned IV on dimension 0";
                 }
-                else if (partitionDim == 1)
+                else if (partitionDim == 1 && rank == 2)
                 {
-                    if (isInput)
-                    {
-                        info.strategy = ArrayPartitioningInfo::NO_PARTITION;
-                        llvm::errs() << "→ REPLICATE (column-accessed input)\n";
-                    }
-                    else
-                    {
-                        info.strategy = ArrayPartitioningInfo::COL_PARTITION;
-                        info.partitionDimension = 1;
-                        llvm::errs() << "→ COL_PARTITION\n";
-                    }
+                    // The MPI lowering gathers contiguous row slices through raw
+                    // pointers. A column view is strided, so advertising
+                    // COL_PARTITION here would be a strategy the lowerer cannot emit.
+                    info.partitionReason = isInput
+                        ? "column-accessed input is replicated; strided transfers are deferred"
+                        : "column partitioning requires strided transfers and is deferred";
                 }
                 else
                 {
-                    info.strategy = ArrayPartitioningInfo::NO_PARTITION;
-                    llvm::errs() << "→ NO_PARTITION\n";
+                    info.partitionReason =
+                        "only leading-dimension row partitioning is currently supported";
                 }
+
+                if (info.strategy == ArrayPartitioningInfo::ROW_PARTITION)
+                    llvm::errs() << "→ ROW_PARTITION (" << info.partitionReason << ")\n";
+                else
+                    llvm::errs() << "→ NO_PARTITION (" << info.partitionReason << ")\n";
 
                 return info;
             }
 
+        public:
+
+            // Return the memref dimension and constant offset when an access uses
+            // the partitioned IV in the only form that can be rebased safely:
+            // IV itself, or IV +/- a constant. A missing result means either that
+            // the IV is not used by this access or that the expression is too
+            // general to transform conservatively.
+            std::optional<std::pair<int, int64_t>>
+            getUnitStrideDimensionAndOffset(Operation *memOp, Value targetIV)
+            {
+                if (auto affineLoad = dyn_cast<mlir::affine::AffineLoadOp>(memOp))
+                {
+                    AffineMap map = affineLoad.getAffineMap();
+                    auto operands = affineLoad.getMapOperands();
+                    std::optional<std::pair<int, int64_t>> result;
+                    for (unsigned dim = 0; dim < map.getNumResults(); ++dim)
+                    {
+                        for (unsigned operandPos = 0; operandPos < operands.size(); ++operandPos)
+                        {
+                            int64_t operandOffset = 0;
+                            if (!getOffsetFromIV(operands[operandPos], targetIV, operandOffset))
+                                continue;
+                            int64_t offset = 0;
+                            if (getSimpleAffineIVOffset(map.getResult(dim), operandPos,
+                                                        map.getNumDims(), offset))
+                            {
+                                if (result)
+                                    return std::nullopt;
+                                __int128 combined = static_cast<__int128>(offset) +
+                                                    operandOffset;
+                                if (combined < std::numeric_limits<int64_t>::min() ||
+                                    combined > std::numeric_limits<int64_t>::max())
+                                    return std::nullopt;
+                                result = std::make_pair(static_cast<int>(dim),
+                                                        static_cast<int64_t>(combined));
+                            }
+                        }
+                    }
+                    return result;
+                }
+
+                if (auto affineStore = dyn_cast<mlir::affine::AffineStoreOp>(memOp))
+                {
+                    AffineMap map = affineStore.getAffineMap();
+                    auto operands = affineStore.getMapOperands();
+                    std::optional<std::pair<int, int64_t>> result;
+                    for (unsigned dim = 0; dim < map.getNumResults(); ++dim)
+                    {
+                        for (unsigned operandPos = 0; operandPos < operands.size(); ++operandPos)
+                        {
+                            int64_t operandOffset = 0;
+                            if (!getOffsetFromIV(operands[operandPos], targetIV, operandOffset))
+                                continue;
+                            int64_t offset = 0;
+                            if (getSimpleAffineIVOffset(map.getResult(dim), operandPos,
+                                                        map.getNumDims(), offset))
+                            {
+                                if (result)
+                                    return std::nullopt;
+                                __int128 combined = static_cast<__int128>(offset) +
+                                                    operandOffset;
+                                if (combined < std::numeric_limits<int64_t>::min() ||
+                                    combined > std::numeric_limits<int64_t>::max())
+                                    return std::nullopt;
+                                result = std::make_pair(static_cast<int>(dim),
+                                                        static_cast<int64_t>(combined));
+                            }
+                        }
+                    }
+                    return result;
+                }
+
+                llvm::SmallVector<Value> indices;
+                if (auto load = dyn_cast<mlir::memref::LoadOp>(memOp))
+                    indices.append(load.getIndices().begin(), load.getIndices().end());
+                else if (auto store = dyn_cast<mlir::memref::StoreOp>(memOp))
+                    indices.append(store.getIndices().begin(), store.getIndices().end());
+                else
+                    return std::nullopt;
+
+                std::optional<std::pair<int, int64_t>> result;
+                for (unsigned dim = 0; dim < indices.size(); ++dim)
+                {
+                    int64_t offset = 0;
+                    if (getOffsetFromIV(indices[dim], targetIV, offset))
+                    {
+                        if (result)
+                            return std::nullopt;
+                        result = std::make_pair(static_cast<int>(dim), offset);
+                    }
+                }
+                return result;
+            }
+
+            bool getSimpleAffineIVOffset(AffineExpr expr, unsigned ivPos,
+                                         unsigned numDims, int64_t &offset)
+            {
+                bool foundIV = false;
+                __int128 wideOffset = 0;
+                std::function<bool(AffineExpr)> visit = [&](AffineExpr current) -> bool {
+                    if (auto dim = dyn_cast<AffineDimExpr>(current))
+                    {
+                        if (ivPos >= numDims || dim.getPosition() != ivPos || foundIV)
+                            return false;
+                        foundIV = true;
+                        return true;
+                    }
+                    if (auto symbol = dyn_cast<AffineSymbolExpr>(current))
+                    {
+                        if (ivPos < numDims ||
+                            symbol.getPosition() != ivPos - numDims || foundIV)
+                            return false;
+                        foundIV = true;
+                        return true;
+                    }
+                    if (auto constant = dyn_cast<AffineConstantExpr>(current))
+                    {
+                        wideOffset += constant.getValue();
+                        return true;
+                    }
+                    auto binary = dyn_cast<AffineBinaryOpExpr>(current);
+                    if (!binary)
+                        return false;
+
+                    if (binary.getKind() == AffineExprKind::Add)
+                        return visit(binary.getLHS()) && visit(binary.getRHS());
+
+                    if (binary.getKind() == AffineExprKind::Mul)
+                    {
+                        auto lhsConst = dyn_cast<AffineConstantExpr>(binary.getLHS());
+                        auto rhsConst = dyn_cast<AffineConstantExpr>(binary.getRHS());
+                        if (lhsConst && lhsConst.getValue() == 1)
+                            return visit(binary.getRHS());
+                        if (rhsConst && rhsConst.getValue() == 1)
+                            return visit(binary.getLHS());
+                    }
+                    return false;
+                };
+
+                if (!visit(expr) || !foundIV ||
+                    wideOffset < std::numeric_limits<int64_t>::min() ||
+                    wideOffset > std::numeric_limits<int64_t>::max())
+                    return false;
+                offset = static_cast<int64_t>(wideOffset);
+                return true;
+            }
+
+            bool getConstantOffsetFromIV(Value index, Value targetIV, int64_t &offset)
+            {
+                return getOffsetFromIV(index, targetIV, offset);
+            }
+
         private:
-            mlir::Operation *rootOp;
 
             // Extract the constant integer offset of an index expression relative to
             // a loop IV. Handles the common stencil patterns:
@@ -318,182 +390,59 @@ namespace mlir
                 if (!defOp)
                     return false;
 
+                auto getConstant = [](Value value, int64_t &constant) {
+                    if (auto constOp = dyn_cast_or_null<mlir::arith::ConstantIndexOp>(
+                            value.getDefiningOp()))
+                    {
+                        constant = constOp.value();
+                        return true;
+                    }
+                    if (auto constOp = dyn_cast_or_null<mlir::arith::ConstantIntOp>(
+                            value.getDefiningOp()))
+                    {
+                        constant = constOp.value();
+                        return true;
+                    }
+                    return false;
+                };
+                auto checkedAdd = [](int64_t lhs, int64_t rhs, int64_t &sum) {
+                    __int128 wide = static_cast<__int128>(lhs) + rhs;
+                    if (wide < std::numeric_limits<int64_t>::min() ||
+                        wide > std::numeric_limits<int64_t>::max())
+                        return false;
+                    sum = static_cast<int64_t>(wide);
+                    return true;
+                };
+
                 // arith.addi  →  i + c  or  c + i
                 if (auto addOp = dyn_cast<mlir::arith::AddIOp>(defOp))
                 {
-                    // Check left operand is IV, right is constant
-                    if (addOp.getLhs() == targetIV)
-                    {
-                        if (auto constOp = dyn_cast<mlir::arith::ConstantIndexOp>(
-                                addOp.getRhs().getDefiningOp()))
-                        {
-                            offset = constOp.value();
-                            return true;
-                        }
-                        if (auto constOp = dyn_cast<mlir::arith::ConstantIntOp>(
-                                addOp.getRhs().getDefiningOp()))
-                        {
-                            offset = constOp.value();
-                            return true;
-                        }
-                    }
-                    // Commuted: c + i
-                    if (addOp.getRhs() == targetIV)
-                    {
-                        if (auto constOp = dyn_cast<mlir::arith::ConstantIndexOp>(
-                                addOp.getLhs().getDefiningOp()))
-                        {
-                            offset = constOp.value();
-                            return true;
-                        }
-                        if (auto constOp = dyn_cast<mlir::arith::ConstantIntOp>(
-                                addOp.getLhs().getDefiningOp()))
-                        {
-                            offset = constOp.value();
-                            return true;
-                        }
-                    }
+                    int64_t baseOffset = 0;
+                    int64_t constant = 0;
+                    if (getOffsetFromIV(addOp.getLhs(), targetIV, baseOffset) &&
+                        getConstant(addOp.getRhs(), constant))
+                        return checkedAdd(baseOffset, constant, offset);
+                    if (getConstant(addOp.getLhs(), constant) &&
+                        getOffsetFromIV(addOp.getRhs(), targetIV, baseOffset))
+                        return checkedAdd(baseOffset, constant, offset);
                 }
 
                 // arith.subi  →  i - c
                 if (auto subOp = dyn_cast<mlir::arith::SubIOp>(defOp))
                 {
-                    if (subOp.getLhs() == targetIV)
-                    {
-                        if (auto constOp = dyn_cast<mlir::arith::ConstantIndexOp>(
-                                subOp.getRhs().getDefiningOp()))
-                        {
-                            offset = -constOp.value();
-                            return true;
-                        }
-                        if (auto constOp = dyn_cast<mlir::arith::ConstantIntOp>(
-                                subOp.getRhs().getDefiningOp()))
-                        {
-                            offset = -constOp.value();
-                            return true;
-                        }
-                    }
-                }
-
-                return false;
-            }
-
-            // For affine load/store ops, extract the offset from the affine map directly.
-            // An affine map like (d0) -> (d0 + 1) has a constant term of +1.
-            // Returns true and sets `offset` on success.
-            bool getAffineOffset(Operation *memOp, Value targetIV, int64_t &offset)
-            {
-                AffineMap map;
-                llvm::SmallVector<Value> operands;
-
-                if (auto affineLoad = dyn_cast<mlir::affine::AffineLoadOp>(memOp))
-                {
-                    map = affineLoad.getAffineMap();
-                    operands.append(affineLoad.getMapOperands().begin(),
-                                    affineLoad.getMapOperands().end());
-                }
-                else if (auto affineStore = dyn_cast<mlir::affine::AffineStoreOp>(memOp))
-                {
-                    map = affineStore.getAffineMap();
-                    operands.append(affineStore.getMapOperands().begin(),
-                                    affineStore.getMapOperands().end());
-                }
-                else
-                {
-                    return false;
-                }
-
-                // Find which operand position corresponds to targetIV
-                int ivPos = -1;
-                for (int i = 0; i < (int)operands.size(); ++i)
-                {
-                    if (operands[i] == targetIV)
-                    {
-                        ivPos = i;
-                        break;
-                    }
-                }
-                if (ivPos < 0)
-                    return false;
-
-                // We only handle single-result maps (1D array → one result expression)
-                if (map.getNumResults() != 1)
-                    return false;
-
-                AffineExpr expr = map.getResult(0);
-
-                // Walk the affine expression to extract:  coeff * d[ivPos] + constant
-                // We handle the simple cases: d0, d0 + c, d0 - c, c + d0
-                int64_t constant = 0;
-                bool foundIV = false;
-
-                std::function<bool(AffineExpr)> extractOffset = [&](AffineExpr e) -> bool
-                {
-                    if (auto dimExpr = dyn_cast<AffineDimExpr>(e))
-                    {
-                        if ((int)dimExpr.getPosition() == ivPos)
-                        {
-                            foundIV = true;
-                            return true;
-                        }
-                        return false; // Different dimension
-                    }
-                    if (auto constExpr = dyn_cast<AffineConstantExpr>(e))
-                    {
-                        constant += constExpr.getValue();
-                        return true;
-                    }
-                    if (auto binExpr = dyn_cast<AffineBinaryOpExpr>(e))
-                    {
-                        if (binExpr.getKind() == AffineExprKind::Add)
-                        {
-                            return extractOffset(binExpr.getLHS()) &&
-                                   extractOffset(binExpr.getRHS());
-                        }
-                        // d0 - c is represented as d0 + (-1 * c) in affine
-                        if (binExpr.getKind() == AffineExprKind::Mul)
-                        {
-                            // Allow negative constant multiplied (for subtraction)
-                            if (auto constExpr = dyn_cast<AffineConstantExpr>(binExpr.getRHS()))
-                            {
-                                if (constExpr.getValue() == -1)
-                                {
-                                    // -1 * something — treat the constant contribution
-                                    if (auto innerConst = dyn_cast<AffineConstantExpr>(
-                                            binExpr.getLHS()))
-                                    {
-                                        constant += -innerConst.getValue();
-                                        return true;
-                                    }
-                                }
-                                // coeff * dim: only accept coeff==1 for now
-                                if (constExpr.getValue() == 1)
-                                    return extractOffset(binExpr.getLHS());
-                            }
-                            if (auto constExpr = dyn_cast<AffineConstantExpr>(binExpr.getLHS()))
-                            {
-                                if (constExpr.getValue() == -1)
-                                {
-                                    if (auto innerConst = dyn_cast<AffineConstantExpr>(
-                                            binExpr.getRHS()))
-                                    {
-                                        constant += -innerConst.getValue();
-                                        return true;
-                                    }
-                                }
-                                if (constExpr.getValue() == 1)
-                                    return extractOffset(binExpr.getRHS());
-                            }
-                        }
-                    }
-                    return false;
-                };
-
-                if (extractOffset(expr) && foundIV)
-                {
-                    offset = constant;
+                    int64_t baseOffset = 0;
+                    int64_t constant = 0;
+                    if (!getOffsetFromIV(subOp.getLhs(), targetIV, baseOffset) ||
+                        !getConstant(subOp.getRhs(), constant))
+                        return false;
+                    __int128 wide = static_cast<__int128>(baseOffset) - constant;
+                    if (wide < std::numeric_limits<int64_t>::min() ||
+                        wide > std::numeric_limits<int64_t>::max())
+                        return false;
+                    offset = static_cast<int64_t>(wide);
                     return true;
                 }
+
                 return false;
             }
 
@@ -517,28 +466,10 @@ namespace mlir
 
                 auto processOp = [&](Operation *memOp)
                 {
-                    int64_t offset = 0;
-                    bool found = false;
-
-                    // Try affine map first (more precise)
-                    if (!found)
-                        found = getAffineOffset(memOp, loopIV, offset);
-
-                    // Fall back to arith op inspection
-                    if (!found)
+                    auto access = getUnitStrideDimensionAndOffset(memOp, loopIV);
+                    if (access && access->first == 0)
                     {
-                        llvm::SmallVector<Value> indices;
-                        if (auto load = dyn_cast<mlir::memref::LoadOp>(memOp))
-                            indices.append(load.getIndices().begin(), load.getIndices().end());
-                        else if (auto store = dyn_cast<mlir::memref::StoreOp>(memOp))
-                            indices.append(store.getIndices().begin(), store.getIndices().end());
-
-                        if (!indices.empty())
-                            found = getOffsetFromIV(indices[0], loopIV, offset);
-                    }
-
-                    if (found)
-                    {
+                        int64_t offset = access->second;
                         anyFound = true;
                         minOffset = std::min(minOffset, offset);
                         maxOffset = std::max(maxOffset, offset);
@@ -551,8 +482,14 @@ namespace mlir
 
                 if (anyFound)
                 {
-                    info.haloLeft  = (int)std::max((int64_t)0, -minOffset);
-                    info.haloRight = (int)std::max((int64_t)0,  maxOffset);
+                    __int128 left = minOffset < 0
+                        ? -static_cast<__int128>(minOffset)
+                        : 0;
+                    __int128 right = maxOffset > 0 ? maxOffset : 0;
+                    info.haloLeft = static_cast<int>(std::min<__int128>(
+                        left, std::numeric_limits<int>::max()));
+                    info.haloRight = static_cast<int>(std::min<__int128>(
+                        right, std::numeric_limits<int>::max()));
 
                     llvm::errs() << "Halo: left=" << info.haloLeft
                                  << ", right=" << info.haloRight << "\n";
@@ -604,6 +541,10 @@ namespace mlir
                             outermostIV = scfParallel.getInductionVars()[0];
                         op = op->getParentOp();
                     }
+                    else if (isa<mlir::dhir::ReplicateOp>(op))
+                    {
+                        break;
+                    }
                     else
                     {
                         op = op->getParentOp();
@@ -648,6 +589,10 @@ namespace mlir
                             loopIVs.push_back(scfParallel.getInductionVars()[0]);
                         op = op->getParentOp();
                     }
+                    else if (isa<mlir::dhir::ReplicateOp>(op))
+                    {
+                        break;
+                    }
                     else
                     {
                         op = op->getParentOp();
@@ -678,6 +623,7 @@ namespace mlir
                 return loopIVs.back();
             }
 
+        public:
             // Get which dimension uses a specific IV
             int getDimensionForIV(Operation *memOp, Value targetIV)
             {
@@ -711,22 +657,51 @@ namespace mlir
                     Value idx = indices[dim];
 
                     // Direct match
-                    if (idx == targetIV)
+                    if (idx == targetIV) {
                         return dim;
+                    }
 
                     // Check if it's derived from the IV (through arith ops)
-                    if (isDerivedFromValue(idx, targetIV))
+                    if (isDerivedFromValue(idx, targetIV)) {
                         return dim;
+                    }
                 }
 
                 return -1;
             }
 
             // Check if a value is derived from another (simple version)
-            bool isDerivedFromValue(Value derived, Value source)
+            bool isDerivedFromValue(Value derived, Value source, int maxDepth = 5)
             {
                 if (derived == source)
                     return true;
+
+                if (maxDepth <= 0) 
+                    return false;
+
+                // Handle block arguments by looking at the parent loop's iter_args/yields
+                if (auto blockArg = mlir::dyn_cast<mlir::BlockArgument>(derived)) {
+                    mlir::Operation *parentOp = blockArg.getOwner()->getParentOp();
+                    if (auto forOp = mlir::dyn_cast<mlir::scf::ForOp>(parentOp)) {
+                        if (blockArg.getArgNumber() > 0) { // arg 0 is IV
+                            Value initVal = forOp.getInitArgs()[blockArg.getArgNumber() - 1];
+                            if (isDerivedFromValue(initVal, source, maxDepth - 1)) return true;
+                            if (auto yieldOp = mlir::dyn_cast_or_null<mlir::scf::YieldOp>(forOp.getBody()->getTerminator())) {
+                                Value yieldVal = yieldOp.getOperand(blockArg.getArgNumber() - 1);
+                                if (isDerivedFromValue(yieldVal, source, maxDepth - 1)) return true;
+                            }
+                        }
+                    } else if (auto affineFor = mlir::dyn_cast<mlir::affine::AffineForOp>(parentOp)) {
+                        if (blockArg.getArgNumber() > 0) { // arg 0 is IV
+                            Value initVal = affineFor.getInits()[blockArg.getArgNumber() - 1];
+                            if (isDerivedFromValue(initVal, source, maxDepth - 1)) return true;
+                            if (auto yieldOp = mlir::dyn_cast_or_null<mlir::affine::AffineYieldOp>(affineFor.getBody()->getTerminator())) {
+                                Value yieldVal = yieldOp.getOperand(blockArg.getArgNumber() - 1);
+                                if (isDerivedFromValue(yieldVal, source, maxDepth - 1)) return true;
+                            }
+                        }
+                    }
+                }
 
                 // Check if it's an arithmetic operation using the source
                 if (auto defOp = derived.getDefiningOp())
@@ -735,9 +710,8 @@ namespace mlir
                     {
                         if (operand == source)
                             return true;
-                        // Recursive check (limit depth to avoid infinite loops)
-                        if (operand.getDefiningOp() &&
-                            isDerivedFromValue(operand, source))
+                        // Recursive check 
+                        if (isDerivedFromValue(operand, source, maxDepth - 1))
                             return true;
                     }
                 }
@@ -748,7 +722,25 @@ namespace mlir
 
         ArrayPartitioningInfo analyzeArrayForPartitioning(mlir::Operation *op, Value memref)
         {
-            ArrayPartitioningAnalysis analysis(op);
+            mlir::Value partitionedIV;
+            op->walk<mlir::WalkOrder::PreOrder>([&](mlir::Operation *childOp) {
+                if (partitionedIV) return mlir::WalkResult::interrupt();
+                if (auto affineFor = mlir::dyn_cast<mlir::affine::AffineForOp>(childOp)) {
+                    partitionedIV = affineFor.getInductionVar();
+                    return mlir::WalkResult::interrupt();
+                }
+                if (auto scfFor = mlir::dyn_cast<mlir::scf::ForOp>(childOp)) {
+                    partitionedIV = scfFor.getInductionVar();
+                    return mlir::WalkResult::interrupt();
+                }
+                if (auto scfParallel = mlir::dyn_cast<mlir::scf::ParallelOp>(childOp)) {
+                    partitionedIV = scfParallel.getInductionVars()[0];
+                    return mlir::WalkResult::interrupt();
+                }
+                return mlir::WalkResult::advance();
+            });
+
+            ArrayPartitioningAnalysis analysis(op, partitionedIV);
             return analysis.analyzeArray(memref);
         }
 

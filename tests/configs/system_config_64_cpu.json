@@ -71,259 +71,387 @@
   "nodes": {
     "node0": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node1": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node2": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node3": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node4": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node5": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node6": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node7": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node8": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node9": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node10": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node11": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node12": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node13": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node14": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node15": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node16": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node17": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node18": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node19": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node20": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node21": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node22": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node23": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node24": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node25": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node26": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node27": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node28": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node29": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node30": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node31": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node32": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node33": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node34": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node35": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node36": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node37": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node38": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node39": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node40": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node41": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node42": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node43": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node44": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node45": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node46": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node47": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node48": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node49": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node50": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node51": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node52": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node53": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node54": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node55": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node56": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node57": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node58": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node59": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node60": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node61": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node62": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     },
     "node63": {
       "cpu_arch": "x86_64",
-      "gpus": []
+      "gpus": [],
+      "cost": 1.0,
+      "bandwidth": 1.0
     }
   }
 }

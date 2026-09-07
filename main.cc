@@ -11,7 +11,8 @@
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Conversion/Passes.h"
 #include "mlir/Transforms/Passes.h"
-
+// Compatibility shim for prebuilt LLVM static libs referencing glibc >= 2.32
+extern "C" char __libc_single_threaded = 0;
 #include <iostream>
 
 #include "includes/dhirDialect.h"
