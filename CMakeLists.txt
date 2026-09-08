@@ -111,3 +111,41 @@ PRIVATE
         MLIRBuiltinToLLVMIRTranslation 
         MLIRLLVMToLLVMIRTranslation
     )
+
+add_custom_command(
+  OUTPUT "${CMAKE_BINARY_DIR}/bin/discovery_floor"
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/bin"
+  COMMAND ${CMAKE_CXX_COMPILER} -O2 -o "${CMAKE_BINARY_DIR}/bin/discovery_floor"
+          "${CMAKE_SOURCE_DIR}/calibration/compute/drivers/discovery_floor_main.cc" -lhwloc
+  DEPENDS "${CMAKE_SOURCE_DIR}/calibration/compute/drivers/discovery_floor_main.cc"
+  COMMENT "Building discovery_floor binary"
+)
+add_custom_target(discovery_floor ALL DEPENDS "${CMAKE_BINARY_DIR}/bin/discovery_floor")
+
+# The compiled kernels call libomp (LLVM) through __kmpc_fork_call, so the
+# entry-latency probe has to be built against the same runtime; a GCC build of it
+# links libgomp and measures a different implementation's fork/join cost.
+find_program(DHIR_OMP_PROBE_CXX clang++
+  PATHS ${LLVM_INSTALL_PREFIX}/bin ${LLVM_TOOLS_BINARY_DIR}
+  NO_DEFAULT_PATH)
+if(NOT DHIR_OMP_PROBE_CXX)
+  find_program(DHIR_OMP_PROBE_CXX clang++)
+endif()
+if(NOT DHIR_OMP_PROBE_CXX)
+  set(DHIR_OMP_PROBE_CXX ${CMAKE_CXX_COMPILER})
+  message(WARNING "clang++ not found; omp_entry will link the compiler's own "
+                  "OpenMP runtime rather than the libomp the kernels use")
+endif()
+message(STATUS "DHIR omp_entry probe compiler: ${DHIR_OMP_PROBE_CXX}")
+
+add_custom_command(
+  OUTPUT "${CMAKE_BINARY_DIR}/bin/omp_entry"
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/bin"
+  COMMAND ${DHIR_OMP_PROBE_CXX} -O2 -fopenmp
+          -o "${CMAKE_BINARY_DIR}/bin/omp_entry"
+          "${CMAKE_SOURCE_DIR}/calibration/compute/drivers/omp_entry_main.cc"
+  DEPENDS "${CMAKE_SOURCE_DIR}/calibration/compute/drivers/omp_entry_main.cc"
+  COMMENT "Building omp_entry binary"
+)
+add_custom_target(omp_entry ALL DEPENDS "${CMAKE_BINARY_DIR}/bin/omp_entry")
+

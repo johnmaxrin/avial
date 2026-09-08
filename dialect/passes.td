@@ -35,3 +35,9 @@ def LowerConvergeOpPass : Pass<"lower-converge-op">
   let summary = "Lower Converge Op; Basically enable broadcast flag at the end of last set of tasks";
   let dependentDialects = ["mlir::dhir::DhirDialect"];
 }
+
+def OMPCostModelReportPass : Pass<"dhir-omp-cost-model-report">{
+  let summary = "Report OpenMP-aware work/traffic at the DHIR boundary";
+  let dependentDialects = ["mlir::dhir::DhirDialect", "mlir::affine::AffineDialect",
+    "mlir::func::FuncDialect", "mlir::DLTIDialect"];
+}

@@ -91,6 +91,12 @@ SPECS = {
                    [("A", ["N", "N"]), ("u1", ["N"]), ("v1", ["N"]),
                     ("u2", ["N"]), ("v2", ["N"]), ("w", ["N"]),
                     ("x", ["N"]), ("y", ["N"]), ("z", ["N"])]),
+
+    # Out[i] = sum_j (A+B+C+D+E+F)[i, j]
+    "stream6": Spec("stream6", ["M", "N"],
+                    [("A", ["M", "N"]), ("B", ["M", "N"]), ("C", ["M", "N"]),
+                     ("D", ["M", "N"]), ("E", ["M", "N"]), ("F", ["M", "N"]),
+                     ("Out", ["M"])]),
 }
 
 # Stencils write [1, N-1), so the array is one wider than the loop's upper
@@ -122,12 +128,108 @@ def parse_mlir(path):
     return func, bounds, shapes
 
 
-def resolve(kernel):
+def parse_dims_str(kernel, s):
+    """Parses a dimension string like 'M=2048,N=2048' or '2048' or 'gemm:M=2048;add2d:N=4096'."""
+    if not s:
+        return {}
+    s = s.strip()
+    if ";" in s or (":" in s and not re.match(r"^\w+=\d+", s)):
+        entries = s.split(";")
+        for entry in entries:
+            entry = entry.strip()
+            if not entry:
+                continue
+            if ":" in entry:
+                k_name, rest = entry.split(":", 1)
+                if k_name.strip() == kernel:
+                    return parse_dims_str(kernel, rest)
+        return {}
+
+    if s.isdigit():
+        val = int(s)
+        spec = SPECS.get(kernel)
+        if not spec:
+            return {}
+        res = {}
+        for b in spec.bounds:
+            if b and b not in spec.scalars:
+                res[b] = val
+        return res
+
+    out = {}
+    for part in s.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if "=" in part:
+            k, v = part.split("=", 1)
+            out[k.strip()] = int(v.strip())
+    return out
+
+
+def specialize_mlir(kernel, overrides, in_path=None, out_path=None):
+    """Specializes an MLIR source text with new dimension overrides without modifying disk files."""
+    if kernel not in SPECS:
+        raise Drift(f"unknown kernel {kernel!r}")
+    spec = SPECS[kernel]
+    src_path = Path(in_path) if in_path else (POLYBENCH / f"{kernel}.mlir")
+    text = src_path.read_text()
+
+    if not overrides:
+        if out_path:
+            Path(out_path).write_text(text)
+        return text
+
+    _, orig_dims = resolve(kernel, in_path=src_path)
+    active_dims = dict(orig_dims)
+    active_dims.update(overrides)
+
+    def replace_bound(match):
+        idx = getattr(replace_bound, "idx", 0)
+        replace_bound.idx = idx + 1
+        if idx >= len(spec.bounds):
+            return match.group(0)
+        dim_name = spec.bounds[idx]
+        if not dim_name or dim_name not in active_dims:
+            return match.group(0)
+
+        var_name = match.group(1)
+        lo_str = match.group(2)
+        lo = int(lo_str)
+        val = active_dims[dim_name]
+        new_hi = val - 1 if (kernel in STENCIL_UB_IS_N_MINUS_1 and lo == 1) else val
+        return f"affine.for {var_name} = {lo_str} to {new_hi}"
+
+    replace_bound.idx = 0
+    text = re.sub(r"affine\.for\s+(%\w+)\s*=\s*(\d+)\s+to\s+\d+", replace_bound, text)
+
+    sig = re.search(r"func\.func\s+@(\w+)\s*\((.*?)\)\s*(?:->|\{)", text, re.S)
+    if sig:
+        arglist = sig.group(2)
+        memref_args = re.findall(r"(%arg\d+)\s*:\s*(memref<[^>]+>)", arglist)
+        for (arg_var, old_type), (m_name, decl) in zip(memref_args, spec.memrefs):
+            elem_type = old_type.split("x")[-1].rstrip(">")
+            new_shape = ["?" if ax == 0 else str(active_dims[d]) for ax, d in enumerate(decl)]
+            new_type = f"memref<{'x'.join(new_shape)}x{elem_type}>"
+            if new_type != old_type:
+                # Replace in signature: %argX: memref<...>
+                # and in loads/stores: %argX[...] : memref<...>
+                pattern = rf"({re.escape(arg_var)}(?:\[[^\]]*\])?\s*:\s*){re.escape(old_type)}"
+                text = re.sub(pattern, rf"\g<1>{new_type}", text)
+
+    if out_path:
+        out_p = Path(out_path)
+        out_p.parent.mkdir(parents=True, exist_ok=True)
+        out_p.write_text(text)
+    return text
+
+
+def resolve(kernel, in_path=None, overrides=None):
     """Resolve a kernel's symbolic dims to concrete values, checking for drift."""
     if kernel not in SPECS:
         raise Drift(f"unknown kernel {kernel!r}")
     spec = SPECS[kernel]
-    path = POLYBENCH / f"{kernel}.mlir"
+    path = Path(in_path) if in_path else (POLYBENCH / f"{kernel}.mlir")
     if not path.exists():
         raise Drift(f"missing {path}")
 
@@ -172,14 +274,19 @@ def resolve(kernel):
         raise Drift(f"{kernel}: could not resolve {sorted(set(missing))} "
                     f"from the .mlir")
 
+    if overrides:
+        for k, v in overrides.items():
+            if k in dims:
+                dims[k] = v
+
     return spec, dims
 
 
-def emit_header(kernel, out):
-    spec, dims = resolve(kernel)
+def emit_header(kernel, out, overrides=None, in_path=None):
+    spec, dims = resolve(kernel, in_path=in_path, overrides=overrides)
     lines = [
         "// GENERATED by tests/bench/kernels.py -- do not edit.",
-        f"// Sizes parsed from tests/polybench/{kernel}.mlir; edit that file to resize.",
+        f"// Sizes parsed from {in_path or f'tests/polybench/{kernel}.mlir'}",
         "#pragma once",
         "",
         f"#define DHIR_KERNEL_{kernel.upper().replace('2', 'TWO').replace('3', 'THREE')} 1",
@@ -198,6 +305,10 @@ def main():
     ap.add_argument("--header")
     ap.add_argument("--check-all", action="store_true")
     ap.add_argument("--print", action="store_true")
+    ap.add_argument("--dims", help="comma-separated dimension overrides e.g. M=2048,N=2048 or single integer")
+    ap.add_argument("--size", type=int, help="symmetric dimension override across all dimensions")
+    ap.add_argument("--emit-mlir", help="path to emit specialized MLIR copy with new dimensions")
+    ap.add_argument("--in-mlir", help="input MLIR path instead of default tests/polybench/<kernel>.mlir")
     args = ap.parse_args()
 
     if args.check_all:
@@ -214,11 +325,20 @@ def main():
     if not args.kernel:
         ap.error("give a kernel name or --check-all")
 
+    overrides = {}
+    if args.size:
+        overrides = parse_dims_str(args.kernel, str(args.size))
+    elif args.dims:
+        overrides = parse_dims_str(args.kernel, args.dims)
+
     try:
+        if args.emit_mlir:
+            specialize_mlir(args.kernel, overrides, in_path=args.in_mlir, out_path=args.emit_mlir)
+
         if args.header:
-            dims = emit_header(args.kernel, args.header)
+            dims = emit_header(args.kernel, args.header, overrides=overrides, in_path=args.emit_mlir or args.in_mlir)
         else:
-            _, dims = resolve(args.kernel)
+            _, dims = resolve(args.kernel, in_path=args.emit_mlir or args.in_mlir, overrides=overrides)
         if args.print or not args.header:
             print(" ".join(f"{n}={v}" for n, v in sorted(dims.items())))
     except Drift as e:
@@ -229,3 +349,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

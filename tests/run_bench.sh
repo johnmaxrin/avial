@@ -29,6 +29,9 @@ usage: $(basename "$0") <kernel> <ranks> [--config FILE] [--workdir DIR] [--keep
   --workdir DIR   where to put intermediates; default: a temp dir
   --keep          keep intermediates and print their location
   --verbose       echo each pipeline stage
+  --reuse-build   with --workdir, skip the compile pipeline when that directory
+                  already holds a binary built for this kernel and these sizes
+                  (repeated timings of one configuration then compile once)
 EOF
     exit 2
 }
@@ -36,13 +39,16 @@ EOF
 [[ $# -ge 2 ]] || usage
 KERNEL="$1"; RANKS="$2"; shift 2
 
-CONFIG=""; WORKDIR=""; KEEP=0; VERBOSE=0
+CONFIG=""; WORKDIR=""; KEEP=0; VERBOSE=0; DIMS=""; SIZE=""; REUSE=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --config)  CONFIG="$2"; shift 2 ;;
         --workdir) WORKDIR="$2"; shift 2 ;;
         --keep)    KEEP=1; shift ;;
         --verbose) VERBOSE=1; shift ;;
+        --dims)    DIMS="$2"; shift 2 ;;
+        --size)    SIZE="$2"; shift 2 ;;
+        --reuse-build) REUSE=1; shift ;;
         *) echo "unknown option: $1" >&2; usage ;;
     esac
 done
@@ -90,17 +96,42 @@ if [[ -z "$CONFIG" ]]; then
     say "generated config with $RANKS nodes"
 fi
 
-# --- sizes ---
-# Parsed from the .mlir, so the driver cannot disagree with the compiled bounds.
+# Repeated measurements of one configuration differ only in the timing, so the
+# pipeline (kernels.py, dhir-opt, mlir-translate, llc, mpicxx) is worth running
+# once.  The stamp records what the cached binary was built for; anything else
+# rebuilds.
+STAMP="$WORKDIR/build.stamp"
+WANT="$KERNEL|$RANKS|${DIMS}|${SIZE}|$CONFIG"
+if [[ $REUSE -eq 1 && -x "$WORKDIR/bench" && -f "$STAMP" ]] \
+   && [[ "$(cat "$STAMP")" == "$WANT" ]] \
+   && [[ "$WORKDIR/bench" -nt "$DHIR_OPT" && "$WORKDIR/bench" -nt "$SRC" ]]; then
+    say "reusing build in $WORKDIR"
+    SKIP_BUILD=1
+else
+    SKIP_BUILD=0
+fi
+
+if [[ $SKIP_BUILD -eq 0 ]]; then
+# --- sizes & specialization ---
+# Parsed from the .mlir, or specialized dynamically if --dims/--size is passed.
 say "extracting sizes"
-python3 "$BENCH/kernels.py" "$KERNEL" --header "$WORKDIR/bench_sizes.h" --print >&2
+DIMS_ARGS=()
+if [[ -n "$SIZE" ]]; then
+    DIMS_ARGS+=(--size "$SIZE")
+elif [[ -n "$DIMS" ]]; then
+    DIMS_ARGS+=(--dims "$DIMS")
+fi
+
+python3 "$BENCH/kernels.py" "$KERNEL" "${DIMS_ARGS[@]}" \
+        --emit-mlir "$WORKDIR/raw_in.mlir" \
+        --header "$WORKDIR/bench_sizes.h" --print >&2
 
 # --- compile ---
 # MPIImplTraits reads the implementation from the module's DLTI spec; attach it
 # to the source, then strip it again before mlir-translate, which rejects it.
 MPI_SPEC='dlti.dl_spec = #dlti.dl_spec<"MPI:Implementation" = "OpenMPI">'
 sed -E "0,/^module[[:space:]]*\{/s//module attributes {$MPI_SPEC} {/" \
-    "$SRC" > "$WORKDIR/in.mlir"
+    "$WORKDIR/raw_in.mlir" > "$WORKDIR/in.mlir"
 
 say "dhir-opt"
 "$DHIR_OPT" --affine-to-dhir --std-to-dhir --lower-replicate --lower-converge \
@@ -142,11 +173,28 @@ mpicxx -O2 -fopenmp -I"$WORKDIR" -I"$BENCH" \
     exit 1
 }
 
+printf '%s' "$WANT" > "$STAMP"
+fi   # SKIP_BUILD
+
 # --- run ---
+# Default binding: none.  With np<=2 Open MPI binds each rank to a single core,
+# which shrinks the process CPU affinity mask to one core (two SMT threads on
+# this host).  The OpenMP runtime then sizes its team from that mask, so the
+# kernel's omp.parallel regions run on 2 threads while the cost model prices
+# them against the node's full thread budget -- the measured rates are then not
+# the rates being modelled.  Binding to none hands the rank the whole node,
+# which is also the cluster layout the model assumes (one rank per node).
 say "mpirun -np $RANKS"
+MPI_FLAGS=(${DHIR_MPIRUN_FLAGS:---oversubscribe --bind-to none})
+# No thread affinity is set: the kernels are meant to run with whatever the
+# OpenMP runtime picks by default, so the calibration measures that.  Only
+# variables the caller exported are forwarded.
+for var in OMP_NUM_THREADS OMP_PROC_BIND OMP_PLACES; do
+    [[ -n "${!var:-}" ]] && MPI_FLAGS+=(-x "$var")
+done
 set +e
 LD_LIBRARY_PATH="$OMP_LIBDIR:${LD_LIBRARY_PATH:-}" \
-    mpirun ${DHIR_MPIRUN_FLAGS:---oversubscribe} -np "$RANKS" "$WORKDIR/bench" \
+    mpirun "${MPI_FLAGS[@]}" -np "$RANKS" "$WORKDIR/bench" \
     > "$WORKDIR/run.out" 2> "$WORKDIR/run.err"
 RC=$?
 set -e
