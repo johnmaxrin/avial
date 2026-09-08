@@ -25,6 +25,7 @@
 #include "mlir/Conversion/Passes.h"
 
 #include "analysis/polyhedralAnalysis.h"
+#include "analysis/arrayPartitionAnalysis.h"
 
 #include <string>
 
@@ -49,15 +50,35 @@ namespace mlir
             bool isLoopIndependent(mlir::affine::AffineForOp loop)
             {
                 llvm::SmallVector<mlir::Operation *, 4> memOpVector;
+                bool hasInvariantStore = false;
+                Value iv = loop.getInductionVar();
+                mlir::dhir::ArrayPartitioningAnalysis analysis(loop.getOperation(), loop.getInductionVar());
 
                 // Collect only memory operations directly within this loop
                 // Do NOT walk into nested loops - we only care about this loop's own dependencies
                 loop.getBody()->walk([&](mlir::Operation *op)
                                      {
-                    if (mlir::isa<mlir::affine::AffineLoadOp>(op) || 
-                        mlir::isa<mlir::affine::AffineStoreOp>(op)) {
+                    if (mlir::isa<mlir::affine::AffineStoreOp>(op)) {
+                        memOpVector.push_back(op);
+                        // A memory operation is owned by the loop body block,
+                        // not directly by the AffineForOp.  Compare the
+                        // nearest enclosing loop so invariant stores in this
+                        // loop are actually rejected while nested-loop stores
+                        // remain part of the nested loop's analysis.
+                        if (op->getParentOfType<mlir::affine::AffineForOp>() == loop) {
+                            if (analysis.getDimensionForIV(op, iv) == -1) {
+                                hasInvariantStore = true;
+                            }
+                        }
+                    }
+                    else if (mlir::isa<mlir::affine::AffineLoadOp>(op)) {
                         memOpVector.push_back(op);
                     } });
+
+                if (hasInvariantStore) {
+                    llvm::errs() << "Loop contains invariant store (reduction) - cannot parallelize\n";
+                    return false;
+                }
 
                 // Check for loop-carried dependencies at this loop's level only
                 llvm::SmallVector<mlir::Operation *, 4> forLoopOpVector;
@@ -146,7 +167,7 @@ namespace mlir
 
                     bool isStencil = false;
 
-                    mlir::dhir::ArrayPartitioningAnalysis analysis(forOp);
+                    mlir::dhir::ArrayPartitioningAnalysis analysis(forOp.getOperation(), forOp.getInductionVar());
                     for (Value in : insouts[0])
                     {
                         auto info = analysis.analyzeArray(in);

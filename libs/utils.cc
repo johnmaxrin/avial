@@ -29,6 +29,11 @@ void attachDLTISpec(mlir::ModuleOp module, mlir::MLIRContext *context, SystemTop
             builder.getStringAttr("cost"),
             builder.getF32FloatAttr(cost));
 
+        // bandwidth entry
+        auto bwEntry = mlir::DataLayoutEntryAttr::get(
+            builder.getStringAttr("bandwidth"),
+            builder.getF32FloatAttr(node.bandwidth));
+
         // Node ID entry
         auto nodeIDEntry = mlir::DataLayoutEntryAttr::get(
             builder.getStringAttr("node_id"),
@@ -54,16 +59,85 @@ void attachDLTISpec(mlir::ModuleOp module, mlir::MLIRContext *context, SystemTop
 
         auto gpuId = mlir::DataLayoutEntryAttr::get(
             builder.getStringAttr("gpu_id"), builder.getArrayAttr(gpuIDs));
+
+        // Absolute measured rates, appended last so the positions of every
+        // pre-existing entry are unchanged.  A value of 0 means "uncalibrated";
+        // consumers must fall back to the 1/cost path rather than treating 0 as a
+        // rate, which would divide by zero or silently starve the node.
+        auto computeStrided = mlir::DataLayoutEntryAttr::get(
+            builder.getStringAttr("compute_rate_strided"),
+            builder.getF64FloatAttr(node.compute_rate_strided));
+        auto computeContig = mlir::DataLayoutEntryAttr::get(
+            builder.getStringAttr("compute_rate_contiguous"),
+            builder.getF64FloatAttr(node.compute_rate_contiguous));
+        auto computeL1 = mlir::DataLayoutEntryAttr::get(
+            builder.getStringAttr("compute_rate_l1"),
+            builder.getF64FloatAttr(node.compute_rate_l1));
+        auto computeLLC = mlir::DataLayoutEntryAttr::get(
+            builder.getStringAttr("compute_rate_llc"),
+            builder.getF64FloatAttr(node.compute_rate_llc));
+        auto memBandwidth = mlir::DataLayoutEntryAttr::get(
+            builder.getStringAttr("memory_bandwidth"),
+            builder.getF64FloatAttr(node.memory_bandwidth));
+        auto overhead = mlir::DataLayoutEntryAttr::get(
+            builder.getStringAttr("overhead"),
+            builder.getF64FloatAttr(node.overhead));
+        auto threads = mlir::DataLayoutEntryAttr::get(
+            builder.getStringAttr("threads"),
+            builder.getI32IntegerAttr(node.threads));
+        auto l1Bytes = mlir::DataLayoutEntryAttr::get(
+            builder.getStringAttr("l1_bytes"),
+            builder.getI64IntegerAttr(node.l1_bytes));
+        auto llcBytes = mlir::DataLayoutEntryAttr::get(
+            builder.getStringAttr("llc_bytes"),
+            builder.getI64IntegerAttr(node.llc_bytes));
+        auto memoryBytes = mlir::DataLayoutEntryAttr::get(
+            builder.getStringAttr("memory_bytes"),
+            builder.getI64IntegerAttr(node.memory_bytes));
+        auto computeL1Ratio = mlir::DataLayoutEntryAttr::get(
+            builder.getStringAttr("compute_rate_l1_ratio"),
+            builder.getF64FloatAttr(node.r_l1_ratio));
+        auto computeLLCRatio = mlir::DataLayoutEntryAttr::get(
+            builder.getStringAttr("compute_rate_llc_ratio"),
+            builder.getF64FloatAttr(node.r_llc_ratio));
+        auto computeContigRatio = mlir::DataLayoutEntryAttr::get(
+            builder.getStringAttr("compute_rate_contiguous_ratio"),
+            builder.getF64FloatAttr(node.r_contiguous_ratio));
+
         // Assemble this node's TargetDeviceSpecAttr
-        auto nodeAttr = mlir::TargetDeviceSpecAttr::get(
-            context,
-            {typeEntry,
-             archEntry,
-             costEntry,
-             nodeIDEntry,
-             gpuCountEntry,
-             gpuArch,
-             gpuId});
+        llvm::SmallVector<mlir::DataLayoutEntryInterface, 24> entries = {
+            typeEntry,
+            archEntry,
+            costEntry,
+            nodeIDEntry,
+            gpuCountEntry,
+            gpuArch,
+            gpuId,
+            bwEntry,
+            computeStrided,
+            computeContig,
+            computeL1,
+            computeLLC,
+            computeL1Ratio,
+            computeLLCRatio,
+            computeContigRatio,
+            memBandwidth,
+            overhead,
+            threads,
+            l1Bytes,
+            llcBytes,
+            memoryBytes};
+
+        if (node.network.calibrated) {
+            entries.push_back(mlir::DataLayoutEntryAttr::get(
+                builder.getStringAttr("network_alpha"),
+                builder.getF64FloatAttr(node.network.alpha_seconds)));
+            entries.push_back(mlir::DataLayoutEntryAttr::get(
+                builder.getStringAttr("network_beta"),
+                builder.getF64FloatAttr(node.network.beta_seconds_per_byte)));
+        }
+
+        auto nodeAttr = mlir::TargetDeviceSpecAttr::get(context, entries);
 
         deviceAttrs.push_back(nodeAttr);
     }
@@ -72,6 +146,62 @@ void attachDLTISpec(mlir::ModuleOp module, mlir::MLIRContext *context, SystemTop
     module->setAttr(
         "dhir.target_devices",
         builder.getArrayAttr(deviceAttrs));
+
+    // Cluster-scope facts do not belong on any one device.  Both are attached only
+    // when calibrated so that an uncalibrated build carries no attribute at all and
+    // a consumer cannot mistake a default for a measurement.
+    if (systemTopo.network.calibrated)
+        module->setAttr("dhir.network", builder.getDictionaryAttr({
+            builder.getNamedAttr("alpha_seconds",
+                                 builder.getF64FloatAttr(systemTopo.network.alpha_seconds)),
+            builder.getNamedAttr("beta_seconds_per_byte",
+                                 builder.getF64FloatAttr(systemTopo.network.beta_seconds_per_byte)),
+            builder.getNamedAttr("barrier_seconds",
+                                 builder.getF64FloatAttr(systemTopo.network.barrier_seconds))}));
+
+    if (systemTopo.machine.calibrated) {
+        llvm::SmallVector<mlir::NamedAttribute, 16> machineAttrs = {
+            builder.getNamedAttr("R_strided",
+                                 builder.getF64FloatAttr(systemTopo.machine.r_strided)),
+            builder.getNamedAttr("R_contiguous",
+                                 builder.getF64FloatAttr(systemTopo.machine.r_contiguous)),
+            builder.getNamedAttr("R_l1",
+                                 builder.getF64FloatAttr(systemTopo.machine.r_l1)),
+            builder.getNamedAttr("R_llc",
+                                 builder.getF64FloatAttr(systemTopo.machine.r_llc)),
+            builder.getNamedAttr("R_l1_ratio",
+                                 builder.getF64FloatAttr(systemTopo.machine.r_l1_ratio)),
+            builder.getNamedAttr("R_llc_ratio",
+                                 builder.getF64FloatAttr(systemTopo.machine.r_llc_ratio)),
+            builder.getNamedAttr("R_contiguous_ratio",
+                                 builder.getF64FloatAttr(systemTopo.machine.r_contiguous_ratio)),
+            builder.getNamedAttr("strided_flop_threshold",
+                                 builder.getF64FloatAttr(systemTopo.machine.strided_flop_threshold)),
+            builder.getNamedAttr("h_parallel_entry",
+                                 builder.getF64FloatAttr(systemTopo.machine.h_parallel_entry)),
+            builder.getNamedAttr("h_first_parallel_entry",
+                                 builder.getF64FloatAttr(systemTopo.machine.h_first_parallel_entry)),
+            builder.getNamedAttr("R_strided_serial",
+                                 builder.getF64FloatAttr(systemTopo.machine.r_strided_serial)),
+            builder.getNamedAttr("R_contiguous_serial",
+                                 builder.getF64FloatAttr(systemTopo.machine.r_contiguous_serial)),
+            builder.getNamedAttr("R_l1_serial",
+                                 builder.getF64FloatAttr(systemTopo.machine.r_l1_serial)),
+            builder.getNamedAttr("R_llc_serial",
+                                 builder.getF64FloatAttr(systemTopo.machine.r_llc_serial)),
+            builder.getNamedAttr("l1_bytes",
+                                 builder.getI64IntegerAttr(systemTopo.machine.l1_bytes)),
+            builder.getNamedAttr("llc_bytes",
+                                 builder.getI64IntegerAttr(systemTopo.machine.llc_bytes)),
+            builder.getNamedAttr("memory_bandwidth",
+                                 builder.getF64FloatAttr(systemTopo.machine.memory_bandwidth)),
+            builder.getNamedAttr("overhead",
+                                 builder.getF64FloatAttr(systemTopo.machine.overhead)),
+            builder.getNamedAttr("threads",
+                                 builder.getI32IntegerAttr(systemTopo.machine.threads))
+        };
+        module->setAttr("dhir.machine", builder.getDictionaryAttr(machineAttrs));
+    }
 }
 
 llvm::SmallVector<mlir::TargetDeviceSpecAttr> extractTargetDeviceSpecs(ModuleOp module)

@@ -1,0 +1,203 @@
+{
+  "schema_version": 2,
+  "scope": "pure network calibration of cluster interconnect and collectives",
+  "config": "/home/deadshot/mtp/avial1/system_config.json",
+  "world_size": 3,
+  "node_ids": [
+    "node0",
+    "node1",
+    "node2"
+  ],
+  "ranks": [
+    {
+      "rank": 0,
+      "host": "LAPTOP-FVBBB8OL",
+      "local_rank": 0,
+      "local_size": 3,
+      "node_index": 0
+    },
+    {
+      "rank": 1,
+      "host": "LAPTOP-FVBBB8OL",
+      "local_rank": 1,
+      "local_size": 3,
+      "node_index": 0
+    },
+    {
+      "rank": 2,
+      "host": "LAPTOP-FVBBB8OL",
+      "local_rank": 2,
+      "local_size": 3,
+      "node_index": 0
+    }
+  ],
+  "network": {
+    "alpha_seconds": 2.2683e-06,
+    "beta_seconds_per_byte": 0.0,
+    "bandwidth_byte_per_second": null,
+    "barrier_seconds": 1.056e-06,
+    "topology": {
+      "physical": "uniform_fabric",
+      "physical_detail": "every inter-node link has uniform alpha and beta within spread: flat switched fabric",
+      "logical": "star_rooted_at_rank_0",
+      "logical_detail": "DHIR gathers and broadcasts sequentially through rank 0, so communication cost is the sum of spoke transfers.",
+      "ranks": 3,
+      "inter_node": {
+        "spokes": 2,
+        "alpha_median": 2.2683e-06,
+        "alpha_cov": 0.20539611162544635,
+        "beta_median": 0.0,
+        "beta_cov": 0.0,
+        "bandwidth_median_byte_per_second": null
+      }
+    },
+    "links": [
+      {
+        "alpha_seconds": 2.7342e-06,
+        "beta_seconds_per_byte": 0.0,
+        "bandwidth_byte_per_second": null,
+        "ols_r_squared": 1.0,
+        "estimator": "asymmetric ping-pong minus one-way ack latency",
+        "reverse_alpha_seconds": 4.158e-07,
+        "reverse_beta_seconds_per_byte": 2.3464566929133856e-10,
+        "reverse_bandwidth_byte_per_second": 4261744966.4429536,
+        "message_cost_seconds": {
+          "8": 2.7342e-06,
+          "1024": 2.7342e-06
+        },
+        "symmetric_one_way_seconds": {
+          "8": 5.22e-07,
+          "1024": 5.701e-07
+        },
+        "a": 0,
+        "b": 1,
+        "host": "LAPTOP-FVBBB8OL"
+      },
+      {
+        "alpha_seconds": 1.8024e-06,
+        "beta_seconds_per_byte": 0.0,
+        "bandwidth_byte_per_second": null,
+        "ols_r_squared": 1.0,
+        "estimator": "asymmetric ping-pong minus one-way ack latency",
+        "reverse_alpha_seconds": 4.328e-07,
+        "reverse_beta_seconds_per_byte": 3.2342519685039366e-10,
+        "reverse_bandwidth_byte_per_second": 3091905051.734632,
+        "message_cost_seconds": {
+          "8": 1.8024e-06,
+          "1024": 1.8024e-06
+        },
+        "symmetric_one_way_seconds": {
+          "8": 7.584e-07,
+          "1024": 5.621e-07
+        },
+        "a": 0,
+        "b": 2,
+        "host": "LAPTOP-FVBBB8OL"
+      }
+    ],
+    "measured_collectives": {
+      "hub_gather": {
+        "pattern": "serialized hub gather",
+        "points": [
+          {
+            "bytes": 8,
+            "measured_seconds": 1.1402e-06,
+            "predicted_seconds": 4.5366e-06,
+            "absolute_relative_error": 2.9787756533941416,
+            "in_bulk_regime": false,
+            "overlapped_lower_bound_seconds": 2.7342e-06
+          },
+          {
+            "bytes": 1024,
+            "measured_seconds": 4.5846e-06,
+            "predicted_seconds": 4.5366e-06,
+            "absolute_relative_error": 0.010469833791388609,
+            "in_bulk_regime": false,
+            "overlapped_lower_bound_seconds": 2.7342e-06
+          }
+        ],
+        "bulk_from_bytes": 65536,
+        "median_absolute_relative_error": 1.494622743592765,
+        "median_absolute_relative_error_all_sizes": 1.494622743592765,
+        "small_message_offset_seconds": -1.6742e-06
+      },
+      "hub_broadcast": {
+        "pattern": "serialized hub broadcast",
+        "points": [
+          {
+            "bytes": 8,
+            "measured_seconds": 1.3368e-06,
+            "predicted_seconds": 4.5366e-06,
+            "absolute_relative_error": 2.393626570915619,
+            "in_bulk_regime": false,
+            "overlapped_lower_bound_seconds": 2.7342e-06
+          },
+          {
+            "bytes": 1024,
+            "measured_seconds": 2.0058e-06,
+            "predicted_seconds": 4.5366e-06,
+            "absolute_relative_error": 1.2617409512414,
+            "in_bulk_regime": false,
+            "overlapped_lower_bound_seconds": 2.7342e-06
+          }
+        ],
+        "bulk_from_bytes": 65536,
+        "median_absolute_relative_error": 1.8276837610785095,
+        "median_absolute_relative_error_all_sizes": 1.8276837610785095,
+        "small_message_offset_seconds": -2.8653e-06
+      },
+      "raw_measurements": {
+        "incast": {
+          "sync": {
+            "8": 1.726e-07,
+            "1024": 4.486e-07
+          },
+          "pipelined": {
+            "8": 2.606e-07,
+            "1024": 6.972e-07
+          }
+        },
+        "hubgather": {
+          "sync": {
+            "8": 1.1402e-06,
+            "1024": 4.5846e-06
+          },
+          "pipelined": {
+            "8": 1.098e-06,
+            "1024": 1.645e-06
+          }
+        },
+        "hubbcast": {
+          "sync": {
+            "8": 1.3368e-06,
+            "1024": 2.0058e-06
+          },
+          "pipelined": {
+            "8": 1.1122e-06,
+            "1024": 1.7312e-06
+          }
+        },
+        "libbcast": {
+          "sync": {
+            "8": 2.0643e-05,
+            "1024": 9.438e-07
+          },
+          "pipelined": {
+            "8": 2.0643e-05,
+            "1024": 9.438e-07
+          }
+        }
+      }
+    }
+  },
+  "gates": {
+    "serialized_star_predicts_hub_gather": {
+      "median_absolute_relative_error": 1.494622743592765,
+      "threshold": 0.25,
+      "passed": false,
+      "barrier_seconds": 1.056e-06
+    }
+  },
+  "passed": false,
+  "raw_csv": "/home/deadshot/mtp/avial1/tests/bench/cluster_calibration_raw.csv"
+}

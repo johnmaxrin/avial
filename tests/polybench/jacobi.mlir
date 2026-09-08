@@ -3,8 +3,8 @@ module {
     %c-1_i32 = arith.constant -1 : i32
     %cst = arith.constant 3.333300e-01 : f64
     %c1_i32 = arith.constant 1 : i32
-    affine.for %arg4 = 0 to 10000 {
-      affine.for %arg5 = 1 to 999 {
+    affine.for %arg4 = 0 to 100 {
+      affine.for %arg5 = 1 to 511 {
         %0 = arith.index_cast %arg5 : index to i32
         %1 = arith.addi %0, %c-1_i32 : i32
         %2 = arith.index_cast %1 : i32 to index
@@ -20,7 +20,7 @@ module {
         %12 = arith.truncf %11 : f64 to f32
         affine.store %12, %arg3[%arg5] : memref<?xf32>
       }
-      affine.for %arg5 = 1 to 999 {
+      affine.for %arg5 = 1 to 511 {
         %0 = affine.load %arg3[%arg5] : memref<?xf32>
         affine.store %0, %arg2[%arg5] : memref<?xf32>
       }
