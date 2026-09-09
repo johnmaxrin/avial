@@ -375,15 +375,16 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
 
                     if (isStencil)
                     {
-                        if (mlir::isa<mlir::arith::ConstantIndexOp>(ubOp))
+                        if (mlir::isa<mlir::arith::ConstantIndexOp>(ubOp) &&
+                            mlir::isa<mlir::arith::ConstantIndexOp>(lbOp))
                         {
-                            mlir::dyn_cast<mlir::arith::ConstantIndexOp>(ubOp)
-                                .setValueAttr(rewriter.getIndexAttr(end));
-
-                            mlir::dyn_cast<mlir::arith::ConstantIndexOp>(lbOp)
-                                .setValueAttr(rewriter.getIndexAttr(start));
+                            mlir::Value newLb = rewriter.create<mlir::arith::ConstantIndexOp>(
+                                clonedScfFor.getLoc(), start);
+                            mlir::Value newUb = rewriter.create<mlir::arith::ConstantIndexOp>(
+                                clonedScfFor.getLoc(), end);
+                            clonedScfFor.getLowerBoundMutable().assign(newLb);
+                            clonedScfFor.getUpperBoundMutable().assign(newUb);
                         }
-
                         else
                         {
                             llvm::errs() << "Error: Not a constant upper bound!\n";
