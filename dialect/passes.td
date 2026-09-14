@@ -23,6 +23,12 @@ def ConvertAffineToDhirPass : Pass<"affine-to-dhir">{
 
 }
 
+def ConvertLinalgToDhirPass : Pass<"linalg-to-dhir">{
+  let summary = "Linalg Dialect to DHIR";
+
+  let dependentDialects = ["mlir::dhir::DhirDialect", "mlir::linalg::LinalgDialect"];
+}
+
 def LowerReplicateOpPass : Pass<"lower-replicate-op">
 {
   let summary = "Lower Dhir Dialects to Dhir";
