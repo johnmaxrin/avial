@@ -713,76 +713,12 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                     return failure();
                 }
 
-                Value sourceBuffer = buffer;
-                
-                // Unwrap subviews to get base buffer
-                while (auto defOp = sourceBuffer.getDefiningOp())
-                {
-                    if (auto subviewOp = mlir::dyn_cast<memref::SubViewOp>(defOp))
-                        sourceBuffer = subviewOp.getSource();
-                    else
-                        break;
-                }
-
-                auto sourceType = cast<MemRefType>(sourceBuffer.getType());
-                int64_t sourceRank = sourceType.getRank();
-
-                SmallVector<OpFoldResult> offsets;
-                SmallVector<OpFoldResult> sizes;
-                SmallVector<OpFoldResult> strides;
-                
-                if (sourceRank == 1)
-                {
-                    offsets.push_back(rewriter.getIndexAttr(outRanges[0]));
-                    sizes.push_back(rewriter.getIndexAttr(outRanges[1] - outRanges[0]));
-                    strides.push_back(rewriter.getIndexAttr(1));
-                }
-                else if (sourceRank == 2)
-                {
-                    auto shape = sourceType.getShape();
-                    offsets = {
-                        rewriter.getIndexAttr(outRanges[0]),
-                        rewriter.getIndexAttr(0)
-                    };
-                    sizes = {
-                        rewriter.getIndexAttr((outRanges[1] - outRanges[0])),
-                        rewriter.getIndexAttr(shape[1])
-                    };
-                    strides = {
-                        rewriter.getIndexAttr(1),
-                        rewriter.getIndexAttr(1)
-                    };
-                }
-                else if (sourceRank == 3)
-                {
-                    // Partition along dim 0 (i), communicate the [start, end) slice.
-                    // dims 1 (j) and 2 (k) are transferred in full, matching the
-                    // same pattern used for rank-2 above.
-                    auto shape = sourceType.getShape();
-                    offsets = {
-                        rewriter.getIndexAttr(outRanges[0]),
-                        rewriter.getIndexAttr(0),
-                        rewriter.getIndexAttr(0)
-                    };
-                    sizes = {
-                        rewriter.getIndexAttr(outRanges[1] - outRanges[0]),
-                        rewriter.getIndexAttr(shape[1]),
-                        rewriter.getIndexAttr(shape[2])
-                    };
-                    strides = {
-                        rewriter.getIndexAttr(1),
-                        rewriter.getIndexAttr(1),
-                        rewriter.getIndexAttr(1)
-                    };
-                }
-                else
-                {
-                    llvm::errs() << "[Error] Unsupported Memref rank\n";
+                auto region = getTaskOutputRegion(rewriter, loc, buffer, outRanges);
+                if (failed(region))
                     return failure();
-                }
-
-                Value subBuffer = rewriter.create<memref::SubViewOp>(
-                    loc, sourceBuffer, offsets, sizes, strides);
+                Value subBuffer = *region;
+                if (failed(checkContiguousForMPI(loc, subBuffer)))
+                    return failure();
 
                 // gather non-root results onto node 0
                 if (targetNodeIdx != 0)
@@ -816,9 +752,10 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
             Value broadcastRootNodeIndex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
             Value broadcastRootRank = rewriter.create<memref::LoadOp>(loc, nodeToRankMap, ValueRange{broadcastRootNodeIndex});
 
-            generateBroadcastCommunication(
+            if (failed(generateBroadcastCommunication(
                 rewriter, loc, toBroadcast, rank.getResult(0), broadcastRootRank,
-                comm->getResult(0), retVal, tag.getResult(), getNodes->getResult(1));
+                comm->getResult(0), retVal, tag.getResult(), getNodes->getResult(1))))
+                return failure();
 
             toBroadcast.clear();
         }

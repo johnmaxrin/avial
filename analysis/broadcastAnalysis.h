@@ -11,6 +11,7 @@
 #include <vector>
 #include <algorithm>
 #include "arrayPartitionAnalysis.h"
+#include "linalgPartition.h"
 
 #include "includes/dhirOps.h"
 #include "includes/dhirDialect.h"
@@ -204,22 +205,23 @@ namespace mlir
         }
 
         /// Helper function: Check if a specific output needs broadcasting
-        inline bool doesOutputNeedBroadcast(mlir::Operation *replicateOp, Value outputMemref)
+        inline bool doesOutputNeedBroadcast(mlir::Operation *producer, Value outputMemref)
         {
+            if (auto linalgOp = mlir::dyn_cast<mlir::linalg::LinalgOp>(producer))
+                return linalgOutputNeedsBroadcast(linalgOp, outputMemref);
+
+            if (!mlir::isa<mlir::dhir::ReplicateOp>(producer))
+                return false;
+
             std::vector<BroadcastInfo> broadcastDecisions;
-            
-            if (!analyzeBroadcastRequirements(replicateOp, broadcastDecisions)) {
-                return false; // Default to no broadcast on error
-            }
+            if (!analyzeBroadcastRequirements(producer, broadcastDecisions))
+                return false;
 
-            // Find the decision for this specific memref
-            for (const BroadcastInfo &info : broadcastDecisions) {
-                if (info.memref == outputMemref) {
+            for (const BroadcastInfo &info : broadcastDecisions)
+                if (info.memref == outputMemref)
                     return info.needsBroadcast;
-                }
-            }
 
-            return false; // Not found, default to no broadcast
+            return false;
         }
 
     } // namespace dhir
