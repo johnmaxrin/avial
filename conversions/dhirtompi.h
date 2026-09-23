@@ -713,10 +713,21 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                     return failure();
                 }
 
-                auto region = getTaskOutputRegion(rewriter, loc, buffer, outRanges);
-                if (failed(region))
-                    return failure();
-                Value subBuffer = *region;
+                auto partAttr = taskOp->getAttrOfType<BoolAttr>("partitioned");
+                bool isPartitioned = !partAttr || partAttr.getValue();
+
+                Value subBuffer;
+                if (isPartitioned)
+                {
+                    auto region = getTaskOutputRegion(rewriter, loc, buffer, outRanges);
+                    if (failed(region))
+                        return failure();
+                    subBuffer = *region;
+                }
+                else
+                {
+                    subBuffer = buffer;
+                }
                 if (failed(checkContiguousForMPI(loc, subBuffer)))
                     return failure();
 

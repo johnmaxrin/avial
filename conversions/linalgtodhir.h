@@ -66,23 +66,13 @@ lowerLinalgOpToTasks(linalg::LinalgOp op,
   if (dp < 0) {
     rw.setInsertionPoint(raw);
 
-    int64_t dim0 = 0;
-    if (!bases.empty()) {
-      auto t = dyn_cast<MemRefType>(bases[0].getType());
-      if (t && t.getRank() >= 1 && !t.isDynamicDim(0))
-        dim0 = t.getDimSize(0);
-      else if (t && t.getRank() >= 1)
-        op->emitWarning("dynamic output extent: outRanges left as {0,0}; "
-                        "results of this op will not be gathered");
-    }
-
     TaskSpec spec;
     spec.device = devices[0];
     for (OpOperand &opd : raw->getOpOperands())
       (op.isDpsInit(&opd) ? spec.writes : spec.reads).push_back(opd.get());
     spec.bases = bases;
     spec.outStart = 0;
-    spec.outEnd = dim0;
+    spec.outEnd = 0;
     spec.repId = repIdAttr;
     spec.needBroadcast = needBroadcast;
     spec.name = "unpartitioned";
