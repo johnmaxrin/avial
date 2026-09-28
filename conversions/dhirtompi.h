@@ -36,6 +36,7 @@
 
 #include "analysis/depGraph.h"
 #include "analysis/syncHoisting.h"
+#include "analysis/ownership.h"
 
 #include "mlir/Dialect/DLTI/DLTI.h"
 
@@ -1229,8 +1230,28 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                         continue;
                     }
 
+                    // -------- Per-output ownership decision (alias-aware) -----
+                    // Determines whether this shard requires communication. Only a
+                    // provably same-owner, loop-carried intermediate is preserved
+                    // in-place (skipping gather and broadcast); all other cases follow
+                    // the standard assemble-then-maybe-broadcast path below. The
+                    // analysis conservatively defaults to materialize-on-all if any
+                    // condition is unproven, ensuring safe transfer elision.
+                    mlir::dhir::OutputOwnership ownership =
+                        mlir::dhir::decideOutputOwnership(
+                            dependencyGraph, *task, writeIndex,
+                            outputPartitionDims[writeIndex]);
+                    llvm::errs() << "[ownership] repId="
+                                 << task->repId << " out#" << writeIndex << " -> "
+                                 << mlir::dhir::ownershipKindName(ownership.kind)
+                                 << " (" << ownership.reason << ")\n";
+                    if (ownership.kind == mlir::dhir::OwnershipKind::RetainOwnedShard)
+                        // Each rank already retains the exact slab read by its later
+                        // same-owner consumer: omit both gather and broadcast for this version.
+                        continue;
+
                     Value sourceBuffer = buffer;
-                    
+
                     // Unwrap subviews to get base buffer
                     while (auto defOp = sourceBuffer.getDefiningOp())
                     {

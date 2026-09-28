@@ -1,3 +1,6 @@
+#ifndef DHIR_DEP_GRAPH_H
+#define DHIR_DEP_GRAPH_H
+
 #include "mlir/Conversion/Passes.h"
 #include "mlir/Pass/PassManager.h"
 
@@ -607,3 +610,5 @@ namespace mlir
 
   }
 }
+
+#endif // DHIR_DEP_GRAPH_H
