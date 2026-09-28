@@ -657,6 +657,10 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
             Operation *originalLoop = nullptr; // the loop in the schedule IR
             Block *newBody = nullptr;          // the block being filled
             llvm::SmallVector<size_t> levels;  // levels owing a sync
+            // True if this loop is a resident-stencil loop where input ghost
+            // rows are exchanged inline each iteration and level gathers are
+            // deferred until after loop exit. Determined purely from IR properties.
+            bool resident = false;
         };
         llvm::SmallVector<DeferFrame> deferFrames;
 
@@ -711,16 +715,30 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
             for (TaskOpInfo *task : level)
             {
                 auto taskOp = dyn_cast<dhir::TaskOp>(task->op);
-                // The barrier and the broadcast are per level, so a level that
-                // is not uniformly deferrable stays where it is.
-                if (!taskOp || !taskOp->hasAttr("deferSync"))
+                if (!taskOp)
                     return false;
 
-                // A reduction re-seeds its private buffer every iteration and a
-                // stencil's boundary exchange feeds the next step; neither is
-                // reproduced by a single post-loop exchange.
-                if (taskOp->hasAttr("partialReduce") || taskOp->hasAttr("stencil"))
-                    return false;
+                if (frame.resident)
+                {
+                    // In resident-stencil loops, input ghost rows are exchanged
+                    // inline each iteration; only the final full-array gather is
+                    // deferred. Partial reductions reinitialize private buffers
+                    // every iteration and cannot be deferred past the loop.
+                    if (taskOp->hasAttr("partialReduce"))
+                        return false;
+                }
+                else
+                {
+                    // The barrier and the broadcast are per level, so a level
+                    // that is not uniformly deferrable stays where it is.
+                    if (!taskOp->hasAttr("deferSync"))
+                        return false;
+
+                    // Partial reductions and standard stencils require immediate
+                    // per-iteration boundary or accumulation synchronization.
+                    if (taskOp->hasAttr("partialReduce") || taskOp->hasAttr("stencil"))
+                        return false;
+                }
 
                 // The sync must land after the very loop the legality walk
                 // inspected. Levels are released in topological order, which
@@ -1027,6 +1045,11 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
             bool emittedHaloExchange = false;
             for (TaskOpInfo *rightInfo : level)
             {
+                // Skip output halo exchange when hoisted outside a loop:
+                // resident-stencil loops already perform per-iteration input
+                // halo exchanges inline, making a post-loop output halo redundant.
+                if (hoistedOutOf)
+                    break;
                 auto rightTask = dyn_cast<dhir::TaskOp>(rightInfo->op);
                 if (!rightTask || !rightTask->hasAttr("stencil"))
                     continue;
@@ -1389,6 +1412,162 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
             return success();
         };
         
+        // ------------------------------------------------------------------
+        // Resident-stencil per-iteration input halo exchange.
+        //
+        // Stencil tasks read loop-carried state arrays with halos. While local
+        // owned slabs are updated in place, ghost rows residing on adjacent
+        // ranks become stale. This helper emits inline point-to-point transfers
+        // for boundary ghost rows at the beginning of each loop iteration,
+        // preceding task body execution, avoiding full-array transfers.
+        //
+        // Views are constructed on the input base buffer in global coordinates
+        // along the partitioned dimension, with exchange widths clamped to
+        // neighbor slab boundaries to prevent out-of-bounds reads.
+        // ------------------------------------------------------------------
+        auto emitStencilInputHalo = [&](const std::vector<TaskOpInfo *> &level,
+                                        Operation *originalLoop) -> LogicalResult
+        {
+            bool anyStencil = false;
+            for (TaskOpInfo *info : level)
+                if (auto t = dyn_cast<dhir::TaskOp>(info->op))
+                    if (t->hasAttr("stencil")) { anyStencil = true; break; }
+            if (!anyStencil)
+                return success();
+
+            auto tag = rewriter.create<arith::ConstantOp>(
+                loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(0));
+
+            auto nodeIndexOf = [&](dhir::TaskOp t) -> std::optional<int> {
+                auto it = deviceToIndex.find(t.getTarget());
+                if (it == deviceToIndex.end())
+                    return std::nullopt;
+                return it->second;
+            };
+            auto taskRange = [&](dhir::TaskOp t) -> std::pair<Value, Value> {
+                auto ro = t.getRangeOperands();
+                if (ro.size() == 2)
+                    return {mapping.lookupOrDefault(ro[0]),
+                            mapping.lookupOrDefault(ro[1])};
+                ArrayRef<int64_t> sr = t.getOutRanges();
+                return {rewriter.create<arith::ConstantIndexOp>(loc, sr[0]),
+                        rewriter.create<arith::ConstantIndexOp>(loc, sr[1])};
+            };
+            auto axisSubview = [&](Value buffer, int64_t dim, Value start,
+                                   Value size) -> Value {
+                auto type = cast<MemRefType>(buffer.getType());
+                SmallVector<OpFoldResult> offsets, sizes, strides;
+                for (int64_t d = 0; d < type.getRank(); ++d)
+                {
+                    if (d == dim)
+                    {
+                        offsets.push_back(start);
+                        sizes.push_back(size);
+                    }
+                    else
+                    {
+                        offsets.push_back(rewriter.getIndexAttr(0));
+                        sizes.push_back(type.isDynamicDim(d)
+                            ? OpFoldResult(rewriter.create<memref::DimOp>(loc, buffer, d))
+                            : OpFoldResult(rewriter.getIndexAttr(type.getDimSize(d))));
+                    }
+                    strides.push_back(rewriter.getIndexAttr(1));
+                }
+                return rewriter.create<memref::SubViewOp>(loc, buffer, offsets,
+                                                          sizes, strides);
+            };
+            auto neighborTransfer = [&](int senderNode, int receiverNode,
+                                        Value sendView, Value recvView) {
+                Value sIdx = rewriter.create<arith::ConstantIndexOp>(loc, senderNode);
+                Value rIdx = rewriter.create<arith::ConstantIndexOp>(loc, receiverNode);
+                Value sRank = rewriter.create<memref::LoadOp>(loc, nodeToRankMap, ValueRange{sIdx});
+                Value rRank = rewriter.create<memref::LoadOp>(loc, nodeToRankMap, ValueRange{rIdx});
+                Value isS = rewriter.create<arith::CmpIOp>(loc, rewriter.getI1Type(),
+                    arith::CmpIPredicate::eq, rank.getResult(0), sRank);
+                auto ifOp = rewriter.create<scf::IfOp>(loc, TypeRange{}, isS, true);
+                ifOp.getThenBodyBuilder(rewriter.getListener())
+                    .create<mpi::SendOp>(loc, retVal, sendView, tag.getResult(), rRank, comm->getResult(0));
+                OpBuilder eb = ifOp.getElseBodyBuilder(rewriter.getListener());
+                Value isR = eb.create<arith::CmpIOp>(loc, rewriter.getI1Type(),
+                    arith::CmpIPredicate::eq, rank.getResult(0), rRank);
+                auto rIf = eb.create<scf::IfOp>(loc, TypeRange{}, isR, true);
+                rIf.getThenBodyBuilder(eb.getListener())
+                    .create<mpi::RecvOp>(loc, retVal, recvView, tag.getResult(), sRank, comm->getResult(0));
+                (void)rIf.getElseBodyBuilder(eb.getListener());
+            };
+
+            rewriter.create<mpi::Barrier>(loc, retVal, comm->getResult(0));
+            bool emitted = false;
+            for (TaskOpInfo *rightInfo : level)
+            {
+                auto rightTask = dyn_cast<dhir::TaskOp>(rightInfo->op);
+                if (!rightTask || !rightTask->hasAttr("stencil"))
+                    continue;
+                std::optional<int> rightNode = nodeIndexOf(rightTask);
+                if (!rightNode || *rightNode == 0)
+                    continue;
+                auto rightRepId = rightTask->getAttrOfType<IntegerAttr>("repId");
+
+                dhir::TaskOp leftTask;
+                for (TaskOpInfo *ci : level)
+                {
+                    auto c = dyn_cast<dhir::TaskOp>(ci->op);
+                    if (!c || !c->hasAttr("stencil") ||
+                        c->getAttrOfType<IntegerAttr>("repId") != rightRepId)
+                        continue;
+                    auto cn = nodeIndexOf(c);
+                    if (cn && *cn == *rightNode - 1) { leftTask = c; break; }
+                }
+                if (!leftTask)
+                    continue;
+
+                // Retrieve the loop-carried input state array; if null, the input
+                // is non-resident and left for deferred gather.
+                Value carried = mlir::dhir::stencilCarriedInput(rightTask, originalLoop);
+                if (!carried)
+                    continue;
+                Value baseBuffer = mapping.lookupOrDefault(carried);
+
+                int64_t partitionDim = rightTask
+                    ->getAttrOfType<IntegerAttr>("stencilPartitionDim").getInt();
+                int64_t leftHaloRight = leftTask
+                    ->getAttrOfType<IntegerAttr>("haloRight").getInt();
+                int64_t rightHaloLeft = rightTask
+                    ->getAttrOfType<IntegerAttr>("haloLeft").getInt();
+                auto lr = taskRange(leftTask);
+                auto rr = taskRange(rightTask);
+                Value leftChunk = rewriter.create<arith::SubIOp>(loc, lr.second, lr.first);
+                Value rightChunk = rewriter.create<arith::SubIOp>(loc, rr.second, rr.first);
+
+                // Transfer ghost rows from the left neighbor's upper boundary
+                // into the right rank's lower ghost region.
+                if (rightHaloLeft > 0)
+                {
+                    Value req = rewriter.create<arith::ConstantIndexOp>(loc, rightHaloLeft);
+                    Value width = rewriter.create<arith::MinUIOp>(loc, req, leftChunk);
+                    Value start = rewriter.create<arith::SubIOp>(loc, lr.second, width);
+                    neighborTransfer(*rightNode - 1, *rightNode,
+                                     axisSubview(baseBuffer, partitionDim, start, width),
+                                     axisSubview(baseBuffer, partitionDim, start, width));
+                    emitted = true;
+                }
+                // Transfer ghost rows from the right neighbor's lower boundary
+                // into the left rank's upper ghost region.
+                if (leftHaloRight > 0)
+                {
+                    Value req = rewriter.create<arith::ConstantIndexOp>(loc, leftHaloRight);
+                    Value width = rewriter.create<arith::MinUIOp>(loc, req, rightChunk);
+                    Value start = rr.first;
+                    neighborTransfer(*rightNode, *rightNode - 1,
+                                     axisSubview(baseBuffer, partitionDim, start, width),
+                                     axisSubview(baseBuffer, partitionDim, start, width));
+                    emitted = true;
+                }
+            }
+            if (emitted)
+                rewriter.create<mpi::Barrier>(loc, retVal, comm->getResult(0));
+            return success();
+        };
         // Emit level `levelIdx` here. Its sync follows immediately unless the
         // level is slab-local across the rebuilt loop we are inside, in which
         // case the enclosing frame collects it and emits it once after the loop.
@@ -1396,6 +1575,12 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
         {
             const std::vector<TaskOpInfo *> &level =
                 dependencyGraph.levelVector[levelIdx];
+            // In resident-stencil loops, exchange input ghost rows inline
+            // before running task bodies for the iteration.
+            if (!deferFrames.empty() && deferFrames.back().resident)
+                if (failed(emitStencilInputHalo(level,
+                                                deferFrames.back().originalLoop)))
+                    return failure();
             if (failed(emitLevelBodies(level)))
                 return failure();
             if (!deferFrames.empty() &&
@@ -1482,6 +1667,11 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                         // returns.
                         deferFrames.emplace_back();
                         deferFrames.back().originalLoop = forOp.getOperation();
+                        // Check if the loop qualifies as a resident-stencil
+                        // loop based on IR properties (stencil tasks operating
+                        // on loop-carried state).
+                        deferFrames.back().resident =
+                            mlir::dhir::isResidentStencilLoop(forOp.getOperation());
                         // The region builder returns void, so a failure in the
                         // recursion has to be carried out by hand; dropping it
                         // left a half-built loop to fail obscurely later.

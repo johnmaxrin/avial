@@ -403,6 +403,83 @@ namespace mlir
             loopOut = loop;
             return true;
         }
+        // ====================================================================
+        // Resident Stencil Loops (Schedule IR / TaskOps)
+        //
+        // A stencil task reads its input array with a halo. When that input is
+        // loop-carried (i.e. modified in-place by another task in the same
+        // sequential loop), the buffer represents evolving loop state. Each
+        // rank's owned partition is valid at the start of every iteration;
+        // only boundary ghost rows reaching into neighbor partitions are stale.
+        // In this case, arrays can remain resident across iterations: exchange
+        // only ghost rows per iteration and defer the full-array gather until
+        // loop termination, avoiding per-step gather/broadcast overhead.
+        //
+        // Uses viewRoot and aliasSetOf to conservatively track writes through
+        // subviews or type casts as loop-carried writers. If loop-carried state
+        // cannot be proven, the loop is treated as non-resident and retains
+        // per-iteration full synchronization.
+        // ====================================================================
+
+        // Identifies the loop-carried state array read by a stencil task:
+        // an input memref whose allocation is invariant across loop iterations
+        // and is written by another task within the same loop. Returns null if
+        // no such input exists (disqualifying the stencil from resident mode).
+        inline mlir::Value stencilCarriedInput(mlir::dhir::TaskOp stencilTask,
+                                               mlir::Operation *loop)
+        {
+            if (!stencilTask || !stencilTask->hasAttr("stencil") || !loop)
+                return mlir::Value();
+
+            for (mlir::Value in : stencilTask.getInputs())
+            {
+                if (!mlir::isa<mlir::MemRefType>(in.getType()))
+                    continue;
+                // The allocation must be invariant across iterations to be
+                // valid for post-loop gathering.
+                if (!isInvariantAcrossLoop(in, loop))
+                    continue;
+
+                mlir::Value root = viewRoot(in);
+                llvm::SmallVector<mlir::Value> aliases = aliasSetOf(in);
+                auto touchesStorage = [&](mlir::Value v) {
+                    return llvm::is_contained(aliases, v) || viewRoot(v) == root;
+                };
+
+                bool writtenElsewhere = false;
+                loop->walk([&](mlir::dhir::TaskOp other) {
+                    if (writtenElsewhere || other == stencilTask)
+                        return;
+                    for (mlir::Value w : other.getOutputs())
+                        if (touchesStorage(w)) { writtenElsewhere = true; return; }
+                    for (mlir::Value w : other.getActualBuffer())
+                        if (touchesStorage(w)) { writtenElsewhere = true; return; }
+                });
+                if (writtenElsewhere)
+                    return in;
+            }
+            return mlir::Value();
+        }
+
+        // Determines if `loop` is a resident-stencil loop. Requires at least
+        // one stencil task and requires all stencil tasks in the loop to read
+        // a loop-carried input. A non-carried stencil task disqualifies the
+        // entire loop, preserving per-iteration synchronization for safety.
+        inline bool isResidentStencilLoop(mlir::Operation *loop)
+        {
+            if (!loop)
+                return false;
+            bool anyStencil = false;
+            bool allCarried = true;
+            loop->walk([&](mlir::dhir::TaskOp task) {
+                if (!task->hasAttr("stencil"))
+                    return;
+                anyStencil = true;
+                if (!stencilCarriedInput(task, loop))
+                    allCarried = false;
+            });
+            return anyStencil && allCarried;
+        }
 
     } // namespace dhir
 } // namespace mlir
