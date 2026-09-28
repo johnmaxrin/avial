@@ -798,7 +798,14 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
             if (numerator == 0)
                 return dynLowerVal;
             if (numerator == kPartitionScale)
-                return dynUpperVal;
+                // Use lb + clampedTotal rather than raw upper bound. For ub >= lb
+                // both values match, but for a valid zero-trip loop (ub < lb),
+                // total clamps to 0 across intermediate boundaries while raw ub remains
+                // below lb. Returning raw ub would assign a negative extent to the last
+                // shard, triggering MPI_ERR_COUNT at runtime even if the body never runs.
+                return rewriter.create<arith::AddIOp>(op.getLoc(), dynLowerVal,
+                                                      dynTotalVal);
+                     
             Value numVal = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), numerator);
             Value scaled = rewriter.create<arith::MulIOp>(op.getLoc(), dynTotalVal, numVal);
             Value shift = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), kPartitionShift);
@@ -1316,14 +1323,28 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
                     // Eg: operand (a [1, N) loop with step 1 shares the value),
                     // overwriting it in place would silently rewrite the step also
                     // (on the dynamic path the bounds are re-used SSA values).
-                    Value lbVal = dynamicBounds
-                                      ? dynamicLoopLb
-                                      : rewriter.create<arith::ConstantIndexOp>(
-                                            clonedScfFor.getLoc(), loopLb);
-                    Value ubVal = dynamicBounds
-                                      ? dynamicLoopUb
-                                      : rewriter.create<arith::ConstantIndexOp>(
-                                            clonedScfFor.getLoc(), loopUb);
+                    //
+                    // These constants must be emitted *before* the cloned loop.
+                    // Because clonedScfFor already sits at the insertion point,
+                    // newly created constants would otherwise be inserted after it.
+                    // While harmless when replacing the loop with scf.parallel,
+                    // the partialReduce path retains clonedScfFor and updates its
+                    // operands, causing an SSA dominance violation where operands
+                    // do not dominate their use (e.g. constant-trip `A[0] += B[i]`).
+                    Value lbVal;
+                    Value ubVal;
+                    {
+                        OpBuilder::InsertionGuard boundGuard(rewriter);
+                        rewriter.setInsertionPoint(clonedScfFor);
+                        lbVal = dynamicBounds
+                                    ? dynamicLoopLb
+                                    : rewriter.create<arith::ConstantIndexOp>(
+                                          clonedScfFor.getLoc(), loopLb);
+                        ubVal = dynamicBounds
+                                    ? dynamicLoopUb
+                                    : rewriter.create<arith::ConstantIndexOp>(
+                                          clonedScfFor.getLoc(), loopUb);
+                    }
 
                     // A scatter output (partialReduce) is updated through a
                     // data-dependent index via plain load/modify/store, so

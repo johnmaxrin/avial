@@ -5,6 +5,7 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "llvm/Support/raw_ostream.h"
 #include <cstdlib>
 
@@ -73,6 +74,127 @@ namespace mlir
             return iv;
         }
 
+        // Checks if an operation creates a view of another memref without modifying
+        // its contents. These ops accept the viewed memref as their first operand,
+        // allowing graph traversals to trace view chains without per-op accessors.
+        inline bool isViewFormingOp(mlir::Operation *op)
+        {
+            return mlir::isa<mlir::memref::SubViewOp, mlir::memref::CastOp,
+                             mlir::memref::ReinterpretCastOp,
+                             mlir::memref::ExpandShapeOp,
+                             mlir::memref::CollapseShapeOp,
+                             mlir::memref::TransposeOp,
+                             mlir::memref::ViewOp>(op);
+        }
+
+        // Resolves the root allocation that `value` ultimately references.
+        inline mlir::Value viewRoot(mlir::Value value)
+        {
+            while (mlir::Operation *def = value.getDefiningOp())
+            {
+                if (!isViewFormingOp(def) || def->getNumOperands() == 0 ||
+                    !mlir::isa<mlir::MemRefType>(def->getOperand(0).getType()))
+                    break;
+                value = def->getOperand(0);
+            }
+            return value;
+        }
+
+        // Discovers all values that may alias the same physical storage as `buffer`.
+        //
+        // Ascending to the root allocation before traversing downward ensures the
+        // alias set is fully closed. Tracing only downward from `buffer` would omit
+        // the original base buffer and any sibling views derived from that base,
+        // which share the exact same underlying memory.
+        inline llvm::SmallVector<mlir::Value> aliasSetOf(mlir::Value buffer)
+        {
+            llvm::SmallVector<mlir::Value> aliases;
+            aliases.push_back(viewRoot(buffer));
+            for (unsigned i = 0; i < aliases.size(); ++i)
+                for (mlir::Operation *user : aliases[i].getUsers())
+                    if (isViewFormingOp(user))
+                        for (mlir::Value res : user->getResults())
+                            if (mlir::isa<mlir::MemRefType>(res.getType()) &&
+                                !llvm::is_contained(aliases, res))
+                                aliases.push_back(res);
+            if (!llvm::is_contained(aliases, buffer))
+                aliases.push_back(buffer);
+            return aliases;
+        }
+
+        // Checks whether `value` is defined within `container` or any of its nested regions.
+        inline bool definedInsideOp(mlir::Value value, mlir::Operation *container)
+        {
+            mlir::Operation *owner = nullptr;
+            if (auto arg = mlir::dyn_cast<mlir::BlockArgument>(value))
+                owner = arg.getOwner()->getParentOp();
+            else
+                owner = value.getDefiningOp();
+            return owner && container->isAncestor(owner);
+        }
+
+        // Determines if `value` remains invariant across all iterations of `loop`.
+        // Values defined outside the loop are invariant; values defined inside qualify
+        // only if produced by pure operations whose operands are themselves invariant.
+        // Memory loads, loop induction variables, and iter_args are not invariant.
+        inline bool isInvariantAcrossLoop(mlir::Value value, mlir::Operation *loop)
+        {
+            if (!value)
+                return false;
+            if (!definedInsideOp(value, loop))
+                return true;
+            mlir::Operation *def = value.getDefiningOp();
+            if (!def || !mlir::isPure(def))
+                return false;
+            for (mlir::Value operand : def->getOperands())
+                if (!isInvariantAcrossLoop(operand, loop))
+                    return false;
+            return true;
+        }
+
+        // Verifies whether the partitioned loop's bounds remain invariant across `loop`.
+        //
+        // Slab locality is valid only when shard boundaries remain fixed across
+        // enclosing iterations. If loop bounds vary across timesteps (e.g., `for i = 0 to t+1`),
+        // ownership of elements shifts between ranks on each iteration, invalidating
+        // the assumption that each rank maintains a fixed slab for final gathering.
+        inline bool shardBoundsInvariant(mlir::Value shardIV, mlir::Operation *loop)
+        {
+            auto arg = mlir::dyn_cast<mlir::BlockArgument>(shardIV);
+            mlir::Operation *shardLoop = arg ? arg.getOwner()->getParentOp() : nullptr;
+            if (!shardLoop)
+                return false;
+
+            llvm::SmallVector<mlir::Value, 6> extent;
+            if (auto sf = mlir::dyn_cast<mlir::scf::ForOp>(shardLoop))
+            {
+                extent.push_back(sf.getLowerBound());
+                extent.push_back(sf.getUpperBound());
+                extent.push_back(sf.getStep());
+            }
+            else if (auto pf = mlir::dyn_cast<mlir::scf::ParallelOp>(shardLoop))
+            {
+                extent.append(pf.getLowerBound().begin(), pf.getLowerBound().end());
+                extent.append(pf.getUpperBound().begin(), pf.getUpperBound().end());
+                extent.append(pf.getStep().begin(), pf.getStep().end());
+            }
+            else if (auto af = mlir::dyn_cast<mlir::affine::AffineForOp>(shardLoop))
+            {
+                // The step is an attribute; only the bound operands can move.
+                extent.append(af.getLowerBoundOperands().begin(),
+                              af.getLowerBoundOperands().end());
+                extent.append(af.getUpperBoundOperands().begin(),
+                              af.getUpperBoundOperands().end());
+            }
+            else
+                return false; // an unrecognised loop form is not a proof
+
+            for (mlir::Value bound : extent)
+                if (!isInvariantAcrossLoop(bound, loop))
+                    return false;
+            return true;
+        }
+
         // Does every access to `buffer` inside `replicateOp` stay within the
         // rank's own slab of `partitionDim`?
         inline bool accessesStayInOwnSlab(mlir::Operation *replicateOp,
@@ -83,12 +205,22 @@ namespace mlir
                 return false;
 
             ArrayPartitioningAnalysis analysis(replicateOp, shardIV);
+            llvm::SmallVector<mlir::Value> aliases = aliasSetOf(buffer);
             bool local = true;
             bool sawAccess = false;
 
             auto inspect = [&](mlir::Operation *access, mlir::Value memref) {
-                if (memref != buffer || !local)
+                if (!local)
                     return;
+                if (memref != buffer)
+                {
+                    // Memory is accessed through an aliasing view: reported dimension
+                    // and offset coordinates correspond to the view rather than the base
+                    // buffer, so slab containment cannot be proven. Safely decline deferral.
+                    if (llvm::is_contained(aliases, memref))
+                        local = false;
+                    return;
+                }
                 sawAccess = true;
                 auto exact = analysis.getUnitStrideDimensionAndOffset(access, shardIV);
                 // Not expressible as IV(+/-const) on a single dimension, a
@@ -112,35 +244,18 @@ namespace mlir
             return local && sawAccess;
         }
 
-        // Is `buffer` accessed inside `loop` anywhere other than inside
-        // `replicateOp`?  Such an access runs on every rank and would observe
-        // a slab this rank never wrote, so the sync cannot be deferred past
-        // it.  Only real memory accesses count: a subview or memref.dim only
-        // forms an alias or inspects shape, and the partition lowering emits
-        // both next to the replicate, so counting those rejects every
-        // candidate.
+        // Only direct memory accesses prevent deferral: view-forming operations and
+        // shape queries (memref.dim) merely create aliases or inspect metadata.
+        // Because lowering generates these beside the replicate, treating them as
+        // conflicting memory accesses would reject every valid candidate.
         inline bool touchedElsewhereInLoop(mlir::Operation *loop,
                                            mlir::Operation *replicateOp,
                                            mlir::Value buffer)
         {
             const bool trace = ::getenv("DHIR_TRACE_HOIST") != nullptr;
 
-            // `buffer` plus every view transitively derived from it.
-            llvm::SmallVector<mlir::Value> aliases;
-            aliases.push_back(buffer);
-            for (unsigned i = 0; i < aliases.size(); ++i)
-                for (mlir::Operation *user : aliases[i].getUsers())
-                    if (mlir::isa<mlir::memref::SubViewOp, mlir::memref::CastOp,
-                                  mlir::memref::ReinterpretCastOp,
-                                  mlir::memref::ExpandShapeOp,
-                                  mlir::memref::CollapseShapeOp,
-                                  mlir::memref::TransposeOp,
-                                  mlir::memref::ViewOp>(user))
-                        for (mlir::Value res : user->getResults())
-                            if (mlir::isa<mlir::MemRefType>(res.getType()) &&
-                                !llvm::is_contained(aliases, res))
-                                aliases.push_back(res);
-
+            llvm::SmallVector<mlir::Value> aliases = aliasSetOf(buffer);
+            
             auto isAlias = [&](mlir::Value v) {
                 return llvm::is_contained(aliases, v);
             };
@@ -229,6 +344,13 @@ namespace mlir
                 auto memTy = mlir::dyn_cast<mlir::MemRefType>(buffer.getType());
                 if (!memTy)
                     return reject("write is not a memref");
+
+                // Storage must persist across all iterations. Reallocating the buffer
+                // inside the loop assigns distinct memory per iteration, meaning a
+                // hoisted gather would collect only the final iteration's results.
+                if (!isInvariantAcrossLoop(buffer, loop))
+                    return reject("write buffer is not the same allocation on "
+                                  "every iteration");
 
                 ArrayPartitioningInfo info =
                     analyzeArrayForPartitioning(replicateOp, buffer);

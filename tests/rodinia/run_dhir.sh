@@ -157,7 +157,8 @@ run_kernel() {
         return 1
     }
 
-    sed -i "s/, $MPI_SPEC//g; s/$MPI_SPEC//g" "$K_WORKDIR/llvm.mlir"
+    sed "s/, $MPI_SPEC//g; s/$MPI_SPEC//g" "$K_WORKDIR/llvm.mlir" > "$K_WORKDIR/llvm.clean.mlir"
+    mv "$K_WORKDIR/llvm.clean.mlir" "$K_WORKDIR/llvm.mlir"
 
     say "$KERNEL" "mlir-translate"
     "$MLIR_TRANSLATE" --mlir-to-llvmir "$K_WORKDIR/llvm.mlir" > "$K_WORKDIR/kernel.ll" 2>"$K_WORKDIR/translate.log" || {
@@ -166,8 +167,9 @@ run_kernel() {
         return 1
     }
 
-    sed -i 's/@MPI_Init\b/@dhir_noop_mpi_init/g; s/@MPI_Finalize\b/@dhir_noop_mpi_finalize/g' \
-        "$K_WORKDIR/kernel.ll"
+    sed 's/@MPI_Init\b/@dhir_noop_mpi_init/g; s/@MPI_Finalize\b/@dhir_noop_mpi_finalize/g' \
+        "$K_WORKDIR/kernel.ll" > "$K_WORKDIR/kernel.driver.ll"
+    mv "$K_WORKDIR/kernel.driver.ll" "$K_WORKDIR/kernel.ll"
 
     say "$KERNEL" "llc"
     "$LLC" -O3 -relocation-model=pic -filetype=obj "$K_WORKDIR/kernel.ll" -o "$K_WORKDIR/kernel.o" 2>"$K_WORKDIR/llc.log" || {

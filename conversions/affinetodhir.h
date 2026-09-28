@@ -59,18 +59,54 @@ namespace mlir
                        std::equal(lhs.begin(), lhs.end(), rhs.begin());
             }
 
+            // Checks whether `value` reads the accumulator modified by `store`.
+            bool dependsOnAccumulator(Value value, mlir::memref::StoreOp store,
+                                      llvm::SmallPtrSetImpl<Operation *> &seen)
+            {
+                Operation *def = value.getDefiningOp();
+                if (!def || !seen.insert(def).second)
+                    return false;
+                if (auto load = dyn_cast<mlir::memref::LoadOp>(def))
+                    if (load.getMemRef() == store.getMemRef() &&
+                        sameIndices(load.getIndices(), store.getIndices()))
+                        return true;
+                for (Value operand : def->getOperands())
+                    if (dependsOnAccumulator(operand, store, seen))
+                        return true;
+                return false;
+            }
+
             bool isAdditiveReadModifyWrite(mlir::memref::StoreOp store)
             {
                 Operation *def = store.getValue().getDefiningOp();
                 if (!def || !isa<mlir::arith::AddFOp, mlir::arith::AddIOp>(def))
                     return false;
+                if (def->getNumOperands() != 2)
+                    return false;
 
-                for (Value operand : def->getOperands())
+                for (unsigned side = 0; side < 2; ++side)
                 {
-                    auto load = operand.getDefiningOp<mlir::memref::LoadOp>();
-                    if (load && load.getMemRef() == store.getMemRef() &&
-                        sameIndices(load.getIndices(), store.getIndices()))
-                        return true;
+                    auto load = def->getOperand(side)
+                                    .getDefiningOp<mlir::memref::LoadOp>();
+                    if (!load || load.getMemRef() != store.getMemRef() ||
+                        !sameIndices(load.getIndices(), store.getIndices()))
+                        continue;
+
+                    // The other operand represents this iteration's contribution. A valid
+                    // sum reduction requires it to be independent of the running accumulator.
+                    // An update like `a += a * (i+1)` matches the addition shape but forms
+                    // an ordered recurrence: initializing remote shards with identity (0)
+                    // discards the incoming state they rely on, so the sum of partials
+                    // diverges from sequential execution (120 sequentially vs 6 on 2 ranks).
+                    llvm::SmallPtrSet<Operation *, 8> seen;
+                    if (dependsOnAccumulator(def->getOperand(1 - side), store, seen))
+                    {
+                        llvm::errs() << "Reduction contribution depends on the "
+                                        "accumulator (ordered recurrence); not "
+                                        "treating it as a sum\n";
+                        continue;
+                    }
+                    return true;
                 }
                 return false;
             }
@@ -127,13 +163,30 @@ namespace mlir
                     // loop-carried dependence, not a stencil input halo.
                     for (mlir::memref::LoadOp load : loads)
                     {
-                        if (load.getMemRef() != store.getMemRef())
+                        if (load.getMemRef() == store.getMemRef())
+                        {
+                            auto loadAccess =
+                                analysis.getUnitStrideDimensionAndOffset(load, iv);
+                            if (!loadAccess ||
+                                loadAccess->first != storeAccess->first ||
+                                loadAccess->second != storeAccess->second)
+                                return false;
                             continue;
-                        auto loadAccess =
-                            analysis.getUnitStrideDimensionAndOffset(load, iv);
-                        if (!loadAccess || loadAccess->first != storeAccess->first ||
-                            loadAccess->second != storeAccess->second)
+                        }
+                        // Distinct SSA values can still alias the same underlying memory.
+                        // A subview or cast does not yield independent storage: with
+                        // `V = memref.cast A`, `V[i] = A[i-1] + 1` is a true loop-carried
+                        // dependence that naive SSA inequality checks miss entirely.
+                        // Because accesses are expressed in differing coordinate frames,
+                        // direct index comparison is invalid — refuse partitioning.
+                        if (mlir::dhir::viewRoot(load.getMemRef()) ==
+                            mlir::dhir::viewRoot(store.getMemRef()))
+                        {
+                            llvm::errs() << "SCF loop load and store alias the "
+                                            "same allocation through a view; not "
+                                            "partitioning it\n";
                             return false;
+                        }
                     }
                 }
 

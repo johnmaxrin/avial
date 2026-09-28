@@ -402,10 +402,15 @@ static Value createMirrorBuffer(OpBuilder &builder, Location loc, Value like)
 
 // dst[i] += src[i] over the whole extent of both.
 //
-// Integer accumulators narrower than 32 bits are widened for the sum and clamped
-// to the unsigned maximum of their own width before being stored back: a bin
-// counter saturates, and summing two shard-local saturating counters in the
-// narrow type would wrap instead.  Wider integers and floats add directly.
+// The addition is modular across all bitwidths to preserve `arith.addi` semantics:
+// signless i8/i16 does not imply unsigned saturation, and unflagged integer additions
+// wrap on overflow. Inferring saturating behavior solely from narrow bitwidths
+// miscompiled valid arithmetic — e.g., four i8 additions of 100 evaluate to 144
+// (modular wrap), not a saturated 255.
+//
+// Saturating accumulation belongs to a different reduction algebra. Supporting it
+// requires explicit proof from the source operation (such as a clamped RMW attribute),
+// rather than an assumption based on type width.
 static void emitElementwiseAccumulate(OpBuilder &builder, Location loc,
                                       Value dst, Value src)
 {
@@ -420,25 +425,9 @@ static void emitElementwiseAccumulate(OpBuilder &builder, Location loc,
             Value incoming = builder.create<memref::LoadOp>(loc, src, indices);
             Value sum;
             if (isa<FloatType>(elemType))
-            {
                 sum = builder.create<arith::AddFOp>(loc, current, incoming);
-            }
-            else if (elemType.getIntOrFloatBitWidth() < 32)
-            {
-                unsigned width = elemType.getIntOrFloatBitWidth();
-                Type wideType = builder.getIntegerType(32);
-                Value currentWide = builder.create<arith::ExtUIOp>(loc, wideType, current);
-                Value incomingWide = builder.create<arith::ExtUIOp>(loc, wideType, incoming);
-                Value wideSum = builder.create<arith::AddIOp>(loc, currentWide, incomingWide);
-                Value maxValue = builder.create<arith::ConstantIntOp>(
-                    loc, (int64_t(1) << width) - 1, 32);
-                Value clamped = builder.create<arith::MinUIOp>(loc, wideSum, maxValue);
-                sum = builder.create<arith::TruncIOp>(loc, elemType, clamped);
-            }
             else
-            {
                 sum = builder.create<arith::AddIOp>(loc, current, incoming);
-            }
             builder.create<memref::StoreOp>(loc, sum, dst, indices);
             return;
         }
