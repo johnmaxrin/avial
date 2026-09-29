@@ -1002,8 +1002,8 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
         //
         // `endpointOnly`: when non-null, restricts emission to the specified (task, outputIndex)
         // pairs, gathering each unconditionally as a post-loop endpoint repayment.
-        // `deferredAfterLoop`: the enclosing loop that this sync was hoisted out of; allows
-        // post-loop reader analysis (hasReaderAfterLoop) to prune redundant broadcasts.
+        // `deferredAfterLoop`: enclosing loop operation from which this sync was hoisted,
+        // allowing post-loop reader analysis (hasReaderAfterLoop) to prune redundant broadcasts.
         using EndpointList = llvm::SmallVectorImpl<std::pair<TaskOpInfo *, size_t>>;
         auto emitLevelSync = [&](const std::vector<TaskOpInfo *> &level,
                                  Block *hoistedOutOf,

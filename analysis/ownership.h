@@ -336,7 +336,7 @@ namespace mlir
             return false;
         }
 
-        // Determines whether `base` (or an alias) is referenced after `loop` finishes execution.
+        // Checks whether `base` (or an alias) is referenced after `loop` finishes execution.
         // Post-loop deferred synchronizations can omit broadcasts if no surviving readers
         // exist following loop completion. Conservatively returns true if the loop is nested
         // in a recurring region or if any subsequent operation references the base allocation.
@@ -352,7 +352,7 @@ namespace mlir
             for (mlir::Operation *next = loop->getNextNode();
                  next && !found; next = next->getNextNode())
             {
-                // Traverse following operations and all nested regions to detect references.
+                // Traverse subsequent operations and all nested regions to detect references.
                 next->walk([&](mlir::Operation *op) {
                     for (mlir::Value operand : op->getOperands())
                     {

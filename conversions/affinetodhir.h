@@ -467,11 +467,124 @@ namespace mlir
                 }
             }
 
+            // Returns true if `loop` contains no nested affine.for operations.
+            bool isInnermostAffineFor(mlir::affine::AffineForOp loop)
+            {
+                bool hasNested = false;
+                loop.getBody()->walk([&](mlir::affine::AffineForOp nested) {
+                    if (nested != loop)
+                        hasNested = true;
+                });
+                return !hasNested;
+            }
+
+            // Interchanges a perfect 2-deep affine loop nest when an outer reduction loop
+            // encloses a parallel per-output loop, exposing the parallel loop at the outermost
+            // level for ReplicateOp partitioning. Returns true if interchange was performed.
+            bool tryHoistParallelReductionNest(mlir::affine::AffineForOp outer)
+            {
+                // Verify that the nest is a perfect 2-deep affine nest.
+                mlir::affine::AffineForOp inner;
+                int bodyOps = 0;
+                for (mlir::Operation &op : outer.getBody()->without_terminator())
+                {
+                    ++bodyOps;
+                    inner = mlir::dyn_cast<mlir::affine::AffineForOp>(&op);
+                }
+                if (bodyOps != 1 || !inner || !isInnermostAffineFor(inner))
+                    return false;
+
+                // Require unit steps and ensure neither loop carries region iter_args.
+                if (outer.getStepAsInt() != 1 || inner.getStepAsInt() != 1)
+                    return false;
+                if (outer.getNumRegionIterArgs() != 0 ||
+                    inner.getNumRegionIterArgs() != 0)
+                    return false;
+
+                // Require rectangular loop bounds independent of the outer induction variable.
+                for (mlir::Value v : inner.getLowerBoundOperands())
+                    if (!outer.isDefinedOutsideOfLoop(v))
+                        return false;
+                for (mlir::Value v : inner.getUpperBoundOperands())
+                    if (!outer.isDefinedOutsideOfLoop(v))
+                        return false;
+
+                // Verify that inner operations access memory strictly through affine loads/stores
+                // without side effects.
+                llvm::SmallVector<mlir::Value, 8> accessed;
+                llvm::SmallVector<mlir::Value, 4> stored;
+                for (mlir::Operation &op : inner.getBody()->without_terminator())
+                {
+                    if (auto load = mlir::dyn_cast<mlir::affine::AffineLoadOp>(&op))
+                    {
+                        accessed.push_back(load.getMemRef());
+                        continue;
+                    }
+                    if (auto store = mlir::dyn_cast<mlir::affine::AffineStoreOp>(&op))
+                    {
+                        accessed.push_back(store.getMemRef());
+                        stored.push_back(store.getMemRef());
+                        continue;
+                    }
+                    if (op.getNumRegions() != 0 || !mlir::isMemoryEffectFree(&op))
+                        return false;
+                }
+
+                // Verify that all accesses to stored buffers share the same underlying view root
+                // to prevent undetected aliasing across subviews.
+                for (mlir::Value s : stored)
+                    for (mlir::Value a : accessed)
+                        if (a != s && mlir::dhir::viewRoot(a) == mlir::dhir::viewRoot(s))
+                            return false;
+
+                // Verify loop-carried dependences: depth 1 (outer) must carry a reduction dependence,
+                // while depth 2 (inner) must be dependence-free.
+                if (checkLoopDependence(outer, 1) != 1)
+                    return false;
+                if (checkLoopDependence(outer, 2) != 0)
+                    return false;
+
+                // Ensure the loop interchange preserves all dependences.
+                llvm::SmallVector<mlir::affine::AffineForOp, 2> nest = {outer,
+                                                                        inner};
+                llvm::SmallVector<unsigned, 2> perm = {1, 0};
+                if (!mlir::affine::isValidLoopInterchangePermutation(nest, perm))
+                {
+                    llvm::errs() << "Reduction-over-parallel nest found but "
+                                    "interchange is dependence-illegal; leaving "
+                                    "it unchanged\n";
+                    return false;
+                }
+
+                mlir::affine::interchangeLoops(outer, inner);
+                llvm::errs() << "Interchanged reduction/parallel loop nest: "
+                                "hoisted the parallel per-output loop above the "
+                                "reduction loop for partitioning\n";
+                return true;
+            }
+
+            // Interchanges qualifying reduction-over-parallel nests across the module
+            // before loops are classified into Replicate, Converge, or Task operations.
+            void hoistParallelReductionNests(mlir::Operation *module)
+            {
+                llvm::SmallVector<mlir::affine::AffineForOp> topLevel;
+                module->walk<mlir::WalkOrder::PreOrder>([&](func::FuncOp funcOp) {
+                    for (auto &op : funcOp.getBody().front().getOperations())
+                        if (auto forOp = mlir::dyn_cast<mlir::affine::AffineForOp>(&op))
+                            topLevel.push_back(forOp);
+                });
+                for (auto forOp : topLevel)
+                    tryHoistParallelReductionNest(forOp);
+            }
+
             void runOnOperation() override
             {
                 mlir::MLIRContext *context = &getContext();
                 auto *module = getOperation();
                 mlir::OpBuilder builder(context);
+
+                // Expose outer parallelism via loop interchange prior to classification.
+                hoistParallelReductionNests(module);
 
                 llvm::SmallVector<mlir::Operation *, 4> toReplicateVector;
                 llvm::SmallVector<mlir::Operation *, 4> toConvergeVector;
