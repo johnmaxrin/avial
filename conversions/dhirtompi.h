@@ -225,6 +225,9 @@ struct LowerMPIDialectToLLVMPass
         target.addLegalDialect<LLVM::LLVMDialect>();
         target.addLegalDialect<gpu::GPUDialect>();
         target.addIllegalDialect<mpi::MPIDialect>();
+        // Mark DHIR collective operations as illegal to ensure they are lowered
+        // to LLVM dialect calls by MPIToLLVM conversion patterns during this pass.
+        target.addIllegalOp<mlir::dhir::BcastOp, mlir::dhir::AllgathervOp>();
 
         // Step 2: Type converter
         LLVMTypeConverter typeConverter(context);

@@ -1102,6 +1102,147 @@ struct AllReduceOpLowering : public ConvertOpToLLVMPattern<mpi::AllReduceOp> {
 };
 
 //===----------------------------------------------------------------------===//
+// DHIR collective lowering patterns
+//===----------------------------------------------------------------------===//
+//
+// The standard MLIR MPI dialect supports basic point-to-point operations,
+// allreduce, and barrier, but does not provide collective communication
+// operations such as broadcast or vectorized all-gather. Consequently, the
+// DHIR-to-MPI lowering stage emits `dhir.bcast` and `dhir.allgatherv`.
+// The patterns below lower each operation to a direct MPI runtime call,
+// matching the lowering approach used for `MPI_Init` and `MPI_Allreduce`.
+//
+// Note: Operations are matched by operation name rather than C++ class type,
+// because DHIR dialect definitions are linked directly into the `dhir-opt`
+// binary rather than compiled into an independent library linked here.
+//
+// Both lowering patterns utilize `getRawPtrAndSize`, ensuring that memref
+// contiguity is verified and that signed 32-bit element-count overflow checks
+// are enforced.
+
+/// Lowers `dhir.bcast(buffer, root, comm)`
+///   -> `MPI_Bcast(buf, count, datatype, root, comm)`
+struct DhirBcastOpLowering : public ConvertToLLVMPattern {
+  DhirBcastOpLowering(MLIRContext *context, const LLVMTypeConverter &converter)
+      : ConvertToLLVMPattern("dhir.bcast", context, converter) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (op->getNumOperands() != 3 || operands.size() != 3)
+      return failure();
+
+    Location loc = op->getLoc();
+    Type i32 = rewriter.getI32Type();
+    Type ptrType = LLVM::LLVMPointerType::get(rewriter.getContext());
+
+    auto bufType = dyn_cast<MemRefType>(op->getOperand(0).getType());
+    if (!bufType)
+      return failure();
+    Type elemType = bufType.getElementType();
+
+    auto moduleOp = op->getParentOfType<ModuleOp>();
+    auto mpiTraits = MPIImplTraits::get(moduleOp);
+
+    auto rawPtrAndSize = getRawPtrAndSize(loc, rewriter, op->getOperand(0),
+                                          operands[0], elemType);
+    if (failed(rawPtrAndSize))
+      return failure();
+    auto [dataPtr, count] = *rawPtrAndSize;
+
+    Value dataType = mpiTraits->getDataType(loc, rewriter, elemType);
+    Value comm = mpiTraits->castComm(loc, rewriter, operands[2]);
+
+    // 'int MPI_Bcast(void *buffer, int count, MPI_Datatype datatype,
+    //                int root, MPI_Comm comm)'
+    auto funcType = LLVM::LLVMFunctionType::get(
+        i32, {ptrType, i32, dataType.getType(), i32, comm.getType()});
+    LLVM::LLVMFuncOp funcDecl =
+        getOrDefineFunction(moduleOp, loc, rewriter, "MPI_Bcast", funcType);
+
+    rewriter.create<LLVM::CallOp>(
+        loc, funcDecl,
+        ValueRange{dataPtr, count, dataType, operands[1], comm});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+/// Lowers `dhir.allgatherv(buffer, counts, displacements, comm)`
+///   -> `MPI_Allgatherv(MPI_IN_PLACE, 0, dtype, buffer, counts, displs, dtype,
+///                      comm)`
+///
+/// `MPI_IN_PLACE` is utilized to replace sequential gather and broadcast phases.
+/// Under the MPI specification, in-place semantics designate that each rank's
+/// contribution resides directly at its assigned displacement within the shared
+/// receive buffer.
+struct DhirAllgathervOpLowering : public ConvertToLLVMPattern {
+  DhirAllgathervOpLowering(MLIRContext *context,
+                           const LLVMTypeConverter &converter)
+      : ConvertToLLVMPattern("dhir.allgatherv", context, converter) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (op->getNumOperands() != 4 || operands.size() != 4)
+      return failure();
+
+    Location loc = op->getLoc();
+    Type i32 = rewriter.getI32Type();
+    Type i64 = rewriter.getI64Type();
+    Type ptrType = LLVM::LLVMPointerType::get(rewriter.getContext());
+
+    auto bufType = dyn_cast<MemRefType>(op->getOperand(0).getType());
+    auto countsType = dyn_cast<MemRefType>(op->getOperand(1).getType());
+    auto displsType = dyn_cast<MemRefType>(op->getOperand(2).getType());
+    if (!bufType || !countsType || !displsType)
+      return failure();
+    Type elemType = bufType.getElementType();
+
+    auto moduleOp = op->getParentOfType<ModuleOp>();
+    auto mpiTraits = MPIImplTraits::get(moduleOp);
+
+    auto recv = getRawPtrAndSize(loc, rewriter, op->getOperand(0), operands[0],
+                                 elemType);
+    auto counts = getRawPtrAndSize(loc, rewriter, op->getOperand(1),
+                                   operands[1], countsType.getElementType());
+    auto displs = getRawPtrAndSize(loc, rewriter, op->getOperand(2),
+                                   operands[2], displsType.getElementType());
+    if (failed(recv) || failed(counts) || failed(displs))
+      return failure();
+
+    Value dataType = mpiTraits->getDataType(loc, rewriter, elemType);
+    Value comm = mpiTraits->castComm(loc, rewriter, operands[3]);
+
+    Value inPlace = rewriter.create<LLVM::ConstantOp>(
+        loc, i64, reinterpret_cast<int64_t>(mpiTraits->getInPlace()));
+    inPlace = rewriter.create<LLVM::IntToPtrOp>(loc, ptrType, inPlace);
+    // Under MPI_IN_PLACE, sendcount and sendtype are ignored by standard-compliant
+    // implementations. A valid datatype is provided instead of MPI_DATATYPE_NULL
+    // to maintain portability across MPI implementations that validate arguments.
+    Value zero = rewriter.create<LLVM::ConstantOp>(
+        loc, i32, rewriter.getI32IntegerAttr(0));
+
+    // 'int MPI_Allgatherv(const void *sendbuf, int sendcount,
+    //                     MPI_Datatype sendtype, void *recvbuf,
+    //                     const int *recvcounts, const int *displs,
+    //                     MPI_Datatype recvtype, MPI_Comm comm)'
+    auto funcType = LLVM::LLVMFunctionType::get(
+        i32, {ptrType, i32, dataType.getType(), ptrType, ptrType, ptrType,
+              dataType.getType(), comm.getType()});
+    LLVM::LLVMFuncOp funcDecl = getOrDefineFunction(
+        moduleOp, loc, rewriter, "MPI_Allgatherv", funcType);
+
+    rewriter.create<LLVM::CallOp>(loc, funcDecl,
+                                  ValueRange{inPlace, zero, dataType,
+                                             recv->first, counts->first,
+                                             displs->first, dataType, comm});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
 // ConvertToLLVMPatternInterface implementation
 //===----------------------------------------------------------------------===//
 
@@ -1133,6 +1274,10 @@ void mpi::populateMPIToLLVMConversionPatterns(LLVMTypeConverter &converter,
   patterns.add<CommRankOpLowering, CommSplitOpLowering, CommWorldOpLowering,
                FinalizeOpLowering, InitOpLowering, SendOpLowering,
                RecvOpLowering, AllReduceOpLowering, CommSizeOpLowering, BarrierOpLowering>(converter);
+  // Register lowering patterns for DHIR collective operations (broadcast and
+  // all-gather) not supported by the upstream MPI dialect. Matched by operation name.
+  patterns.add<DhirBcastOpLowering, DhirAllgathervOpLowering>(
+      patterns.getContext(), converter);
 }
 
 void mpi::registerConvertMPIToLLVMInterface(DialectRegistry &registry) {
