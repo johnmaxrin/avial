@@ -110,6 +110,23 @@ static llvm::cl::opt<bool> printOwnership(
                    "at each level sync (verification aid; off by default)"),
     llvm::cl::init(false));
 
+static llvm::cl::opt<bool> profitabilityFallback(
+    "profitability-fallback",
+    llvm::cl::desc("At partition selection, decline to distribute a region "
+                   "whose communication cannot be repaid: its outputs are read "
+                   "by replicated code AND either it writes fewer axes than the "
+                   "gather moves, or it only stores loop-invariant values. The "
+                   "region then runs replicated (still OpenMP-parallel) on "
+                   "every rank. Experimental; off by default"),
+    llvm::cl::init(false));
+
+static llvm::cl::opt<bool> printDistribution(
+    "print-distribution-decisions",
+    llvm::cl::desc("Print the distribute/decline decision taken for every "
+                   "replicate at partition selection (verification aid; off by "
+                   "default)"),
+    llvm::cl::init(false));
+
 static llvm::cl::opt<bool> ompCostModelReport(
     "dhir-omp-cost-model-report",
     llvm::cl::desc("Print OpenMP-aware work, memory traffic, broadcast scaling, "
@@ -155,6 +172,9 @@ int main(int argc, char *argv[])
 
     // Enable verbose logging of per-output ownership decisions when requested.
     mlir::dhir::printOwnershipDecisions() = printOwnership;
+    // Initialize partition-selection policy flags (disabled by default to preserve baseline behavior).
+    mlir::dhir::profitabilityFallbackEnabled() = profitabilityFallback;
+    mlir::dhir::printDistributionDecisions() = printDistribution;
 
     mlir::DialectRegistry registry;
     registry.insert<mlir::dhir::DhirDialect, mlir::affine::AffineDialect, mlir::memref::MemRefDialect, mlir::func::FuncDialect, mlir::arith::ArithDialect, mlir::scf::SCFDialect, mlir::DLTIDialect, mlir::gpu::GPUDialect, mlir::math::MathDialect, mlir::LLVM::LLVMDialect>();

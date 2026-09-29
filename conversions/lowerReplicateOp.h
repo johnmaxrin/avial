@@ -20,6 +20,7 @@
 #include "analysis/insoutAnalysis.h"
 #include "analysis/broadcastAnalysis.h"
 #include "analysis/syncHoisting.h"
+#include "analysis/ownership.h"
 
 #include <cmath>
 #include <functional>
@@ -576,6 +577,78 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
             if (unsupportedStore) {
                 partialReduceOut[outIdx] = true;
                 hasPartialReduceOutput = true;
+            }
+        }
+
+        // ============================================================
+        // PARTITION SELECTION: Evaluate distribution profitability
+        //
+        // Evaluates whether the replicate region should be distributed or
+        // executed redundantly across all ranks. This evaluation occurs prior
+        // to the materialization of sharding artifacts (subviews, private
+        // reduction buffers, task operations, or index partitioning).
+        // Declining distribution at this stage retains the original replicated
+        // loop structure in-place, ensuring full outputs are computed locally
+        // on every rank without incurring communication overhead or risking
+        // partial-buffer read hazards.
+        //
+        // The selection logic resides in analysis/ownership.h. It is driven by
+        // structural IR properties, preserves dependence legality, and is
+        // enabled via --profitability-fallback (disabled by default).
+        // ============================================================
+        {
+            mlir::dhir::DistributionDecision decision =
+                mlir::dhir::decideDistribution(op, outsVec, partialReduceOut,
+                                               isStencil);
+            mlir::dhir::logDistributionDecision(op, decision, num_devices);
+            if (!decision.distribute)
+            {
+                // Inline the region's body at the ReplicateOp location so that
+                // all ranks compute the complete output locally. Since the region
+                // has no block arguments and references enclosing values directly,
+                // an identity clone preserves correct semantics.
+                PatternRewriter::InsertionGuard declineGuard(rewriter);
+                rewriter.setInsertionPoint(op);
+                IRMapping identity;
+                for (auto &innerOp : op.getRegion().front().without_terminator())
+                {
+                    Operation *cloned = rewriter.clone(innerOp, identity);
+
+                    // Preserve shared-memory parallelism when MPI distribution
+                    // is declined. Because the outer loop was already verified to
+                    // have independent iterations during ReplicateOp construction,
+                    // it can be safely transformed into an scf.parallel over the
+                    // full iteration domain. Subsequent lowering passes
+                    // (convert-scf-to-openmp) will convert this into an omp.wsloop,
+                    // mirroring the thread-level parallelism of the distributed path.
+                    //
+                    // Loops updating scatter/reduction outputs with data-dependent
+                    // indices must remain sequential to avoid race conditions.
+                    // Although decideDistribution already excludes partialReduce
+                    // regions, this check is retained for defensive consistency.
+                    auto clonedFor = mlir::dyn_cast<mlir::scf::ForOp>(cloned);
+                    if (!clonedFor || hasPartialReduceOutput ||
+                        !clonedFor.getInitArgs().empty())
+                        continue;
+
+                    IRMapping bodyMap;
+                    auto parallelOp = rewriter.create<scf::ParallelOp>(
+                        clonedFor.getLoc(),
+                        ValueRange{clonedFor.getLowerBound()},
+                        ValueRange{clonedFor.getUpperBound()},
+                        ValueRange{clonedFor.getStep()}, ValueRange{});
+                    {
+                        PatternRewriter::InsertionGuard bodyGuard(rewriter);
+                        rewriter.setInsertionPointToStart(parallelOp.getBody());
+                        bodyMap.map(clonedFor.getInductionVar(),
+                                    parallelOp.getInductionVars()[0]);
+                        for (auto &bodyOp : clonedFor.getBody()->without_terminator())
+                            rewriter.clone(bodyOp, bodyMap);
+                    }
+                    rewriter.eraseOp(clonedFor);
+                }
+                rewriter.eraseOp(op);
+                return success();
             }
         }
 
