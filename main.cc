@@ -38,6 +38,7 @@ extern "C" char __libc_single_threaded = 0;
 #include "conversions/dhirtompi.h"
 #include "conversions/lowerReplicateOp.h"
 #include "conversions/upliftWhileToFor.h"
+#include "conversions/localWorkshare.h"
 #include "analysis/costModel.h"
 #include "conversions/lowerConvergeOp.h"
 #include "conversions/affinetodhir.h"
@@ -151,6 +152,16 @@ static llvm::cl::opt<bool> localHistogram(
                    "Integer bin counts only (no float reassociation); the pair "
                    "dot-product/bin-search order is preserved. Experimental; off "
                    "by default"),
+    llvm::cl::init(false));
+
+static llvm::cl::opt<bool> localWorkshare(
+    "local-workshare",
+    llvm::cl::desc("After --lower-replicate, let a 3-D rectangular pointwise "
+                   "writer share local rows (retaining the contiguous column "
+                   "loop for SIMD) instead of collapsed-coordinate iteration; "
+                   "storage independence is checked at runtime. The vectorisation "
+                   "payoff needs the -O3 LLVM stage (deferred to a later commit); "
+                   "off by default."),
     llvm::cl::init(false));
 
 static llvm::cl::opt<bool> ompCostModelReport(
@@ -334,6 +345,9 @@ int main(int argc, char *argv[])
     if (lowerReplicate)
     {
         pm.addPass(mlir::dhir::createLowerReplicateOpPass());
+        // Distribute local row iterations across threads where dynamic safety checks pass.
+        if (localWorkshare)
+            pm.addPass(mlir::dhir::createLocalWorksharePass());
     }
 
     if(lowerConverge)

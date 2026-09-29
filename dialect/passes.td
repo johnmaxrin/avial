@@ -62,6 +62,12 @@ def LowerConvergeOpPass : Pass<"lower-converge-op">
   let dependentDialects = ["mlir::dhir::DhirDialect"];
 }
 
+def LocalWorksharePass : Pass<"local-workshare"> {
+  let summary = "Share independent local rows while retaining MPI ownership";
+  let dependentDialects = ["mlir::dhir::DhirDialect", "mlir::scf::SCFDialect",
+    "mlir::memref::MemRefDialect", "mlir::arith::ArithDialect"];
+}
+
 def OMPCostModelReportPass : Pass<"dhir-omp-cost-model-report">{
   let summary = "Report OpenMP-aware work/traffic at the DHIR boundary";
   let dependentDialects = ["mlir::dhir::DhirDialect", "mlir::affine::AffineDialect",
