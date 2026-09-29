@@ -13,12 +13,16 @@
 //   * externally observable terminal outputs   -> assemble on root node
 //   * whole-buffer / cross-owner / unpartitioned readers -> materialize across all ranks
 //
-// This decision is derived purely from IR structural properties (without
-// kernel-specific heuristics) and is explicitly ALIAS-AWARE: each buffer is
-// traced back to its root allocation via getMemRefAccess (depGraph.h), ensuring
-// consumers accessing data through subviews or casts are accurately tracked.
-// Any unproven access patterns conservatively default to MaterializeOnAllRanks,
-// guaranteeing that transfers are only elided when provably redundant.
+// This file computes ownership decisions purely from IR structural properties
+// with full alias awareness: every buffer is traced to its base allocation via
+// getMemRefAccess (depGraph.h) to ensure consumers using subviews or casts are
+// properly tracked. Unproven access patterns conservatively default to
+// MaterializeOnAllRanks.
+//
+// RetainOwnedShard elides per-iteration transfers for intermediate values that
+// remain local to each rank. If an elided buffer is externally observable outside
+// the loop, the final iteration's value is gathered once after loop termination
+// (see isObservableOutput and DeferFrame::endpointGathers in conversions/dhirtompi.h).
 //
 // OutputOwnership provides a unified representation reconciling same-owner
 // shard retention (e.g. CFD) and ghost cell exchange (e.g. Jacobi2d).
@@ -28,6 +32,8 @@
 #include "analysis/syncHoisting.h"  // nearestEnclosingSerialLoop
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Interfaces/CallInterfaces.h"
 #include "llvm/ADT/SmallVector.h"
 #include <string>
 
@@ -35,6 +41,14 @@ namespace mlir
 {
     namespace dhir
     {
+        // Controlled by dhir-opt's --print-ownership flag. Emits diagnostics
+        // for per-output distributed ownership decisions when enabled.
+        inline bool &printOwnershipDecisions()
+        {
+            static bool enabled = false;
+            return enabled;
+        }
+        
         // The four strategies for handling a produced output version at level
         // synchronization, ordered from least to most communication overhead.
         enum class OwnershipKind
@@ -124,6 +138,79 @@ namespace mlir
             return sliced;
         }
 
+        // Returns the (offset, size) slice of a subview along `dim`, or nullopt
+        // if `v` is not a SubViewOp or `dim` is out of bounds.
+        inline std::optional<std::pair<mlir::OpFoldResult, mlir::OpFoldResult>>
+        subviewRangeOnDim(mlir::Value v, int64_t dim)
+        {
+            auto sv = mlir::dyn_cast_or_null<mlir::memref::SubViewOp>(
+                v.getDefiningOp());
+            if (!sv || dim < 0)
+                return std::nullopt;
+            llvm::SmallVector<mlir::OpFoldResult> offsets = sv.getMixedOffsets();
+            llvm::SmallVector<mlir::OpFoldResult> sizes = sv.getMixedSizes();
+            if (dim >= (int64_t)offsets.size() || dim >= (int64_t)sizes.size())
+                return std::nullopt;
+            return std::make_pair(offsets[dim], sizes[dim]);
+        }
+
+        // Checks whether two index expressions represent structurally identical computations.
+        // Accepts equal attributes, identical SSA values, or matching pure operations
+        // applied to structurally equal operands. Supports dynamic partitioned bounds
+        // computed by identical arithmetic chains across tasks. Recursion is depth-bounded.
+        inline bool sameIndexExpr(mlir::OpFoldResult a, mlir::OpFoldResult b,
+                                  unsigned depth = 0)
+        {
+            if (depth > 12)
+                return false;
+            auto attrA = mlir::dyn_cast<mlir::Attribute>(a);
+            auto attrB = mlir::dyn_cast<mlir::Attribute>(b);
+            if (attrA || attrB)
+                return attrA && attrB && attrA == attrB;
+
+            auto valA = mlir::cast<mlir::Value>(a);
+            auto valB = mlir::cast<mlir::Value>(b);
+            if (valA == valB)
+                return true;
+
+            mlir::Operation *defA = valA.getDefiningOp();
+            mlir::Operation *defB = valB.getDefiningOp();
+            if (!defA || !defB || defA->getName() != defB->getName() ||
+                !mlir::isPure(defA) || !mlir::isPure(defB) ||
+                defA->getNumOperands() != defB->getNumOperands() ||
+                defA->getAttrDictionary() != defB->getAttrDictionary())
+                return false;
+            // Differentiate results of a multi-result operation.
+            if (mlir::cast<mlir::OpResult>(valA).getResultNumber() !=
+                mlir::cast<mlir::OpResult>(valB).getResultNumber())
+                return false;
+            for (auto [opndA, opndB] :
+                 llvm::zip(defA->getOperands(), defB->getOperands()))
+                if (!sameIndexExpr(mlir::OpFoldResult(opndA),
+                                   mlir::OpFoldResult(opndB), depth + 1))
+                    return false;
+            return true;
+        }
+
+        // Checks whether two subviews cover structurally equivalent ranges along `dim`.
+        inline bool sameShardRangeOnDim(mlir::Value a, mlir::Value b,
+                                       int64_t dim)
+        {
+            auto rangeA = subviewRangeOnDim(a, dim);
+            auto rangeB = subviewRangeOnDim(b, dim);
+            if (!rangeA || !rangeB)
+                return false;
+            return sameIndexExpr(rangeA->first, rangeB->first) &&
+                   sameIndexExpr(rangeA->second, rangeB->second);
+        }
+
+        inline mlir::Attribute taskPlacement(mlir::Operation *op)
+        {
+            if (auto taskOp = mlir::dyn_cast_or_null<mlir::dhir::TaskOp>(op))
+                return taskOp.getTarget();
+            return mlir::Attribute();
+        }
+
         // Checks if `op` reads the underlying contents of `v` rather than merely
         // constructing an alias view or querying shape metadata. Mirrors broadcastAnalysis
         // so that unpartitioned consumer detection remains consistent across the compiler.
@@ -177,10 +264,9 @@ namespace mlir
         // Checks whether `base` (or any of its aliasing views) is accessed by code
         // executing OUTSIDE of any TaskOp. Such operations run redundantly on all ranks
         // and require full buffer contents. Unresolved operations conservatively return true.
-        inline bool hasUndistributedReader(mlir::Operation *producerOp,
-                                           mlir::Value base)
+        inline bool hasUndistributedReaderIn(mlir::Operation *scope,
+                                             mlir::Value base)
         {
-            mlir::Operation *scope = ownershipScope(producerOp);
             if (!scope)
                 return true;
             bool found = false;
@@ -206,16 +292,93 @@ namespace mlir
             return found;
         }
 
+        // Checks whether any undistributed reader exists within the entire ownership scope.
+        inline bool hasUndistributedReader(mlir::Operation *producerOp,
+                                           mlir::Value base)
+        {
+            return hasUndistributedReaderIn(ownershipScope(producerOp), base);
+        }
+
+        // Returns the enclosing ScheduleOp or FuncOp defining the compiled scope.
+        // Values escaping this boundary belong to the caller.
+        inline mlir::Operation *enclosingCompiledUnit(mlir::Operation *op)
+        {
+            for (mlir::Operation *p = op; p; p = p->getParentOp())
+                if (mlir::isa<mlir::dhir::ScheduleOp, mlir::func::FuncOp>(p))
+                    return p;
+            return nullptr;
+        }
+
+        // Determines if the final version of `base` produced in a loop is externally observable.
+        // If observable, the final iteration's output must be gathered after the loop even
+        // when per-iteration intermediate transfers are elided. Conservatively returns true
+        // for unproven cases (e.g., block arguments, escaping returns, or external calls).
+        inline bool isObservableOutput(mlir::Operation *producerOp,
+                                       mlir::Value base)
+        {
+            if (!base || !producerOp)
+                return true;
+            // Function/schedule arguments or loop-carried values are assumed observable.
+            if (mlir::isa<mlir::BlockArgument>(base))
+                return true;
+            mlir::Operation *unit = enclosingCompiledUnit(producerOp);
+            mlir::Operation *def = base.getDefiningOp();
+            if (!unit || !def)
+                return true;
+            // Memory defined outside the compiled unit belongs to the caller.
+            if (!unit->isAncestor(def))
+                return true;
+            // Internal allocations escape if returned or passed to a function call.
+            for (mlir::Operation *user : base.getUsers())
+                if (user->hasTrait<mlir::OpTrait::ReturnLike>() ||
+                    mlir::isa<mlir::CallOpInterface>(user))
+                    return true;
+            return false;
+        }
+
+        // Determines whether `base` (or an alias) is referenced after `loop` finishes execution.
+        // Post-loop deferred synchronizations can omit broadcasts if no surviving readers
+        // exist following loop completion. Conservatively returns true if the loop is nested
+        // in a recurring region or if any subsequent operation references the base allocation.
+        inline bool hasReaderAfterLoop(mlir::Operation *loop, mlir::Value base)
+        {
+            if (!loop || !base)
+                return true;
+            mlir::Operation *unit = enclosingCompiledUnit(loop);
+            if (!unit || loop->getParentOp() != unit)
+                return true;
+
+            bool found = false;
+            for (mlir::Operation *next = loop->getNextNode();
+                 next && !found; next = next->getNextNode())
+            {
+                // Traverse following operations and all nested regions to detect references.
+                next->walk([&](mlir::Operation *op) {
+                    for (mlir::Value operand : op->getOperands())
+                    {
+                        if (!mlir::isa<mlir::MemRefType>(operand.getType()))
+                            continue;
+                        if (getMemRefAccess(operand).baseMemRef != base)
+                            continue;
+                        found = true;
+                        return mlir::WalkResult::interrupt();
+                    }
+                    return mlir::WalkResult::advance();
+                });
+            }
+            return found;
+        }
+
         // Computes the synchronization requirement for output `writeIndex` of `producer`.
         // `graph` provides all other tasks for consumer classification;
         // `producer.actualBuffer[writeIndex]` represents the logical output buffer and
         // `partitionDim` denotes its partitioned dimension.
         //
-        // Conservative by construction: RetainOwnedShard is selected ONLY when all
-        // readers access strictly the same rank's slab along the same dimension, no
-        // unpartitioned host readers exist, and the producer resides within an enclosing
-        // serial loop (guaranteeing that the buffer is an intermediate version overwritten
-        // on subsequent iterations). All other scenarios trigger assembly/broadcast.
+        // RetainOwnedShard is selected only when all consumers access matching same-owner
+        // shards along the identical partition dimension, no undistributed host readers exist,
+        // and the producer is enclosed in a serial loop. Intermediate versions remain local,
+        // while observable final outputs are assembled once post-loop via endpoint gathers.
+        // All unproven access patterns fall back to assemble/broadcast.
         inline OutputOwnership decideOutputOwnership(
             const DependencyGraph &graph, const TaskOpInfo &producer,
             size_t writeIndex, int64_t partitionDim)
@@ -253,6 +416,12 @@ namespace mlir
                 return decision;
             }
 
+            // The producer's shard range along the partition axis for comparison against consumers.
+            mlir::Value producerView =
+                writeIndex < producer.writes.size() ? producer.writes[writeIndex]
+                                                    : logical;
+            mlir::Attribute producerPlacement = taskPlacement(producerOp);
+
             // Classify every reader of this buffer across all OTHER replicates.
             bool anyReader = false;
             bool anySameOwner = false;
@@ -281,12 +450,49 @@ namespace mlir
                         anyCrossOwner = true;
                         return;
                     }
-                    // Slicing on the exact same axis indicates access to this rank's own slab;
-                    // any other slicing orientation cannot be proven owner-aligned.
-                    if (slicedSubviewDim(r) == partitionDim)
-                        anySameOwner = true;
-                    else
+                    // Both task groups must partition the buffer identically: each consumer
+                    // shard must match the producer shard assigned to the consumer's target device
+                    // so that no data crosses rank boundaries.
+                    if (slicedSubviewDim(r) != partitionDim)
+                    {
                         anyCrossOwner = true;
+                        return;
+                    }
+                    mlir::Attribute consumerPlacement =
+                        taskPlacement(consumer.op);
+                    if (!producerPlacement || !consumerPlacement)
+                    {
+                        anyCrossOwner = true;
+                        return;
+                    }
+                    // Identify the producer shard located on the consumer's target device.
+                    mlir::Value ownerView;
+                    if (consumerPlacement == producerPlacement)
+                        ownerView = producerView;
+                    else
+                    {
+                        for (const TaskOpInfo &sibling : graph.tasks)
+                        {
+                            if (sibling.repId != producer.repId ||
+                                taskPlacement(sibling.op) != consumerPlacement ||
+                                writeIndex >= sibling.writes.size())
+                                continue;
+                            mlir::Value candidate = sibling.writes[writeIndex];
+                            if (getMemRefAccess(candidate).baseMemRef != base)
+                                continue;
+                            ownerView = candidate;
+                            break;
+                        }
+                    }
+                    // If no corresponding producer shard exists on this device or ranges differ,
+                    // communication across ranks is required.
+                    if (!ownerView ||
+                        !sameShardRangeOnDim(r, ownerView, partitionDim))
+                    {
+                        anyCrossOwner = true;
+                        return;
+                    }
+                    anySameOwner = true;
                 };
                 for (mlir::Value r : consumer.reads)
                     classify(r);

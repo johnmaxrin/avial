@@ -421,15 +421,20 @@ namespace mlir
         // per-iteration full synchronization.
         // ====================================================================
 
-        // Identifies the loop-carried state array read by a stencil task:
-        // an input memref whose allocation is invariant across loop iterations
-        // and is written by another task within the same loop. Returns null if
-        // no such input exists (disqualifying the stencil from resident mode).
+        // Identifies the loop-carried state array accessed with a halo by a stencil task.
+        // The array must have loop-invariant storage and be written by another task in `loop`.
+        // Returns null if no such array exists or if multiple distinct carried inputs are found;
+        // loops with multiple carried state arrays are disqualified from resident mode and retain
+        // standard per-iteration synchronization to ensure all remote ghost regions remain fresh.
+        // Uses viewRoot/aliasSetOf for alias awareness.
         inline mlir::Value stencilCarriedInput(mlir::dhir::TaskOp stencilTask,
                                                mlir::Operation *loop)
         {
             if (!stencilTask || !stencilTask->hasAttr("stencil") || !loop)
                 return mlir::Value();
+
+            mlir::Value carried;
+            unsigned carriedCount = 0;
 
             for (mlir::Value in : stencilTask.getInputs())
             {
@@ -455,10 +460,17 @@ namespace mlir
                     for (mlir::Value w : other.getActualBuffer())
                         if (touchesStorage(w)) { writtenElsewhere = true; return; }
                 });
-                if (writtenElsewhere)
-                    return in;
+                if (!writtenElsewhere)
+                    continue;
+                // Ignore multiple inputs aliasing the same underlying allocation.
+                if (carried && viewRoot(carried) == root)
+                    continue;
+                ++carriedCount;
+                if (carriedCount > 1)
+                    return mlir::Value(); // Disqualify resident mode if multiple distinct carried inputs exist.
+                carried = in;
             }
-            return mlir::Value();
+            return carried;
         }
 
         // Determines if `loop` is a resident-stencil loop. Requires at least

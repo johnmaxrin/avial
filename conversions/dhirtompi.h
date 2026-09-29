@@ -661,6 +661,9 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
             // rows are exchanged inline each iteration and level gathers are
             // deferred until after loop exit. Determined purely from IR properties.
             bool resident = false;
+            // Tracks (task, outputIndex) pairs whose intermediate in-loop transfers were elided
+            // under RetainOwnedShard, but whose final value must be gathered once after loop exit.
+            llvm::SmallVector<std::pair<TaskOpInfo *, size_t>> endpointGathers;
         };
         llvm::SmallVector<DeferFrame> deferFrames;
 
@@ -726,6 +729,18 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                     // every iteration and cannot be deferred past the loop.
                     if (taskOp->hasAttr("partialReduce"))
                         return false;
+
+                    // Stencil tasks rely on halo exchanges and deferred gathers rather than
+                    // per-iteration full synchronization. Verify that no undistributed code inside
+                    // the loop reads the buffer, which would observe stale un-synchronized data.
+                    for (Value writeOp : task->writes)
+                    {
+                        Value base = getMemRefAccess(writeOp).baseMemRef;
+                        if (!base ||
+                            mlir::dhir::hasUndistributedReaderIn(
+                                frame.originalLoop, base))
+                            return false;
+                    }
                 }
                 else
                 {
@@ -768,6 +783,81 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                 }
             }
             return true;
+        };
+
+        // Registers an endpoint gather for an output whose recurring in-loop transfers were
+        // elided under RetainOwnedShard, ensuring its final observable state is gathered post-loop.
+        // Pushes the gather to the outermost enclosing loop where required operands and base
+        // allocations remain valid; falls back to in-place gathering if cannot be deferred.
+        auto loopEncloses = [](Operation *loop, Operation *op) -> bool {
+            for (Operation *p = op->getParentOp(); p; p = p->getParentOp())
+                if (p == loop)
+                    return true;
+            return false;
+        };
+
+        // Checks whether a loop is statically guaranteed to execute at least once,
+        // ensuring deferred post-loop gathers are guarded against zero-trip executions.
+        auto provablyRuns = [](Operation *loop) -> bool {
+            auto forOp = dyn_cast_or_null<scf::ForOp>(loop);
+            if (!forOp)
+                return false;
+            std::optional<int64_t> lb = getConstantIntValue(forOp.getLowerBound());
+            std::optional<int64_t> ub = getConstantIntValue(forOp.getUpperBound());
+            std::optional<int64_t> step = getConstantIntValue(forOp.getStep());
+            return lb && ub && step && *step > 0 && *lb < *ub;
+        };
+
+        auto deferEndpointGather = [&](TaskOpInfo *task,
+                                       size_t writeIndex) -> bool {
+            auto taskOp = dyn_cast<dhir::TaskOp>(task->op);
+            if (!taskOp || writeIndex >= task->writes.size())
+                return false;
+
+            // Target the outermost enclosing frame to minimize synchronization frequency.
+            for (size_t i = 0; i < deferFrames.size(); ++i)
+            {
+                DeferFrame &frame = deferFrames[i];
+                if (!frame.newBody || !frame.originalLoop)
+                    continue;
+                // Verify that the candidate loop encloses the task operation.
+                if (!loopEncloses(frame.originalLoop, task->op))
+                    continue;
+
+                bool innerLoopsCertain = true;
+                for (size_t j = i + 1; j < deferFrames.size(); ++j)
+                    if (deferFrames[j].originalLoop &&
+                        loopEncloses(deferFrames[j].originalLoop, task->op) &&
+                        !provablyRuns(deferFrames[j].originalLoop))
+                        innerLoopsCertain = false;
+                if (!innerLoopsCertain)
+                    continue; // try a loop further in
+
+                bool feasible = true;
+                for (Value rangeOperand : taskOp.getRangeOperands())
+                    if (!canRematerialize(mapping.lookupOrDefault(rangeOperand),
+                                          frame.newBody))
+                        feasible = false;
+
+                Value buffer = mapping.lookupOrNull(task->writes[writeIndex]);
+                if (!buffer)
+                    feasible = false;
+                else
+                {
+                    // The gather targets the base allocation, which must remain live outside the loop.
+                    while (auto subview = dyn_cast_or_null<memref::SubViewOp>(
+                               buffer.getDefiningOp()))
+                        buffer = subview.getSource();
+                    if (definedInsideBlock(buffer, frame.newBody))
+                        feasible = false;
+                }
+                if (!feasible)
+                    continue; // try a loop further in
+
+                frame.endpointGathers.emplace_back(task, writeIndex);
+                return true;
+            }
+            return false;
         };
 
         // The task bodies of one level, each guarded by a rank check. Emitted at
@@ -909,8 +999,17 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
         // deferred it is the body block of the loop it was lifted out of: the
         // shared mapping still holds that loop's in-flight clones, so every
         // value the exchange needs is rebuilt here instead of read from it.
+        //
+        // `endpointOnly`: when non-null, restricts emission to the specified (task, outputIndex)
+        // pairs, gathering each unconditionally as a post-loop endpoint repayment.
+        // `deferredAfterLoop`: the enclosing loop that this sync was hoisted out of; allows
+        // post-loop reader analysis (hasReaderAfterLoop) to prune redundant broadcasts.
+        using EndpointList = llvm::SmallVectorImpl<std::pair<TaskOpInfo *, size_t>>;
         auto emitLevelSync = [&](const std::vector<TaskOpInfo *> &level,
-                                 Block *hoistedOutOf) -> LogicalResult
+                                 Block *hoistedOutOf,
+                                 const EndpointList *endpointOnly = nullptr,
+                                 Operation *deferredAfterLoop =
+                                     nullptr) -> LogicalResult
         {
             llvm::SmallVector<Value> toBroadcast;
 
@@ -1182,6 +1281,14 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                 // Get the base buffer from mapping (now subviews are in mapping!)
                 for (auto [writeIndex, writeOp] : llvm::enumerate(task->writes))
                 {
+                    // An endpoint pass synchronizes only designated outputs; other outputs were
+                    // previously synchronized at their standard positions.
+                    if (endpointOnly &&
+                        !llvm::is_contained(
+                            *endpointOnly,
+                            std::make_pair(task, (size_t)writeIndex)))
+                        continue;
+
                     Value buffer = mapping.lookupOrNull(writeOp);
 
                     if (!buffer)
@@ -1253,35 +1360,78 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                         continue;
                     }
 
-                    // -------- Per-output ownership decision (alias-aware) -----
-                    // Determines whether this shard requires communication. Only a
-                    // provably same-owner, loop-carried intermediate is preserved
-                    // in-place (skipping gather and broadcast); all other cases follow
-                    // the standard assemble-then-maybe-broadcast path below. The
-                    // analysis conservatively defaults to materialize-on-all if any
-                    // condition is unproven, ensuring safe transfer elision.
-                    mlir::dhir::OutputOwnership ownership =
-                        mlir::dhir::decideOutputOwnership(
+                    // Decide whether this output requires communication. Intermediate versions that
+                    // remain local to each rank skip per-iteration gather/broadcast. If the buffer
+                    // is observable outside the schedule, an endpoint gather is registered to run
+                    // once after the enclosing loop. Unproven cases fall back to standard gather/broadcast.
+                    mlir::dhir::OutputOwnership ownership;
+                    if (!endpointOnly)
+                    {
+                        ownership = mlir::dhir::decideOutputOwnership(
                             dependencyGraph, *task, writeIndex,
                             outputPartitionDims[writeIndex]);
-                    llvm::errs() << "[ownership] repId="
-                                 << task->repId << " out#" << writeIndex << " -> "
-                                 << mlir::dhir::ownershipKindName(ownership.kind)
-                                 << " (" << ownership.reason << ")\n";
-                    if (ownership.kind == mlir::dhir::OwnershipKind::RetainOwnedShard)
-                        // Each rank already retains the exact slab read by its later
-                        // same-owner consumer: omit both gather and broadcast for this version.
-                        continue;
+                        if (mlir::dhir::printOwnershipDecisions())
+                            llvm::errs() << "[ownership] repId="
+                                         << task->repId << " out#" << writeIndex
+                                         << " -> "
+                                         << mlir::dhir::ownershipKindName(
+                                                ownership.kind)
+                                         << " (" << ownership.reason << ")\n";
 
+                        if (ownership.kind ==
+                            mlir::dhir::OwnershipKind::RetainOwnedShard)
+                        {
+                            Value ownedLogical =
+                                writeIndex < taskOp.getActualBuffer().size()
+                                    ? taskOp.getActualBuffer()[writeIndex]
+                                    : writeOp;
+                            bool observable = mlir::dhir::isObservableOutput(
+                                task->op,
+                                getMemRefAccess(ownedLogical).baseMemRef);
+                            if (!observable)
+                                // Private intermediate: local shard suffices, skip communication.
+                                continue;
+                            if (!hoistedOutOf &&
+                                deferEndpointGather(task, writeIndex))
+                                // Elided within the loop and scheduled for single post-loop gather.
+                                continue;
+                            // Assemble in place if the gather cannot be deferred past the loop.
+                        }
+                    }
                     Value sourceBuffer = buffer;
 
-                    // Unwrap subviews to get base buffer
+                    // Unwrap subviews to access the base buffer.
+                    // Subviews with non-unit strides or shifted offsets along non-partition axes
+                    // cannot be safely addressed using base buffer coordinates and are rejected.
+                    bool peeledNonIdentityView = false;
                     while (auto defOp = sourceBuffer.getDefiningOp())
                     {
-                        if (auto subviewOp = mlir::dyn_cast<memref::SubViewOp>(defOp))
-                            sourceBuffer = subviewOp.getSource();
-                        else
+                        auto subviewOp = mlir::dyn_cast<memref::SubViewOp>(defOp);
+                        if (!subviewOp)
                             break;
+                        for (OpFoldResult stride : subviewOp.getMixedStrides())
+                            if (getConstantIntValue(stride) != std::optional<int64_t>(1))
+                                peeledNonIdentityView = true;
+                        // Non-zero offsets on non-partition axes shift coordinates and are disallowed.
+                        llvm::SmallVector<OpFoldResult> peeledOffsets =
+                            subviewOp.getMixedOffsets();
+                        for (auto [dim, offset] : llvm::enumerate(peeledOffsets))
+                            if ((int64_t)dim != outputPartitionDims[writeIndex] &&
+                                getConstantIntValue(offset) !=
+                                    std::optional<int64_t>(0))
+                                peeledNonIdentityView = true;
+                        sourceBuffer = subviewOp.getSource();
+                    }
+                    if (peeledNonIdentityView)
+                    {
+                        taskOp.emitError(
+                            "cannot gather this output: its shard is a view "
+                            "with a non-unit stride or a shifted offset, and "
+                            "the gather would address the base allocation in "
+                            "different coordinates than the task wrote "
+                            "(soundness finding 5). Transfer the logical view "
+                            "in its own coordinates instead");
+                        return failure();
                     }
 
                     auto sourceType = cast<MemRefType>(sourceBuffer.getType());
@@ -1389,13 +1539,39 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                         (void)sendIf.getElseBodyBuilder(elseBuilder.getListener());
                     }
 
-                    // Broadcast
+                    // Broadcast.
+                    // Broadcast logic: respect both the task-level needBroadcast attribute and
+                    // the ownership analysis requirement (needsAllRanksBroadcast).
                     BoolAttr needBroadcast = mlir::dyn_cast<mlir::BoolAttr>(taskOp->getAttr("needBroadcast"));
-                    if (needBroadcast && needBroadcast.getValue())
-                        // Broadcast the assembled base allocation, never a
-                        // shard view: shard views lose the partition axis and
-                        // cannot be concatenated for column/higher-rank
-                        // partitions.
+                    bool wantBroadcast =
+                        (needBroadcast && needBroadcast.getValue()) ||
+                        ownership.needsAllRanksBroadcast;
+
+                    // For synchronizations deferred past a loop, evaluate whether any reader
+                    // actually accesses the buffer after the loop. If no subsequent references exist,
+                    // suppress the broadcast to avoid unnecessary inter-rank communication.
+                    if (wantBroadcast && deferredAfterLoop)
+                    {
+                        Value terminalBase =
+                            getMemRefAccess(writeOp).baseMemRef;
+                        if (terminalBase &&
+                            !mlir::dhir::hasReaderAfterLoop(deferredAfterLoop,
+                                                            terminalBase))
+                        {
+                            wantBroadcast = false;
+                            if (mlir::dhir::printOwnershipDecisions())
+                                llvm::errs()
+                                    << "[ownership] repId=" << task->repId
+                                    << " out#" << writeIndex
+                                    << " -> terminal gather only (deferred past"
+                                       " the loop; no reference to this buffer"
+                                       " survives it)\n";
+                        }
+                    }
+                    // Endpoint gathers assemble final output values on the root rank; broadcast is omitted
+                    // unless external tasks specifically require full replicated data.
+                    if (!endpointOnly && wantBroadcast)
+                        // Broadcast assembled base buffer across all ranks.
                         toBroadcast.push_back(sourceBuffer);
                 }
             }
@@ -1496,8 +1672,16 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                 (void)rIf.getElseBodyBuilder(eb.getListener());
             };
 
-            rewriter.create<mpi::Barrier>(loc, retVal, comm->getResult(0));
-            bool emitted = false;
+            // Pre-determine which neighbor pairs require ghost exchanges to avoid
+            // emitting unnecessary barriers when no exchanges occur (e.g., at P=1).
+            struct HaloPair
+            {
+                dhir::TaskOp rightTask, leftTask;
+                int rightNode = 0;
+                Value carried;
+                int64_t partitionDim = 0, leftHaloRight = 0, rightHaloLeft = 0;
+            };
+            llvm::SmallVector<HaloPair> pairs;
             for (TaskOpInfo *rightInfo : level)
             {
                 auto rightTask = dyn_cast<dhir::TaskOp>(rightInfo->op);
@@ -1526,48 +1710,187 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                 Value carried = mlir::dhir::stencilCarriedInput(rightTask, originalLoop);
                 if (!carried)
                     continue;
-                Value baseBuffer = mapping.lookupOrDefault(carried);
 
-                int64_t partitionDim = rightTask
+                HaloPair pair;
+                pair.rightTask = rightTask;
+                pair.leftTask = leftTask;
+                pair.rightNode = *rightNode;
+                pair.carried = carried;
+                pair.partitionDim = rightTask
                     ->getAttrOfType<IntegerAttr>("stencilPartitionDim").getInt();
-                int64_t leftHaloRight = leftTask
+                pair.leftHaloRight = leftTask
                     ->getAttrOfType<IntegerAttr>("haloRight").getInt();
-                int64_t rightHaloLeft = rightTask
+                pair.rightHaloLeft = rightTask
                     ->getAttrOfType<IntegerAttr>("haloLeft").getInt();
-                auto lr = taskRange(leftTask);
-                auto rr = taskRange(rightTask);
+                if (pair.leftHaloRight <= 0 && pair.rightHaloLeft <= 0)
+                    continue;
+                pairs.push_back(pair);
+            }
+            if (pairs.empty())
+                return success();
+
+            rewriter.create<mpi::Barrier>(loc, retVal, comm->getResult(0));
+
+            // Fallback materialization: gathers each rank's slab to the root and broadcasts
+            // the full buffer when local chunk sizes are insufficient to cover halo widths.
+            auto materializeWholeBuffer = [&](Value baseBuffer,
+                                              const HaloPair &pair) {
+                Value rootIdx = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+                Value rootRank = rewriter.create<memref::LoadOp>(
+                    loc, nodeToRankMap, ValueRange{rootIdx});
+                auto repId = pair.rightTask->getAttrOfType<IntegerAttr>("repId");
+                for (TaskOpInfo *info : level)
+                {
+                    auto owner = dyn_cast<dhir::TaskOp>(info->op);
+                    if (!owner || !owner->hasAttr("stencil") ||
+                        owner->getAttrOfType<IntegerAttr>("repId") != repId)
+                        continue;
+                    std::optional<int> ownerNode = nodeIndexOf(owner);
+                    if (!ownerNode || *ownerNode == 0)
+                        continue; // the root already holds its own slab
+                    auto range = taskRange(owner);
+                    Value chunk = rewriter.create<arith::SubIOp>(
+                        loc, range.second, range.first);
+                    Value slab = axisSubview(baseBuffer, pair.partitionDim,
+                                             range.first, chunk);
+                    Value ownerIdx = rewriter.create<arith::ConstantIndexOp>(
+                        loc, *ownerNode);
+                    Value ownerRank = rewriter.create<memref::LoadOp>(
+                        loc, nodeToRankMap, ValueRange{ownerIdx});
+                    Value isRoot = rewriter.create<arith::CmpIOp>(
+                        loc, rewriter.getI1Type(), arith::CmpIPredicate::eq,
+                        rank.getResult(0), rootRank);
+                    auto ifOp = rewriter.create<scf::IfOp>(
+                        loc, TypeRange{}, isRoot, true);
+                    ifOp.getThenBodyBuilder(rewriter.getListener())
+                        .create<mpi::RecvOp>(loc, retVal, slab, tag.getResult(),
+                                             ownerRank, comm->getResult(0));
+                    OpBuilder eb =
+                        ifOp.getElseBodyBuilder(rewriter.getListener());
+                    Value isOwner = eb.create<arith::CmpIOp>(
+                        loc, rewriter.getI1Type(), arith::CmpIPredicate::eq,
+                        rank.getResult(0), ownerRank);
+                    auto sendIf =
+                        eb.create<scf::IfOp>(loc, TypeRange{}, isOwner, true);
+                    sendIf.getThenBodyBuilder(eb.getListener())
+                        .create<mpi::SendOp>(loc, retVal, slab, tag.getResult(),
+                                             rootRank, comm->getResult(0));
+                    (void)sendIf.getElseBodyBuilder(eb.getListener());
+                }
+                llvm::SmallVector<Value> whole{baseBuffer};
+                generateBroadcastCommunication(
+                    rewriter, loc, whole, rank.getResult(0), rootRank,
+                    comm->getResult(0), retVal, tag.getResult(),
+                    getNodes->getResult(1));
+            };
+
+            for (const HaloPair &pair : pairs)
+            {
+                Value baseBuffer = mapping.lookupOrDefault(pair.carried);
+                auto lr = taskRange(pair.leftTask);
+                auto rr = taskRange(pair.rightTask);
                 Value leftChunk = rewriter.create<arith::SubIOp>(loc, lr.second, lr.first);
                 Value rightChunk = rewriter.create<arith::SubIOp>(loc, rr.second, rr.first);
 
-                // Transfer ghost rows from the left neighbor's upper boundary
-                // into the right rank's lower ghost region.
-                if (rightHaloLeft > 0)
+                // Verify that neighboring owner chunks are at least as large as the requested halo.
+                // Narrow or degenerate chunks cannot provide full ghost depth via nearest-neighbor
+                // exchanges alone; dynamically or statically check chunk depth and fall back to
+                // full materialization if requirements are not met.
+                auto staticChunk = [&](std::pair<Value, Value> range,
+                                       dhir::TaskOp owner)
+                    -> std::optional<int64_t> {
+                    if (owner.getRangeOperands().size() == 2)
+                    {
+                        std::optional<int64_t> lo =
+                            getConstantIntValue(range.first);
+                        std::optional<int64_t> hi =
+                            getConstantIntValue(range.second);
+                        if (lo && hi)
+                            return *hi - *lo;
+                        return std::nullopt;
+                    }
+                    ArrayRef<int64_t> sr = owner.getOutRanges();
+                    if (sr.size() == 2)
+                        return sr[1] - sr[0];
+                    return std::nullopt;
+                };
+                std::optional<int64_t> leftStatic =
+                    staticChunk(lr, pair.leftTask);
+                std::optional<int64_t> rightStatic =
+                    staticChunk(rr, pair.rightTask);
+
+                Value haloOk;
+                bool provenStatically = true;
+                auto requireAtLeast = [&](Value chunk,
+                                          std::optional<int64_t> known,
+                                          int64_t need) {
+                    if (need <= 0)
+                        return;
+                    if (known && *known >= need)
+                        return; // provable now; nothing to test at run time
+                    provenStatically = false;
+                    Value required = rewriter.create<arith::ConstantIndexOp>(
+                        loc, need);
+                    Value ok = rewriter.create<arith::CmpIOp>(
+                        loc, rewriter.getI1Type(), arith::CmpIPredicate::uge,
+                        chunk, required);
+                    haloOk = haloOk ? rewriter.create<arith::AndIOp>(
+                                          loc, haloOk, ok).getResult()
+                                    : ok;
+                };
+                // Each owner must have sufficient local chunk depth to provide the neighbor's halo.
+                requireAtLeast(leftChunk, leftStatic, pair.rightHaloLeft);
+                requireAtLeast(rightChunk, rightStatic, pair.leftHaloRight);
+
+                // Emit point-to-point halo transfers once chunk sufficiency is verified.
+                auto emitHaloExchange = [&]() {
+                    // Transfer left neighbor's upper boundary rows into right neighbor's lower ghost region.
+                    if (pair.rightHaloLeft > 0)
+                    {
+                        Value width = rewriter.create<arith::ConstantIndexOp>(
+                            loc, pair.rightHaloLeft);
+                        Value start = rewriter.create<arith::SubIOp>(
+                            loc, lr.second, width);
+                        neighborTransfer(pair.rightNode - 1, pair.rightNode,
+                                         axisSubview(baseBuffer, pair.partitionDim, start, width),
+                                         axisSubview(baseBuffer, pair.partitionDim, start, width));
+                    }
+                    // Transfer right neighbor's lower boundary rows into left neighbor's upper ghost region.
+                    if (pair.leftHaloRight > 0)
+                    {
+                        Value width = rewriter.create<arith::ConstantIndexOp>(
+                            loc, pair.leftHaloRight);
+                        Value start = rr.first;
+                        neighborTransfer(pair.rightNode, pair.rightNode - 1,
+                                         axisSubview(baseBuffer, pair.partitionDim, start, width),
+                                         axisSubview(baseBuffer, pair.partitionDim, start, width));
+                    }
+                };
+
+                if (provenStatically)
                 {
-                    Value req = rewriter.create<arith::ConstantIndexOp>(loc, rightHaloLeft);
-                    Value width = rewriter.create<arith::MinUIOp>(loc, req, leftChunk);
-                    Value start = rewriter.create<arith::SubIOp>(loc, lr.second, width);
-                    neighborTransfer(*rightNode - 1, *rightNode,
-                                     axisSubview(baseBuffer, partitionDim, start, width),
-                                     axisSubview(baseBuffer, partitionDim, start, width));
-                    emitted = true;
+                    // Neighbor chunks statically satisfy halo depths; emit transfers without runtime guards.
+                    emitHaloExchange();
+                    continue;
                 }
-                // Transfer ghost rows from the right neighbor's lower boundary
-                // into the left rank's upper ghost region.
-                if (leftHaloRight > 0)
+
+                auto guard = rewriter.create<scf::IfOp>(
+                    loc, TypeRange{}, haloOk, /*withElseRegion=*/true);
                 {
-                    Value req = rewriter.create<arith::ConstantIndexOp>(loc, leftHaloRight);
-                    Value width = rewriter.create<arith::MinUIOp>(loc, req, rightChunk);
-                    Value start = rr.first;
-                    neighborTransfer(*rightNode, *rightNode - 1,
-                                     axisSubview(baseBuffer, partitionDim, start, width),
-                                     axisSubview(baseBuffer, partitionDim, start, width));
-                    emitted = true;
+                    OpBuilder::InsertionGuard ig(rewriter);
+                    rewriter.setInsertionPointToStart(guard.thenBlock());
+                    emitHaloExchange();
+                }
+                {
+                    OpBuilder::InsertionGuard ig(rewriter);
+                    rewriter.setInsertionPointToStart(guard.elseBlock());
+                    materializeWholeBuffer(baseBuffer, pair);
                 }
             }
-            if (emitted)
-                rewriter.create<mpi::Barrier>(loc, retVal, comm->getResult(0));
+            rewriter.create<mpi::Barrier>(loc, retVal, comm->getResult(0));
             return success();
         };
+
         // Emit level `levelIdx` here. Its sync follows immediately unless the
         // level is slab-local across the rebuilt loop we are inside, in which
         // case the enclosing frame collects it and emits it once after the loop.
@@ -1716,14 +2039,45 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
 
                         rewriter.setInsertionPointAfter(newForOp.getOperation());
                         
-                        // The loop exists now, so the syncs it owes can be
-                        // emitted after it — once each, instead of once per
-                        // iteration.
+                        // Emit deferred level synchronizations after loop completion.
+                        // frame.originalLoop allows evaluating post-loop buffer references
+                        // to prune unnecessary broadcasts.
                         for (size_t levelIdx : frame.levels)
                             if (failed(emitLevelSync(
                                     dependencyGraph.levelVector[levelIdx],
-                                    frame.newBody)))
+                                    frame.newBody, /*endpointOnly=*/nullptr,
+                                    frame.originalLoop)))
                                 return failure();
+
+                        // Assemble observable outputs whose recurring in-loop transfers were elided.
+                        // Guarded by the loop trip condition to prevent assembling unwritten buffers.
+                        if (!frame.endpointGathers.empty())
+                        {
+                            Value ran = rewriter.create<arith::CmpIOp>(
+                                loc,
+                                newForOp.getUnsignedCmp()
+                                    ? arith::CmpIPredicate::ult
+                                    : arith::CmpIPredicate::slt,
+                                newForOp.getLowerBound(),
+                                newForOp.getUpperBound());
+                            auto ranIf = rewriter.create<mlir::scf::IfOp>(
+                                loc, mlir::TypeRange{}, ran, /*withElse=*/false);
+
+                            // Collect unique producer tasks for the endpoint gather pass.
+                            std::vector<TaskOpInfo *> endpointTasks;
+                            for (auto &pending : frame.endpointGathers)
+                                if (!llvm::is_contained(endpointTasks,
+                                                        pending.first))
+                                    endpointTasks.push_back(pending.first);
+
+                            OpBuilder::InsertionGuard endpointGuard(rewriter);
+                            rewriter.setInsertionPointToStart(
+                                ranIf.thenBlock());
+                            if (failed(emitLevelSync(endpointTasks,
+                                                     frame.newBody,
+                                                     &frame.endpointGathers)))
+                                return failure();
+                        }
                         continue;
                     }
                     // A loop with no tasks is redundant work that every rank

@@ -104,6 +104,12 @@ static llvm::cl::opt<bool> affineTodhir(
     llvm::cl::desc("Enable Affine to DHIR conversion"),
     llvm::cl::init(false));
 
+static llvm::cl::opt<bool> printOwnership(
+    "print-ownership",
+    llvm::cl::desc("Print the per-output distributed ownership decision taken "
+                   "at each level sync (verification aid; off by default)"),
+    llvm::cl::init(false));
+
 static llvm::cl::opt<bool> ompCostModelReport(
     "dhir-omp-cost-model-report",
     llvm::cl::desc("Print OpenMP-aware work, memory traffic, broadcast scaling, "
@@ -146,6 +152,9 @@ int main(int argc, char *argv[])
 {
     // Parse command-line options
     llvm::cl::ParseCommandLineOptions(argc, argv, "DHIR OPT Tool\n");
+
+    // Enable verbose logging of per-output ownership decisions when requested.
+    mlir::dhir::printOwnershipDecisions() = printOwnership;
 
     mlir::DialectRegistry registry;
     registry.insert<mlir::dhir::DhirDialect, mlir::affine::AffineDialect, mlir::memref::MemRefDialect, mlir::func::FuncDialect, mlir::arith::ArithDialect, mlir::scf::SCFDialect, mlir::DLTIDialect, mlir::gpu::GPUDialect, mlir::math::MathDialect, mlir::LLVM::LLVMDialect>();
