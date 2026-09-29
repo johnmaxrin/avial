@@ -576,6 +576,508 @@ namespace mlir
                 for (auto forOp : topLevel)
                     tryHoistParallelReductionNest(forOp);
             }
+            // ================= kmeans loop fission =====================
+            //
+            // kmeans' per-iteration point loop mixes two kinds of work:
+            //   (A) ASSIGNMENT   membership[i] = argmin_c dist(point i, center c)
+            //                    delta += (membership[i] changed)
+            //       each point's result depends only on that point, so which
+            //       rank computes it is irrelevant -- bit-exact at any P.
+            //   (B) ACCUMULATION new_centers[membership[i]][:] += feature[i][:]
+            //                    new_centers_len[membership[i]] += 1
+            //       a data-dependent f32 scatter-add.  Distributing it makes it
+            //       a cross-rank partialReduce, which REASSOCIATES the f32 sum;
+            //       the reassociated centroids feed the convergence argmin, so
+            //       the trajectory diverges (this is why the whole-loop
+            //       distribution was reverted).
+            //
+            // Fission the loop into (A) and (B).  (A) is wrapped in a
+            // ReplicateOp and distributed over point slices; (B) is left a bare
+            // serial scf.for that runs REPLICATED on every rank over the full
+            // point range, reading the membership that (A) produced (gathered
+            // to all ranks by (A)'s forceBroadcast).  Because every rank runs
+            // the identical full accumulation in point order, (B) reproduces
+            // the reference's f32 order bit-for-bit at any P.
+            //
+            // The whole thing is driven by IR structure, no kernel name:
+            //   * the loop carries only sum-reduction iter_args (the delta);
+            //   * it has an IV-slab store of a value V into an integer array M
+            //     (membership[i] = V);
+            //   * it has data-dependent additive-RMW scatter store(s) whose
+            //     address depends on the outer IV ONLY through V -- so (B) can
+            //     recover the address by loading M[i] instead of recomputing V.
+
+            // Does `root` transitively read `target`?  Used to reject an ordered
+            // recurrence (`a += a*k`) masquerading as a sum.
+            
+            bool valueReadsValue(mlir::Value root, mlir::Value target,
+                                 llvm::SmallPtrSetImpl<mlir::Operation *> &seen)
+            {
+                if (root == target)
+                    return true;
+                mlir::Operation *def = root.getDefiningOp();
+                if (!def || !seen.insert(def).second)
+                    return false;
+                if (def->getNumRegions() != 0)
+                    return true; // a captured read we do not trace; assume yes
+                for (mlir::Value o : def->getOperands())
+                    if (valueReadsValue(o, target, seen))
+                        return true;
+                return false;
+            }
+            // Is `v` `carried` plus a contribution independent of `carried`?
+            // Accepts `carried`, a bare add, and a single-result scf.if each of
+            // whose arms is `carried` or such an add (conditional increment).
+            bool isSumReductionOfCarried(mlir::Value v, mlir::Value carried)
+            {
+                if (v == carried)
+                    return true;
+                mlir::Operation *def = v.getDefiningOp();
+                if (!def)
+                    return false;
+                if (auto ifOp = mlir::dyn_cast<mlir::scf::IfOp>(def))
+                {
+                    if (ifOp->getNumResults() != 1 ||
+                        ifOp.getThenRegion().empty() ||
+                        ifOp.getElseRegion().empty())
+                        return false;
+                    for (mlir::Region *r :
+                         {&ifOp.getThenRegion(), &ifOp.getElseRegion()})
+                    {
+                        auto y = mlir::dyn_cast<mlir::scf::YieldOp>(
+                            r->front().getTerminator());
+                        if (!y || y.getNumOperands() != 1 ||
+                            !isSumReductionOfCarried(y.getOperand(0), carried))
+                            return false;
+                    }
+                    return true;
+                }
+                if (mlir::isa<mlir::arith::AddFOp, mlir::arith::AddIOp>(def) &&
+                    def->getNumOperands() == 2)
+                {
+                    for (unsigned s = 0; s < 2; ++s)
+                    {
+                        if (def->getOperand(s) != carried)
+                            continue;
+                        llvm::SmallPtrSet<mlir::Operation *, 16> seen;
+                        if (valueReadsValue(def->getOperand(1 - s), carried, seen))
+                            continue; // ordered recurrence, not a sum
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            // For a sum-reduction carry, is the contribution added to `carried`
+            // available OUTSIDE the reduction op (so a `select` built before the
+            // loop yield can reference it)?  Rejects a contribution defined
+            // inside a conditional arm.  Validation only, no mutation.
+            bool carryContributionIsHoistable(mlir::Value yielded,
+                                               mlir::Value carried)
+            {
+                if (yielded == carried)
+                    return true;
+                mlir::Operation *def = yielded.getDefiningOp();
+                if (!def)
+                    return false;
+                auto addContribHoistable = [&](mlir::Value av,
+                                               mlir::Operation *scope) -> bool {
+                    if (av == carried)
+                        return true; // pass-through, contributes 0
+                    auto ad = av.getDefiningOp();
+                    if (!ad ||
+                        !mlir::isa<mlir::arith::AddFOp, mlir::arith::AddIOp>(ad) ||
+                        ad->getNumOperands() != 2)
+                        return false;
+                    for (unsigned s = 0; s < 2; ++s)
+                        if (ad->getOperand(s) == carried)
+                        {
+                            mlir::Value c = ad->getOperand(1 - s);
+                            mlir::Operation *cd = c.getDefiningOp();
+                            return !cd || !scope || !scope->isAncestor(cd);
+                        }
+                    return false;
+                };
+                if (auto ifOp = mlir::dyn_cast<mlir::scf::IfOp>(def))
+                {
+                    for (mlir::Region *r :
+                         {&ifOp.getThenRegion(), &ifOp.getElseRegion()})
+                    {
+                        auto y = mlir::dyn_cast<mlir::scf::YieldOp>(
+                            r->front().getTerminator());
+                        if (!y || !addContribHoistable(y.getOperand(0), ifOp))
+                            return false;
+                    }
+                    return true;
+                }
+                return addContribHoistable(yielded, nullptr);
+            }
+
+            // Build the SSA value V such that `yielded == carried + V`, inserting
+            // any needed ops at `b`'s insertion point.  Mirror of the check above;
+            // only called after it succeeded.
+            mlir::Value buildCarryContribution(mlir::OpBuilder &b,
+                                               mlir::Location loc,
+                                               mlir::Value yielded,
+                                               mlir::Value carried)
+            {
+                mlir::Type ty = carried.getType();
+                auto zero = [&]() -> mlir::Value {
+                    if (mlir::isa<mlir::FloatType>(ty))
+                        return b.create<mlir::arith::ConstantOp>(
+                            loc, b.getFloatAttr(ty, 0.0));
+                    return b.create<mlir::arith::ConstantOp>(
+                        loc, b.getIntegerAttr(ty, 0));
+                };
+                auto addContrib = [&](mlir::Value av) -> mlir::Value {
+                    if (av == carried)
+                        return zero();
+                    auto ad = av.getDefiningOp();
+                    for (unsigned s = 0; s < 2; ++s)
+                        if (ad->getOperand(s) == carried)
+                            return ad->getOperand(1 - s);
+                    return zero();
+                };
+                if (yielded == carried)
+                    return zero();
+                if (auto ifOp =
+                        mlir::dyn_cast<mlir::scf::IfOp>(yielded.getDefiningOp()))
+                {
+                    auto yt = mlir::cast<mlir::scf::YieldOp>(
+                        ifOp.getThenRegion().front().getTerminator());
+                    auto ye = mlir::cast<mlir::scf::YieldOp>(
+                        ifOp.getElseRegion().front().getTerminator());
+                    mlir::Value tv = addContrib(yt.getOperand(0));
+                    mlir::Value ev = addContrib(ye.getOperand(0));
+                    return b.create<mlir::arith::SelectOp>(loc, ifOp.getCondition(),
+                                                           tv, ev);
+                }
+                return addContrib(yielded);
+            }
+
+            // Rewrite every iter_arg of `loop` (all already verified to be
+            // hoistable sum reductions) into a 1-element memref so the loop has
+            // no SSA carry and the accumulator store becomes an IV-invariant
+            // additive read-modify-write -- which the existing partitioner treats
+            // as a partialReduce.  For an exact integer count (the delta) the
+            // cross-rank sum is exact, so this is safe to distribute.
+            void demoteReductionCarriers(mlir::scf::ForOp loop)
+            {
+                auto yieldOp =
+                    mlir::cast<mlir::scf::YieldOp>(loop.getBody()->getTerminator());
+                mlir::Location loc = loop.getLoc();
+                auto funcOp = loop->getParentOfType<mlir::func::FuncOp>();
+                mlir::OpBuilder entry(&funcOp.getBody().front(),
+                                      funcOp.getBody().front().begin());
+                mlir::Value zeroIdx =
+                    entry.create<mlir::arith::ConstantIndexOp>(loc, 0);
+
+                unsigned n = loop.getNumRegionIterArgs();
+                llvm::SmallVector<mlir::Value> accs;
+                for (unsigned i = 0; i < n; ++i)
+                {
+                    auto ty = mlir::MemRefType::get(
+                        {1}, loop.getRegionIterArg(i).getType());
+                    accs.push_back(
+                        entry.create<mlir::memref::AllocOp>(loc, ty));
+                }
+                // Re-seed before the loop (inside any enclosing while iteration).
+                mlir::OpBuilder before(loop);
+                for (unsigned i = 0; i < n; ++i)
+                    before.create<mlir::memref::StoreOp>(
+                        loc, loop.getInitArgs()[i], accs[i],
+                        mlir::ValueRange{zeroIdx});
+
+                // Normalise each carry to a direct additive RMW on its buffer.
+                mlir::OpBuilder atYield(yieldOp);
+                llvm::SmallVector<mlir::Value> newTotals;
+                for (unsigned i = 0; i < n; ++i)
+                {
+                    mlir::Value contrib = buildCarryContribution(
+                        atYield, loc, yieldOp.getOperand(i),
+                        loop.getRegionIterArg(i));
+                    mlir::Value cur = atYield.create<mlir::memref::LoadOp>(
+                        loc, accs[i], mlir::ValueRange{zeroIdx});
+                    mlir::Value tot =
+                        mlir::isa<mlir::FloatType>(cur.getType())
+                            ? atYield
+                                  .create<mlir::arith::AddFOp>(loc, cur, contrib)
+                                  .getResult()
+                            : atYield
+                                  .create<mlir::arith::AddIOp>(loc, cur, contrib)
+                                  .getResult();
+                    newTotals.push_back(tot);
+                }
+                // Load the running total at the top for in-body readers.
+                mlir::OpBuilder body(loop.getBody(), loop.getBody()->begin());
+                for (unsigned i = 0; i < n; ++i)
+                {
+                    mlir::Value ld = body.create<mlir::memref::LoadOp>(
+                        loc, accs[i], mlir::ValueRange{zeroIdx});
+                    loop.getRegionIterArg(i).replaceAllUsesWith(ld);
+                }
+                for (unsigned i = 0; i < n; ++i)
+                    atYield.create<mlir::memref::StoreOp>(
+                        loc, newTotals[i], accs[i], mlir::ValueRange{zeroIdx});
+
+                // Rebuild the loop with no iter_args and move the body across.
+                mlir::OpBuilder at(loop);
+                auto newLoop = at.create<mlir::scf::ForOp>(
+                    loc, loop.getLowerBound(), loop.getUpperBound(),
+                    loop.getStep());
+                newLoop.getBody()->getTerminator()->erase();
+                newLoop.getBody()->getOperations().splice(
+                    newLoop.getBody()->end(), loop.getBody()->getOperations());
+                loop.getInductionVar().replaceAllUsesWith(
+                    newLoop.getInductionVar());
+                auto movedYield = mlir::cast<mlir::scf::YieldOp>(
+                    newLoop.getBody()->getTerminator());
+                mlir::OpBuilder(movedYield).create<mlir::scf::YieldOp>(loc);
+                movedYield->erase();
+
+                at.setInsertionPointAfter(newLoop);
+                for (unsigned i = 0; i < n; ++i)
+                {
+                    mlir::Value ld = at.create<mlir::memref::LoadOp>(
+                        loc, accs[i], mlir::ValueRange{zeroIdx});
+                    loop.getResult(i).replaceAllUsesWith(ld);
+                }
+                loop.erase();
+                funcOp.walk([&](mlir::func::ReturnOp ret) {
+                    mlir::OpBuilder atRet(ret);
+                    for (mlir::Value acc : accs)
+                        atRet.create<mlir::memref::DeallocOp>(loc, acc);
+                });
+            }
+
+            // Is `target` used (transitively) to compute `v`?
+            bool valueDependsOn(mlir::Value v, mlir::Value target,
+                                llvm::SmallPtrSetImpl<mlir::Operation *> &seen)
+            {
+                if (v == target)
+                    return true;
+                mlir::Operation *def = v.getDefiningOp();
+                if (!def || !seen.insert(def).second)
+                    return false;
+                for (mlir::Value o : def->getOperands())
+                    if (valueDependsOn(o, target, seen))
+                        return true;
+                return false;
+            }
+            
+            // Does `v` reach `iv` WITHOUT passing through `stop`?  `stop` is
+            // treated as a leaf (cut point).  Used to prove a scatter address
+            // depends on the outer IV only through the assigned value V.
+            bool reachesIVExcept(mlir::Value v, mlir::Value iv, mlir::Value stop,
+                                 llvm::SmallPtrSetImpl<mlir::Operation *> &seen)
+            {
+                if (v == stop)
+                    return false;
+                if (v == iv)
+                    return true;
+                mlir::Operation *def = v.getDefiningOp();
+                if (!def || !seen.insert(def).second)
+                    return false;
+                for (mlir::Value o : def->getOperands())
+                    if (reachesIVExcept(o, iv, stop, seen))
+                        return true;
+                return false;
+            }
+
+            // Try to fission `loop` into a distributable assignment nest and a
+            // serial-replicated scatter-accumulation nest.  Returns true iff it
+            // transformed the IR.  Performs NO mutation unless every guard holds.
+            bool tryFissionScatterAccumulation(mlir::scf::ForOp loop)
+            {
+                if (!isUnitStep(loop) || loop.getNumRegionIterArgs() == 0)
+                    return false;
+                if (loop.getInductionVar().use_empty())
+                    return false;
+                for (mlir::Operation *p = loop->getParentOp(); p;
+                     p = p->getParentOp())
+                    if (auto c = mlir::dyn_cast<mlir::scf::ForOp>(p);
+                        c && !c.getInitArgs().empty())
+                        return false;
+
+                mlir::Value iv = loop.getInductionVar();
+                auto yieldOp = mlir::cast<mlir::scf::YieldOp>(
+                    loop.getBody()->getTerminator());
+
+                // (1) every carry is a hoistable sum reduction (the delta), and
+                //     it escapes only into its own reduction chain + the yield.
+                for (unsigned i = 0; i < loop.getNumRegionIterArgs(); ++i)
+                {
+                    mlir::Value carried = loop.getRegionIterArg(i);
+                    if (!isSumReductionOfCarried(yieldOp.getOperand(i), carried) ||
+                        !carryContributionIsHoistable(yieldOp.getOperand(i),
+                                                      carried))
+                        return false;
+                    for (mlir::Operation *u : carried.getUsers())
+                        if (mlir::isa<mlir::memref::StoreOp>(u))
+                            return false; // prefix-sum shape: not partitionable
+                }
+
+                // (2) classify every store as an IV-slab overwrite or a
+                //     data-dependent additive-RMW scatter.  Anything else -> bail.
+                mlir::dhir::ArrayPartitioningAnalysis analysis(loop, iv);
+                llvm::SmallVector<mlir::memref::StoreOp> slabStores, scatterStores;
+                bool bad = false;
+                loop.walk([&](mlir::memref::StoreOp s) {
+                    auto acc = analysis.getUnitStrideDimensionAndOffset(s, iv);
+                    if (acc)
+                    {
+                        if (acc->second != 0)
+                            bad = true;
+                        else
+                            slabStores.push_back(s);
+                    }
+                    else if (isAdditiveReadModifyWrite(s))
+                        scatterStores.push_back(s);
+                    else
+                        bad = true;
+                });
+                if (bad || slabStores.empty() || scatterStores.empty())
+                    return false;
+
+                // (3) find the assignment store V -> M[iv] (M integer) such that
+                //     every scatter address depends on V and reaches the outer IV
+                //     only through V.
+                mlir::memref::StoreOp membershipStore;
+                mlir::Value Varg;
+                for (mlir::memref::StoreOp s : slabStores)
+                {
+                    auto memTy = mlir::cast<mlir::MemRefType>(s.getMemRef().getType());
+                    if (!memTy.getElementType().isIntOrIndex())
+                        continue;
+                    mlir::Value cand = s.getValue();
+                    bool ok = true;
+                    for (mlir::memref::StoreOp sc : scatterStores)
+                    {
+                        bool usesV = false, escapes = false;
+                        for (mlir::Value idx : sc.getIndices())
+                        {
+                            llvm::SmallPtrSet<mlir::Operation *, 32> s1, s2;
+                            if (valueDependsOn(idx, cand, s1))
+                                usesV = true;
+                            if (reachesIVExcept(idx, iv, cand, s2))
+                                escapes = true;
+                        }
+                        if (!usesV || escapes)
+                        {
+                            ok = false;
+                            break;
+                        }
+                    }
+                    if (ok)
+                    {
+                        membershipStore = s;
+                        Varg = cand;
+                        break;
+                    }
+                }
+                if (!membershipStore)
+                    return false;
+
+                // __FISSION_TRANSFORM__
+                mlir::Block *bodyBlk = loop.getBody();
+                auto liftTop = [&](mlir::Operation *op) -> mlir::Operation * {
+                    while (op->getBlock() != bodyBlk)
+                        op = op->getParentOp();
+                    return op;
+                };
+
+                // Move-set: top-level body ops that feed ONLY the scatter path.
+                // Seed with the top-level op containing each scatter store; grow
+                // to any op all of whose result users are in/under the move-set.
+                // The assignment value V's defining op (the argmin nest) is never
+                // moved -- the scatter nest recovers V by loading M[i] instead.
+                llvm::SmallPtrSet<mlir::Operation *, 16> moveSet;
+                for (mlir::memref::StoreOp sc : scatterStores)
+                    moveSet.insert(liftTop(sc));
+                mlir::Operation *vargDef = Varg.getDefiningOp();
+                bool grew = true;
+                while (grew)
+                {
+                    grew = false;
+                    for (mlir::Operation &o : bodyBlk->without_terminator())
+                    {
+                        if (moveSet.count(&o) || &o == vargDef ||
+                            o.getNumResults() == 0 ||
+                            mlir::isa<mlir::memref::StoreOp>(o))
+                            continue;
+                        bool anyUse = false, allInMove = true;
+                        for (mlir::Value r : o.getResults())
+                            for (mlir::Operation *u : r.getUsers())
+                            {
+                                anyUse = true;
+                                if (!moveSet.count(liftTop(u)))
+                                    allInMove = false;
+                            }
+                        if (anyUse && allInMove)
+                        {
+                            moveSet.insert(&o);
+                            grew = true;
+                        }
+                    }
+                }
+
+                // Build Nest B after the loop: a bare serial scf.for over the
+                // full range that loads membership and replays the scatter path.
+                mlir::OpBuilder b(loop);
+                b.setInsertionPointAfter(loop);
+                auto nestB = b.create<mlir::scf::ForOp>(
+                    loop.getLoc(), loop.getLowerBound(), loop.getUpperBound(),
+                    loop.getStep());
+                b.setInsertionPointToStart(nestB.getBody());
+                mlir::Value memLoad = b.create<mlir::memref::LoadOp>(
+                    loop.getLoc(), membershipStore.getMemRef(),
+                    mlir::ValueRange{nestB.getInductionVar()});
+                mlir::IRMapping map;
+                map.map(iv, nestB.getInductionVar());
+                map.map(Varg, memLoad);
+                for (mlir::Operation &o : bodyBlk->without_terminator())
+                    if (moveSet.count(&o))
+                        b.clone(o, map);
+                nestB->setAttr("dhir.serialReplicated", b.getUnitAttr());
+
+                // Prune the moved ops out of Nest A (reverse program order).
+                llvm::SmallVector<mlir::Operation *> toErase;
+                for (mlir::Operation &o : bodyBlk->without_terminator())
+                    if (moveSet.count(&o))
+                        toErase.push_back(&o);
+                for (auto it = toErase.rbegin(); it != toErase.rend(); ++it)
+                    (*it)->erase();
+
+                // Nest A now carries only the assignment + delta; demote the
+                // delta carry so the loop partitions and distributes.
+                llvm::errs() << "Fissioned scatter-accumulation loop: assignment "
+                                "nest distributes, accumulation nest kept "
+                                "serial-replicated\n";
+                demoteReductionCarriers(loop);
+                return true;
+            }
+
+            void fissionScatterAccumulationLoops(mlir::Operation *module)
+            {
+                for (unsigned round = 0; round < 8; ++round)
+                {
+                    llvm::SmallVector<mlir::scf::ForOp> loops;
+                    module->walk<mlir::WalkOrder::PreOrder>(
+                        [&](mlir::scf::ForOp l) {
+                            if (!l.getInitArgs().empty())
+                                loops.push_back(l);
+                        });
+                    bool changed = false;
+                    for (mlir::scf::ForOp l : loops)
+                        if (tryFissionScatterAccumulation(l))
+                        {
+                            changed = true;
+                            break; // handles are stale; re-collect
+                        }
+                    if (!changed)
+                        return;
+                }
+            }
 
             void runOnOperation() override
             {
@@ -583,8 +1085,15 @@ namespace mlir
                 auto *module = getOperation();
                 mlir::OpBuilder builder(context);
 
-                // Expose outer parallelism via loop interchange prior to classification.
+                // Expose outer parallelism (loop interchange) before the nests
+                // are classified into Replicate/Converge/Task.
                 hoistParallelReductionNests(module);
+
+                // Split a loop that mixes distributable assignment with a
+                // reassociation-sensitive scatter-accumulation (kmeans): the
+                // assignment nest is distributed, the accumulation nest is kept
+                // serial-replicated so its f32 sum keeps the reference order.
+                fissionScatterAccumulationLoops(module);
 
                 llvm::SmallVector<mlir::Operation *, 4> toReplicateVector;
                 llvm::SmallVector<mlir::Operation *, 4> toConvergeVector;
@@ -606,21 +1115,34 @@ namespace mlir
                                 // Check dependence at depth 1 (outer loop)
                                 int outerDep = checkLoopDependence(forOp, 1);
                                 
-                                // An unused-IV loop repeats one computation (an
-                                // `iters` loop); the dependence test reports no
-                                // conflict, but partitioning it is unsound — every
-                                // shard would recompute the whole output and the
-                                // combine would sum the duplicates (spmv/histo
+                                // A loop whose IV never reaches its body repeats
+                                // one computation (an `iters` loop).  Its
+                                // iterations address no disjoint data, so the
+                                // dependence test reports no conflict even though
+                                // partitioning it is unsound: every shard would
+                                // recompute the whole output and the reduction
+                                // combine would sum those duplicates (spmv/histo
                                 // came out scaled by the shard count).
                                 //
-                                // Distributing an inner loop instead still breaks:
-                                // the partialReduce combine mishandles scatter
-                                // outputs (spmv's disjoint overwrite gets summed
-                                // onto shard 0's old data; histo's i8 saturating
-                                // scatter-add under-counts).  Until the combine is
-                                // reworked per scatter kind, keep the whole nest
-                                // unpartitioned so every rank redundantly computes
-                                // the correct result.
+                                // Distributing an *inner* loop instead was tried
+                                // (route the nest to the ConvergeOp path).  With
+                                // the shard-local scatter loop now kept serial it
+                                // no longer races, but the MPI partialReduce
+                                // combine is still wrong for these two:
+                                //  - spmv writes arg8[arg7[i]] as a pure OVERWRITE.
+                                //    The combine seeds shard 0 with the old arg8
+                                //    and SUMS, so every output position that a
+                                //    non-root shard owns comes out as
+                                //    arg8_old + value (≈3/4 of outputs → 854 errs).
+                                //    A disjoint overwrite must zero-seed ALL
+                                //    shards, not sum onto shard 0's copy.
+                                //  - histo is an i8 saturating scatter-ADD and
+                                //    under-counts (24935) — its in-kernel zeroing
+                                //    loop is partitioned alongside the count loop.
+                                // Both need the combine reworked per scatter kind;
+                                // until then keep the whole nest unpartitioned so
+                                // every rank redundantly computes the correct
+                                // result (correct, no speedup — like cutcp/lbm).
                                 bool ivRepeatLoop = forOp.getInductionVar().use_empty();
 
                                 if (outerDep == 1) // Outer loop has dependence
@@ -676,16 +1198,28 @@ namespace mlir
                                         llvm::errs() << "Loop body is invariant in its IV "
                                                         "(repeat loop); leaving it unpartitioned\n";
                                     }
+                                    else if (hasScaledFlatSlabStore(forOp))
+                                    {
+                                        llvm::errs() << "Loop writes a scaled/offset flat slab "
+                                                        "(gather cannot represent it); leaving it "
+                                                        "unpartitioned\n";
+                                    }
                                     else
                                         toReplicateVector.push_back(forOp);
                                 }
                                 else // outerDep == 2, dependence check inconclusive
                                 {
-                                    // Dependence test inconclusive (e.g. lbm's
-                                    // cross-iteration dependence).  This used to
-                                    // exit(0), leaving an empty kernel object;
-                                    // instead leave the loop unwrapped so it
-                                    // runs unchanged (correct, no speedup).
+                                    // The affine test could not prove independence
+                                    // (e.g. lbm's ping-pong stream/collide carries a
+                                    // cross-iteration dependence it can't resolve).
+                                    // Previously this called exit(0), which killed
+                                    // the process before the module was ever
+                                    // emitted — the kernel object came out empty and
+                                    // every downstream link failed with "undefined
+                                    // reference".  Fall back to the same safe
+                                    // behavior as the unpartitionable cases above:
+                                    // leave the loop unwrapped so it runs unchanged
+                                    // on every rank (correct, no speedup).
                                     llvm::errs() << "Dependence analysis inconclusive; "
                                                     "leaving it unpartitioned\n";
                                 }
@@ -738,14 +1272,23 @@ namespace mlir
                     ++repId;
                 }
 
-                // Select the outermost conservatively independent loops,
-                // including loops nested in serial SCF control flow, without
-                // nesting a replicate under an already-selected loop.  Tasks
-                // under a loop-carried scf.for stay serial: DHIR has no
-                // contract for cloning the carried iteration state across
-                // shards.
+                // Extracted Rodinia kernels predominantly use scf.for.  Select
+                // the outermost conservatively independent loops, including
+                // loops nested in serial SCF control flow.  Do not create a
+                // nested replicate when an already-selected affine/SCF loop
+                // owns the same computation.  A task nested under a
+                // loop-carried scf.for is deliberately left serial: the
+                // carried values define iteration state (including ping-pong
+                // buffers), and DHIR has no contract for cloning or swapping
+                // that state across shards.
                 llvm::SmallVector<mlir::scf::ForOp> scfCandidates;
                 module->walk<mlir::WalkOrder::PreOrder>([&](mlir::scf::ForOp loop) {
+                    // A fissioned scatter-accumulation nest (and anything nested
+                    // in it) must stay serial-replicated -- never partition it,
+                    // or its f32 scatter-add would reassociate across ranks.
+                    for (Operation *p = loop; p; p = p->getParentOp())
+                        if (p->hasAttr("dhir.serialReplicated"))
+                            return;
                     for (Operation *parent = loop->getParentOp(); parent;
                          parent = parent->getParentOp())
                     {

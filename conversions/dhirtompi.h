@@ -31,6 +31,8 @@
 
 #include "mlir/IR/PatternMatch.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/ADT/MapVector.h"
+#include "llvm/ADT/DenseSet.h"
 
 #include "mlir/Conversion/SCFToGPU/SCFToGPUPass.h"
 
@@ -452,6 +454,28 @@ static void emitElementwiseAccumulate(OpBuilder &builder, Location loc,
     };
     emitDim(0);
 }
+
+// One buffer's assembled shards, indexed by node.  Populated by emitLevelSync
+// when a gather-then-broadcast is being fused into a single MPI_Allgatherv:
+// startByNode[i]/sizeByNode[i] are node i's shard's dim-0 offset and row count
+// in the base allocation's coordinates.  A slot is Value() until the task that
+// writes that node's shard fills it; `present[i]` records that it was.
+struct AllgathervEntry
+{
+    llvm::SmallVector<mlir::Value> startByNode;
+    llvm::SmallVector<mlir::Value> sizeByNode;
+    llvm::SmallVector<bool> present;
+    // Node 0 owns the first shard, so its partition-dim start is the loop's
+    // lower bound.  When that folds to a constant 0 the partition begins at the
+    // buffer origin; together with the replicate lowering's contiguous tiling
+    // this is what makes the assembled shards cover the whole leading
+    // dimension.  A non-zero origin (gaussian gathers [pivot+1, N)) means the
+    // untiled prefix would keep each rank's own data under an all-gather while
+    // the old broadcast shipped the root's -- a silent divergence, so such a
+    // buffer is not eligible and falls back to gather + broadcast.
+    bool originZero = false;
+    bool sawNode0 = false;
+};
 
 struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
 {
@@ -1007,6 +1031,12 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
         // pairs, gathering each unconditionally as a post-loop endpoint repayment.
         // `deferredAfterLoop`: enclosing loop operation from which this sync was hoisted,
         // allowing post-loop reader analysis (hasReaderAfterLoop) to prune redundant broadcasts.
+        //
+        // `deferredAfterLoop`, when set, is the SCHEDULE-IR loop this sync was
+        // lifted out of, i.e. the proof that we are emitting at a position the
+        // broadcast decision was never computed for.  It lets the broadcast site
+        // ask the position-specific question (hasReaderAfterLoop) instead of
+        // trusting a fact derived at the producer's in-loop position.
         using EndpointList = llvm::SmallVectorImpl<std::pair<TaskOpInfo *, size_t>>;
         auto emitLevelSync = [&](const std::vector<TaskOpInfo *> &level,
                                  Block *hoistedOutOf,
@@ -1049,6 +1079,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                     return mapped;
                 return rematerialize(mapped);
             };
+
             rewriter.create<mpi::Barrier>(loc, retVal, comm->getResult(0));
 
             // Communication code
@@ -1140,16 +1171,22 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                 (void)recvIf.getElseBodyBuilder(elseBuilder.getListener());
             };
 
-            // Stencil tasks keep inputs in global coordinates and write only
-            // their owned output slab.  Exchange newly written boundary slabs
-            // with adjacent owners before the gather, as two ordered blocking
-            // handshakes per boundary (avoids send/send deadlock).
+            // A stencil task keeps its input buffer in global coordinates and
+            // writes only its owned output slab. Exchange the newly written
+            // boundary slabs with adjacent owners before the gather so the next
+            // stencil step can read its +/- halo directly from the local base
+            // buffer. Blocking transfers are emitted as two ordered handshakes
+            // per boundary, avoiding a send/send deadlock.
             bool emittedHaloExchange = false;
             for (TaskOpInfo *rightInfo : level)
             {
-                // Skip output halo exchange when hoisted outside a loop:
-                // resident-stencil loops already perform per-iteration input
-                // halo exchanges inline, making a post-loop output halo redundant.
+                // The stencil boundary (output) exchange belongs to the inline,
+                // per-level sync only.  When this sync has been hoisted to run
+                // *after* a serial loop (resident-stencil loop), the correct
+                // per-iteration exchange -- of the stencil INPUT ghosts, which is
+                // what the next step actually reads -- was already emitted inside
+                // the loop by emitStencilInputHalo.  Repeating an output exchange
+                // here would be dead work on a value nothing reads after the loop.
                 if (hoistedOutOf)
                     break;
                 auto rightTask = dyn_cast<dhir::TaskOp>(rightInfo->op);
@@ -1245,6 +1282,156 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
             if (emittedHaloExchange)
                 rewriter.create<mpi::Barrier>(loc, retVal, comm->getResult(0));
 
+            // -------- Allgatherv eligibility pre-pass (read-only) -----------
+            // A buffer gathered from every node and then broadcast back to
+            // every node is exactly MPI_Allgatherv, and fusing the two legs
+            // removes the root as a serial bottleneck on both -- the primary
+            // Order 9 win for cfd, whose `variables` buffer is assembled once
+            // per Runge-Kutta stage (6000x).
+            //
+            // This pass only DECIDES; it emits nothing, so a buffer it rejects
+            // keeps the exact gather+broadcast IR it had before.  The gates are
+            // deliberately strict, because a wrong decision here is a silent
+            // wrong answer or a deadlock, not a crash:
+            //   * per-iteration in-loop sync only (deferFrames non-empty) and
+            //     never an after-loop / endpoint gather -- those deliberately
+            //     assemble on the root without broadcasting (jacobi2d, D1), and
+            //     an allgatherv would re-ship the array the hasReaderAfterLoop
+            //     fix removed;
+            //   * dim-0 partition of an identity-layout buffer of rank 1..3, so
+            //     each shard is a contiguous slab and rank-order concatenation
+            //     reproduces the whole array;
+            //   * genuinely broadcast to all (needsAllRanksBroadcast or the
+            //     needBroadcast attribute), never RetainOwnedShard;
+            //   * EVERY node contributes exactly one shard.  A missing node
+            //     would leave an unwritten gap in the assembled buffer, so a
+            //     partial cover disqualifies the buffer and it falls back to
+            //     the guarded gather + broadcast.
+            // Any disqualifying write to a base disqualifies the whole base.
+            llvm::MapVector<Value, AllgathervEntry> allgathervPlan;
+            const bool allgathervContext =
+                !endpointOnly && !deferredAfterLoop && !deferFrames.empty();
+            if (allgathervContext)
+            {
+                llvm::DenseSet<Value> disqualified;
+                llvm::MapVector<Value, AllgathervEntry> cand;
+                auto baseOf = [&](Value buf, int64_t partDim, bool &badView) {
+                    Value base = buf;
+                    while (Operation *def = base.getDefiningOp())
+                    {
+                        auto sv = dyn_cast<memref::SubViewOp>(def);
+                        if (!sv)
+                            break;
+                        for (OpFoldResult s : sv.getMixedStrides())
+                            if (getConstantIntValue(s) != std::optional<int64_t>(1))
+                                badView = true;
+                        for (auto [dim, off] :
+                             llvm::enumerate(sv.getMixedOffsets()))
+                            if ((int64_t)dim != partDim &&
+                                getConstantIntValue(off) !=
+                                    std::optional<int64_t>(0))
+                                badView = true;
+                        base = sv.getSource();
+                    }
+                    return base;
+                };
+                for (auto task : level)
+                {
+                    auto taskOp = dyn_cast<mlir::dhir::TaskOp>(task->op);
+                    if (!taskOp)
+                        continue;
+                    auto nodeOpt = getTaskNodeIndex(taskOp);
+                    if (!nodeOpt || *nodeOpt < 0 || *nodeOpt >= numNodes)
+                        continue;
+                    int nodeIdx = *nodeOpt;
+                    llvm::SmallVector<int64_t, 4> partDims(task->writes.size(), 0);
+                    if (auto d = taskOp->getAttrOfType<mlir::DenseI64ArrayAttr>(
+                            "outputPartitionDims"))
+                        if (d.size() == task->writes.size())
+                            partDims.assign(d.asArrayRef().begin(),
+                                            d.asArrayRef().end());
+                    llvm::SmallVector<int64_t, 4> preduce;
+                    if (auto r = taskOp->getAttrOfType<mlir::DenseI64ArrayAttr>(
+                            "partialReduce"))
+                        preduce.assign(r.asArrayRef().begin(),
+                                       r.asArrayRef().end());
+                    for (auto [wi, writeOp] : llvm::enumerate(task->writes))
+                    {
+                        if (endpointOnly &&
+                            !llvm::is_contained(
+                                *endpointOnly,
+                                std::make_pair(task, (size_t)wi)))
+                            continue;
+                        Value buf = mapping.lookupOrNull(writeOp);
+                        if (!buf)
+                            continue;
+                        bool badView = false;
+                        Value base = baseOf(buf, partDims[wi], badView);
+                        auto disq = [&] { disqualified.insert(base); };
+                        auto bt = dyn_cast<MemRefType>(base.getType());
+                        if (llvm::is_contained(preduce, (int64_t)wi) ||
+                            partDims[wi] != 0 || badView || !bt ||
+                            !bt.getLayout().isIdentity() || bt.getRank() < 1 ||
+                            bt.getRank() > 3)
+                        {
+                            disq();
+                            continue;
+                        }
+                        auto own = mlir::dhir::decideOutputOwnership(
+                            dependencyGraph, *task, wi, 0);
+                        BoolAttr nb = mlir::dyn_cast_or_null<BoolAttr>(
+                            taskOp->getAttr("needBroadcast"));
+                        bool wantBcast = (nb && nb.getValue()) ||
+                                         own.needsAllRanksBroadcast;
+                        if (own.kind ==
+                                mlir::dhir::OwnershipKind::RetainOwnedShard ||
+                            !wantBcast)
+                        {
+                            disq();
+                            continue;
+                        }
+                        AllgathervEntry &e = cand[base];
+                        if (e.present.empty())
+                        {
+                            e.startByNode.assign(numNodes, Value());
+                            e.sizeByNode.assign(numNodes, Value());
+                            e.present.assign(numNodes, false);
+                        }
+                        if (e.present[nodeIdx]) // two shards, same node: ambiguous
+                            disq();
+                        e.present[nodeIdx] = true;
+                        // Node 0 owns the first shard: its start is the loop
+                        // lower bound.  Record whether that is a constant 0 --
+                        // the origin-coverage test.
+                        if (nodeIdx == 0)
+                        {
+                            e.sawNode0 = true;
+                            auto ro = taskOp.getRangeOperands();
+                            if (ro.size() == 2)
+                                e.originZero = (getConstantIntValue(ro[0]) ==
+                                                std::optional<int64_t>(0));
+                            else
+                            {
+                                ArrayRef<int64_t> sr = taskOp.getOutRanges();
+                                e.originZero = (sr.size() >= 1 && sr[0] == 0);
+                            }
+                        }
+                    }
+                }
+                for (auto &kv : cand)
+                {
+                    if (disqualified.count(kv.first))
+                        continue;
+                    // Full node cover AND the partition begins at the buffer
+                    // origin.  Without originZero the assembled shards would
+                    // not cover the leading prefix, and an all-gather would
+                    // silently disagree with the broadcast it replaces.
+                    if (kv.second.sawNode0 && kv.second.originZero &&
+                        llvm::all_of(kv.second.present, [](bool p) { return p; }))
+                        allgathervPlan.insert(kv);
+                }
+            }
+
             for (auto task : level)
             {
                 auto taskOp = dyn_cast<mlir::dhir::TaskOp>(task->op);
@@ -1284,8 +1471,9 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                 // Get the base buffer from mapping (now subviews are in mapping!)
                 for (auto [writeIndex, writeOp] : llvm::enumerate(task->writes))
                 {
-                    // An endpoint pass synchronizes only designated outputs; other outputs were
-                    // previously synchronized at their standard positions.
+                    // An endpoint pass owes a gather to specific outputs only;
+                    // everything else in the level was already synchronized at
+                    // its own position inside the loop.
                     if (endpointOnly &&
                         !llvm::is_contained(
                             *endpointOnly,
@@ -1363,10 +1551,26 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                         continue;
                     }
 
-                    // Decide whether this output requires communication. Intermediate versions that
-                    // remain local to each rank skip per-iteration gather/broadcast. If the buffer
-                    // is observable outside the schedule, an endpoint gather is registered to run
-                    // once after the enclosing loop. Unproven cases fall back to standard gather/broadcast.
+                    // -------- Per-output ownership decision (alias-aware) -----
+                    // Decide whether this shard even has to move.  Only a
+                    // provably same-owner, loop-carried intermediate is kept in
+                    // place; everything else keeps the existing
+                    // assemble-then-maybe-broadcast path below.
+                    //
+                    // Keeping the shard in place removes the RECURRING
+                    // transfer, not the result: when the buffer is observable
+                    // outside the schedule, the version the last iteration
+                    // leaves behind still has to be assembled, so this records
+                    // one endpoint gather to emit after the enclosing loop.  If
+                    // that cannot be arranged we fall through and gather here,
+                    // exactly as the pre-elision compiler did.
+                    //
+                    // An endpoint pass is that repayment and must not consult
+                    // the decision again -- it would elide the same output a
+                    // second time.
+                    // Kept in scope down to the broadcast site below, which has
+                    // to honour it rather than re-deriving intent from the
+                    // task-wide needBroadcast attribute.
                     mlir::dhir::OutputOwnership ownership;
                     if (!endpointOnly)
                     {
@@ -1392,20 +1596,40 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                                 task->op,
                                 getMemRefAccess(ownedLogical).baseMemRef);
                             if (!observable)
-                                // Private intermediate: local shard suffices, skip communication.
+                                // A private intermediate: every rank already
+                                // holds exactly the slab its same-owner
+                                // consumer reads, and nothing outside can see
+                                // the final version.  Skip gather and
+                                // broadcast, as before.
                                 continue;
                             if (!hoistedOutOf &&
                                 deferEndpointGather(task, writeIndex))
-                                // Elided within the loop and scheduled for single post-loop gather.
+                                // Elided here, assembled once after the loop.
                                 continue;
-                            // Assemble in place if the gather cannot be deferred past the loop.
+                            // Already past the loop, or the gather cannot be
+                            // moved out of it: assemble in place.
                         }
                     }
                     Value sourceBuffer = buffer;
 
-                    // Unwrap subviews to access the base buffer.
-                    // Subviews with non-unit strides or shifted offsets along non-partition axes
-                    // cannot be safely addressed using base buffer coordinates and are rejected.
+                    // Unwrap subviews to get base buffer.
+                    //
+                    // The gather below is then rebuilt from raw loop ranges
+                    // with unit strides and a zero offset on every
+                    // non-partition axis, in the BASE allocation's
+                    // coordinates.  That is only the same memory the task
+                    // wrote when each peeled view was an identity slab.  Peel
+                    // a view with a non-zero offset or a non-unit stride and
+                    // the two disagree: view_gather.mlir computes through
+                    // %subview[2][4][2] -> strided<[2], offset: 2>, so its
+                    // shard writes a[6] and a[8], while the gather built on
+                    // %arg0 addresses a[2] and a[3] -- it misses the results
+                    // AND clobbers root-owned a[2].  (Older soundness finding
+                    // 5, named a prerequisite for orders 2 and 3.)
+                    //
+                    // Conservative fix: notice that a non-identity view was
+                    // peeled and REFUSE to build the raw-base gather, rather
+                    // than emit a transfer at the wrong addresses.
                     bool peeledNonIdentityView = false;
                     while (auto defOp = sourceBuffer.getDefiningOp())
                     {
@@ -1415,7 +1639,10 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                         for (OpFoldResult stride : subviewOp.getMixedStrides())
                             if (getConstantIntValue(stride) != std::optional<int64_t>(1))
                                 peeledNonIdentityView = true;
-                        // Non-zero offsets on non-partition axes shift coordinates and are disallowed.
+                        // A non-zero offset on any axis OTHER than the
+                        // partition axis shifts the gather's address; the
+                        // partition axis is re-derived from the shard range
+                        // below, so an offset there is expected and fine.
                         llvm::SmallVector<OpFoldResult> peeledOffsets =
                             subviewOp.getMixedOffsets();
                         for (auto [dim, offset] : llvm::enumerate(peeledOffsets))
@@ -1491,6 +1718,27 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                         rangeSize = rewriter.getIndexAttr(outRanges[1] - outRanges[0]);
                     }
 
+                    // If this base is being fused into an MPI_Allgatherv,
+                    // record this node's shard offset/size and skip both the
+                    // guarded point-to-point gather AND the later broadcast
+                    // push.  The range values were just computed above exactly
+                    // as the gather would use them, so the collective moves the
+                    // same memory; the collective itself is emitted once, after
+                    // this loop, at un-guarded block depth (all ranks reach it).
+                    {
+                        auto planIt = allgathervPlan.find(sourceBuffer);
+                        if (planIt != allgathervPlan.end())
+                        {
+                            Value startV =
+                                materializeOpFoldResult(rangeStart, rewriter);
+                            Value sizeV =
+                                materializeOpFoldResult(rangeSize, rewriter);
+                            planIt->second.startByNode[targetNodeIdx] = startV;
+                            planIt->second.sizeByNode[targetNodeIdx] = sizeV;
+                            continue;
+                        }
+                    }
+
                     if (sourceRank < 1 || sourceRank > 3)
                     {
                         llvm::errs() << "[Error] Unsupported Memref rank\n";
@@ -1543,16 +1791,47 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                     }
 
                     // Broadcast.
-                    // Broadcast logic: respect both the task-level needBroadcast attribute and
-                    // the ownership analysis requirement (needsAllRanksBroadcast).
+                    //
+                    // needBroadcast is a TASK-WIDE attribute set by
+                    // broadcastAnalysis.  The ownership decision above is
+                    // per-output and alias-aware, and it was being computed and
+                    // then thrown away here: OutputOwnership::needsRootGather
+                    // and ::needsAllRanksBroadcast had no readers at all
+                    // repo-wide, so a MaterializeOnAllRanks decision reached
+                    // through an alias (a memref.cast, a subview) was silently
+                    // overridden by needBroadcast = false, the gather ran, and
+                    // no broadcast followed -- a consumer on another node then
+                    // read stale data.  This is also the still-open older
+                    // soundness finding 4, named a prerequisite for orders 2
+                    // and 3.  Honour whichever of the two asks for the
+                    // broadcast.
                     BoolAttr needBroadcast = mlir::dyn_cast<mlir::BoolAttr>(taskOp->getAttr("needBroadcast"));
                     bool wantBroadcast =
                         (needBroadcast && needBroadcast.getValue()) ||
                         ownership.needsAllRanksBroadcast;
 
-                    // For synchronizations deferred past a loop, evaluate whether any reader
-                    // actually accesses the buffer after the loop. If no subsequent references exist,
-                    // suppress the broadcast to avoid unnecessary inter-rank communication.
+                    // ...but both of those were decided at the PRODUCER's
+                    // position, inside the loop.  When this sync has been
+                    // deferred, it is being emitted after the loop instead, and
+                    // the reader that justified the broadcast is in most cases
+                    // the next iteration -- which does not exist any more.
+                    //
+                    // jacobi2d is the whole of the argument: its two terminal
+                    // materializations gather a 649x1300 shard each and then
+                    // broadcast the FULL memref<?x1300xf32> to every rank, ~13.5
+                    // MB of the kernel's remaining payload, at a point where the
+                    // schedule holds nothing after the loop but its terminator.
+                    // The gather is the externally observable result and stays;
+                    // the broadcast ships it to ranks that provably never look
+                    // at it again.
+                    //
+                    // Only a buffer with NO reachable reference after the loop
+                    // qualifies, so the surviving consumer is the caller -- and
+                    // assembling an observable terminal output on the root is
+                    // already this compiler's contract, the same one the
+                    // endpoint gathers below (`!endpointOnly`) have been keeping
+                    // since the elision was repaid.  Anything else, including
+                    // anything unprovable, keeps the broadcast.
                     if (wantBroadcast && deferredAfterLoop)
                     {
                         Value terminalBase =
@@ -1571,10 +1850,17 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                                        " survives it)\n";
                         }
                     }
-                    // Endpoint gathers assemble final output values on the root rank; broadcast is omitted
-                    // unless external tasks specifically require full replicated data.
+                    // An endpoint gather repays an elision that was justified
+                    // by "no task and no undistributed reader needs this
+                    // buffer anywhere else".  Assembling it on the root is
+                    // therefore enough; a broadcast would ship a whole array
+                    // to ranks that provably never read it.
                     if (!endpointOnly && wantBroadcast)
-                        // Broadcast assembled base buffer across all ranks.
+                        // The gather above has assembled this task's shard in
+                        // sourceBuffer on the root.  Broadcast the assembled
+                        // base allocation, never a shard view: shard views
+                        // lose the partition axis and cannot be concatenated
+                        // correctly for column or higher-rank partitions.
                         toBroadcast.push_back(sourceBuffer);
                 }
             }
@@ -1584,9 +1870,41 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
 
             generateBroadcastCommunication(
                 rewriter, loc, toBroadcast, rank.getResult(0), broadcastRootRank,
-                comm->getResult(0), retVal, tag.getResult(), getNodes->getResult(1));
+                comm->getResult(0), retVal, tag.getResult(), getNodes->getResult(1),
+                // deferFrames holds one entry per rebuilt loop we are currently
+                // inside, so a non-empty stack means this fan-out runs once per
+                // iteration -- the case where collapsing it into a collective
+                // is worth the conversion.  An after-loop sync has already had
+                // its own frame popped, so what is left describes the loops
+                // that still enclose this site, which is exactly right.
+                /*perIteration=*/!deferFrames.empty());
 
             toBroadcast.clear();
+
+            // Emit the fused all-gathers.  Each assembles one base buffer in
+            // place from the per-node shard ranges collected above.  This is
+            // emitted at the level-sync block's own depth -- the same depth as
+            // the mpi.barrier at the top of this function -- so every rank of
+            // the communicator reaches every allgatherv, with identical
+            // counts/displacements.  No rank guard wraps it, which is the
+            // deadlock-avoidance contract for a collective.
+            for (auto &kv : allgathervPlan)
+            {
+                AllgathervEntry &e = kv.second;
+                // Defensive: only emit when every node's shard range was
+                // actually filled by the loop above.  The pre-pass already
+                // required a full node cover, so this should always hold; if a
+                // slot is missing, skip rather than emit a collective with an
+                // uninitialised count.
+                if (!llvm::all_of(e.startByNode,
+                                  [](Value v) { return (bool)v; }) ||
+                    !llvm::all_of(e.sizeByNode,
+                                  [](Value v) { return (bool)v; }))
+                    continue;
+                generateAllgathervCommunication(
+                    rewriter, loc, kv.first, e.startByNode, e.sizeByNode,
+                    nodeToRankMap, comm->getResult(0));
+            }
 
             return success();
         };
@@ -1781,10 +2099,21 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                     (void)sendIf.getElseBodyBuilder(eb.getListener());
                 }
                 llvm::SmallVector<Value> whole{baseBuffer};
+                // DECLINED conversion.  This fan-out is per-iteration, but it
+                // is emitted into the else-branch of `scf.if(haloOk)` -- a
+                // RUNTIME test that the neighbours own enough cells, not a rank
+                // comparison.  A collective is only safe inside such a branch
+                // if every rank evaluates the predicate identically, and that
+                // is not proven here: haloOk is built from clamped per-shard
+                // widths, and a rank that took the other branch would never
+                // reach the collective, so the job would hang at 0% CPU with no
+                // error and no output.  A declined conversion costs a little
+                // performance on a degenerate-partition fallback; a deadlock
+                // costs the whole run.  So this site keeps point-to-point.
                 generateBroadcastCommunication(
                     rewriter, loc, whole, rank.getResult(0), rootRank,
                     comm->getResult(0), retVal, tag.getResult(),
-                    getNodes->getResult(1));
+                    getNodes->getResult(1), /*perIteration=*/false);
             };
 
             for (const HaloPair &pair : pairs)
@@ -2045,6 +2374,12 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                         // Emit deferred level synchronizations after loop completion.
                         // frame.originalLoop allows evaluating post-loop buffer references
                         // to prune unnecessary broadcasts.
+                        //
+                        // frame.originalLoop is handed down so the broadcast
+                        // site can tell that it is emitting PAST a loop and ask
+                        // whether the buffer still has a reader there, rather
+                        // than reusing a decision taken at the producer's
+                        // in-loop position.
                         for (size_t levelIdx : frame.levels)
                             if (failed(emitLevelSync(
                                     dependencyGraph.levelVector[levelIdx],
@@ -2299,6 +2634,11 @@ namespace mlir
                 target.addLegalDialect<mlir::gpu::GPUDialect>();
 
                 target.addIllegalOp<dhir::ScheduleOp>();
+                // The collectives this pass emits are consumed later, by
+                // MPIToLLVM.cc.  An op with no legality action registered
+                // counts as illegal, so without this the first emitted
+                // dhir.bcast reports as "failed to legalize dhir.schedule".
+                target.addLegalOp<dhir::BcastOp, dhir::AllgathervOp>();
 
                 targetReplicateOp.addLegalDialect<mlir::arith::ArithDialect>();
                 targetReplicateOp.addLegalDialect<mlir::scf::SCFDialect>();

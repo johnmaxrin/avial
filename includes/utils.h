@@ -34,8 +34,26 @@ void generateBroadcastCommunication(
     mlir::Location loc,
     llvm::SmallVectorImpl<mlir::Value> &toBroadcast,
     mlir::Value rank,
-    mlir::Value zero,
+    mlir::Value rootRank,
     mlir::Value comm,
     mlir::Type retVal,
     mlir::Value tag,
-    mlir::Value numRanks);
+    mlir::Value numRanks,
+    // Set when this site runs once per iteration of an enclosing rebuilt loop,
+    // which is the gate on lowering the fan-out to a collective.  Deliberately
+    // has no default: every call site must decide consciously, because getting
+    // it wrong on a site that is not uniformly reached is a silent hang.
+    bool perIteration);
+
+// Emit one MPI_Allgatherv assembling a dim-0 partitioned buffer in place.
+// startByNode/sizeByNode are per-node shard dim-0 offset and row count;
+// nodeToRankMap maps node index -> MPI rank.  See the definition for the
+// element scaling and the all-ranks-reachability contract.
+void generateAllgathervCommunication(
+    mlir::OpBuilder &rewriter,
+    mlir::Location loc,
+    mlir::Value baseBuffer,
+    llvm::ArrayRef<mlir::Value> startByNode,
+    llvm::ArrayRef<mlir::Value> sizeByNode,
+    mlir::Value nodeToRankMap,
+    mlir::Value comm);

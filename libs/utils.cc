@@ -301,7 +301,27 @@ SystemTopology parseSystemConfig(llvm::StringRef configFile)
 }
 
 /// Generates broadcast communication for collected buffers
-/// Rank 0 sends to all other ranks, remaining ranks receive from rank 0
+///
+/// When `perIteration` is set the caller is emitting inside a rebuilt loop, so
+/// this fan-out runs once per iteration and becomes one `dhir.bcast`
+/// (MPI_Bcast) per buffer.  Otherwise the original fan-out of point-to-point
+/// sends is kept, root looping over every peer.
+///
+/// `perIteration` is the gate on converting a fan-out to a collective, and it
+/// is supplied by the caller rather than probed from the insertion point: while
+/// a loop body is being built through an scf body-builder callback the loop op
+/// is not yet attached to its parent block, so walking up from the insertion
+/// block cannot see the enclosing loops and silently reports "not in a loop".
+/// The caller reads the compiler's own loop-nesting stack instead.
+///
+/// The gate exists because a collective's benefit is per execution.  cfd
+/// materializes its `variables` buffer once per Runge-Kutta stage, 2000 x 3 =
+/// 6000 times, so a tree there replaces 6000 serial fan-outs; a fan-out
+/// executed once saves one log-P factor on a single transfer, which is
+/// unmeasurable, while carrying exactly the same deadlock and count-arithmetic
+/// risk.  Restricting the rewrite to per-iteration sites puts it where the
+/// payload multiplies and leaves every once-executed transfer on the proven
+/// point-to-point path.
 ///
 /// @param rewriter The pattern rewriter for creating operations
 /// @param loc Location for the generated operations
@@ -312,6 +332,7 @@ SystemTopology parseSystemConfig(llvm::StringRef configFile)
 /// @param retVal Return type for MPI operations
 /// @param tag Tag for MPI operations
 /// @param numRanks Total number of ranks/nodes (Value or constant)
+/// @param perIteration This site runs once per iteration of an enclosing loop
 void generateBroadcastCommunication(
     OpBuilder &rewriter,
     Location loc,
@@ -321,20 +342,17 @@ void generateBroadcastCommunication(
     Value comm,
     mlir::Type retVal,
     Value tag,
-    Value numRanks) // Added parameter
+    Value numRanks, // Added parameter
+    bool perIteration)
 {
     if (toBroadcast.empty())
-    {
-        llvm::errs() << "No buffers to broadcast\n";
         return;
-    }
 
-    llvm::errs() << "\n=== Generating Broadcast Communication ===\n";
-
-    // The gather leaves the complete result in the root's base memref, so the
-    // broadcast must operate on the base memref itself; reconstructing a
-    // larger subview from shard views is wrong for column partitions (and
-    // rank > 2).
+    // A gather leaves the complete result in the root's base memref.  Every
+    // other rank still owns only its local shard in that same base memref, so
+    // the broadcast must operate on the base memref itself.  Reconstructing a
+    // larger subview from shard views is both unnecessary and wrong for column
+    // partitions (and for rank > 2): concatenation has no general layout.
     SmallVector<Value> buffers;
     auto unwrapBase = [](Value value) {
         while (Operation *def = value.getDefiningOp()) {
@@ -353,8 +371,21 @@ void generateBroadcastCommunication(
             buffers.push_back(base);
     }
 
-    if (buffers.empty()) {
-        llvm::errs() << "No memref buffers to broadcast\n";
+    if (buffers.empty())
+        return;
+
+    // A collective must be executed by every rank of the communicator, in
+    // matching order, with matching counts and datatypes.  The rank guard is
+    // built HERE, by this function, and not around its call sites, so emitting
+    // an unguarded `dhir.bcast` in the guard's place leaves the collective at
+    // exactly the block depth the guard occupied -- the same depth at which
+    // this tree already emits unconditional mpi.barriers.  Every rank that
+    // reached the old `scf.if` reached both of its branches' entry, so every
+    // rank reaches the collective.  A collective left inside the guard would
+    // instead hang every rank that skipped it, with no error and no output.
+    if (perIteration) {
+        for (Value buffer : buffers)
+            rewriter.create<mlir::dhir::BcastOp>(loc, buffer, rootRank, comm);
         return;
     }
 
@@ -394,7 +425,91 @@ void generateBroadcastCommunication(
         elseBuilder.create<mpi::RecvOp>(loc, retVal, buffer, tag,
                                         rootRank, comm);
     }
+}
 
-    llvm::errs() << "Broadcasted " << buffers.size()
-                 << " assembled base buffer(s)\n";
+/// Emit one MPI_Allgatherv (via dhir.allgatherv) that assembles a dim-0
+/// partitioned buffer in place, replacing a gather-to-root followed by a
+/// broadcast-to-all of the same base allocation.
+///
+/// startByNode[i]/sizeByNode[i] are node i's shard's dim-0 offset and row
+/// count -- the exact values the gather path uses to build node i's shard
+/// subview, so the collective moves precisely the memory the gather+broadcast
+/// pair moved.  They are indexed by NODE; this function maps node -> MPI rank
+/// through nodeToRankMap so the counts/displacements land at each peer's rank
+/// slot, matching the partitioner's own placement.
+///
+/// counts[rank] and displs[rank] are in ELEMENTS (rows * the product of the
+/// non-partition extents), which is what MPI_Allgatherv expects against an
+/// element recvtype.  An off-by-one here is a silent wrong answer, so the
+/// element scaling and the node->rank mapping are the only arithmetic and both
+/// mirror the emitter that produced the shards.
+///
+/// REACHABILITY: this emits no rank guard.  The caller places it where an
+/// unconditional mpi.barrier is already legal, so every rank of the
+/// communicator reaches it with identical counts/displacements (both are
+/// derived from loop-invariant totals and the shared rank/node map).
+void generateAllgathervCommunication(
+    OpBuilder &rewriter,
+    Location loc,
+    Value baseBuffer,
+    llvm::ArrayRef<Value> startByNode,
+    llvm::ArrayRef<Value> sizeByNode,
+    Value nodeToRankMap,
+    Value comm)
+{
+    auto memTy = dyn_cast<MemRefType>(baseBuffer.getType());
+    if (!memTy || startByNode.size() != sizeByNode.size())
+        return;
+    const int64_t numNodes = static_cast<int64_t>(startByNode.size());
+    if (numNodes == 0)
+        return;
+
+    Type indexTy = rewriter.getIndexType();
+    Type i32 = rewriter.getI32Type();
+
+    // rowElems = product of every extent except the dim-0 partition axis.  A
+    // dim-0 slab of a row-major buffer is contiguous, so this scalar turns a
+    // row offset/count into an element offset/count.  Built at runtime so a
+    // dynamic non-partition extent is handled too.
+    Value rowElems = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    for (int64_t d = 1; d < memTy.getRank(); ++d)
+    {
+        Value extent = memTy.isDynamicDim(d)
+            ? rewriter.create<memref::DimOp>(loc, baseBuffer, d).getResult()
+            : rewriter.create<arith::ConstantIndexOp>(loc, memTy.getDimSize(d))
+                  .getResult();
+        rowElems = rewriter.create<arith::MulIOp>(loc, rowElems, extent);
+    }
+
+    auto tableTy = MemRefType::get({numNodes}, i32);
+    Value counts = rewriter.create<memref::AllocOp>(loc, tableTy);
+    Value displs = rewriter.create<memref::AllocOp>(loc, tableTy);
+
+    for (int64_t i = 0; i < numNodes; ++i)
+    {
+        Value nodeIdx = rewriter.create<arith::ConstantIndexOp>(loc, i);
+        Value rankI32 = rewriter.create<memref::LoadOp>(
+            loc, nodeToRankMap, ValueRange{nodeIdx});
+        Value rankIdx = rewriter.create<arith::IndexCastOp>(loc, indexTy, rankI32);
+
+        Value countRows = sizeByNode[i];
+        Value startRows = startByNode[i];
+        Value countElems = rewriter.create<arith::MulIOp>(loc, countRows, rowElems);
+        Value displElems = rewriter.create<arith::MulIOp>(loc, startRows, rowElems);
+        // MPI counts/displs are int (i32).  This narrowing mirrors the existing
+        // dynamic-count path in getRawPtrAndSize, which also truncates to i32
+        // without a guard; a shard whose element extent exceeds 2^31 is already
+        // unsupported there.
+        Value countI32 = rewriter.create<arith::IndexCastOp>(loc, i32, countElems);
+        Value displI32 = rewriter.create<arith::IndexCastOp>(loc, i32, displElems);
+        rewriter.create<memref::StoreOp>(loc, countI32, counts, ValueRange{rankIdx});
+        rewriter.create<memref::StoreOp>(loc, displI32, displs, ValueRange{rankIdx});
+    }
+
+    rewriter.create<mlir::dhir::AllgathervOp>(loc, baseBuffer, counts, displs, comm);
+
+    // The collective is blocking, so the scratch tables are dead once it
+    // returns; free them so a per-iteration site does not leak.
+    rewriter.create<memref::DeallocOp>(loc, counts);
+    rewriter.create<memref::DeallocOp>(loc, displs);
 }

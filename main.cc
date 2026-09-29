@@ -37,6 +37,7 @@ extern "C" char __libc_single_threaded = 0;
 
 #include "conversions/dhirtompi.h"
 #include "conversions/lowerReplicateOp.h"
+#include "conversions/upliftWhileToFor.h"
 #include "analysis/costModel.h"
 #include "conversions/lowerConvergeOp.h"
 #include "conversions/affinetodhir.h"
@@ -102,6 +103,20 @@ static llvm::cl::opt<bool> lowerConverge(
 static llvm::cl::opt<bool> affineTodhir(
     "affine-to-dhir",
     llvm::cl::desc("Enable Affine to DHIR conversion"),
+    llvm::cl::init(false));
+
+static llvm::cl::opt<bool> upliftWhileToFor(
+    "uplift-while-to-for",
+    llvm::cl::desc("Rewrite counted scf.while timestep loops to scf.for before "
+                   "--affine-to-dhir, so the distribution machinery (which "
+                   "dispatches on scf.for) can reach them; off by default"),
+    llvm::cl::init(false));
+
+static llvm::cl::opt<bool> printUplift(
+    "print-uplift",
+    llvm::cl::desc("Print the accept/refuse decision and reason for every "
+                   "scf.while the uplift pass inspects (verification aid; off "
+                   "by default)"),
     llvm::cl::init(false));
 
 static llvm::cl::opt<bool> printOwnership(
@@ -172,7 +187,9 @@ int main(int argc, char *argv[])
 
     // Enable verbose logging of per-output ownership decisions when requested.
     mlir::dhir::printOwnershipDecisions() = printOwnership;
-    // Initialize partition-selection policy flags (disabled by default to preserve baseline behavior).
+    mlir::dhir::printUpliftDecisions() = printUplift;
+    // Partition-selection policy: an explicit experiment, so the default build
+    // keeps today's behaviour exactly.
     mlir::dhir::profitabilityFallbackEnabled() = profitabilityFallback;
     mlir::dhir::printDistributionDecisions() = printDistribution;
 
@@ -214,6 +231,15 @@ int main(int argc, char *argv[])
     PassManager pm(&context);
     // context.disableMultithreading();
     // pm.enableIRPrinting();
+
+    // The uplift runs FIRST, before any DHIR conversion.  dhir-to-mpi
+    // dispatches on scf::ForOp and only pushes a deferred-sync frame there, so
+    // a timestep loop framed as scf.while can never reach the residency
+    // machinery; it has to already be an scf.for on arrival.  Kept off by
+    // default: it changes which loops the distribution machinery can see, and
+    // that is a decision for whoever runs the pipeline, not a silent default.
+    if (upliftWhileToFor)
+        pm.addPass(mlir::dhir::createUpliftWhileToForPass());
 
     if (ompCostModelReport)
     {
