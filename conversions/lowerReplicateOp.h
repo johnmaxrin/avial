@@ -29,7 +29,352 @@
 #include <optional>
 #include <set>
 
+namespace mlir
+{
+    namespace dhir
+    {
+        // Master switch for thread-level histogram privatization
+        // (dhir-opt --local-histogram). Disabled by default to preserve baseline
+        // behavior and numerical determinism: this optimization transforms
+        // data-dependent scatter-add reductions, requiring explicit opt-in and
+        // validation across process and thread configurations.
+        inline bool &localHistogramEnabled()
+        {
+            static bool enabled = false;
+            return enabled;
+        }
+
+        // Number of privatized tiles into which a partialReduce scatter loop is partitioned.
+        // Set sufficiently high relative to typical core counts so that OpenMP
+        // work-sharing (scf.parallel -> omp.wsloop) maintains high thread utilization.
+        // Tile t executes the cyclic iteration class i == t (mod T), providing a disjoint,
+        // exhaustive, and load-balanced partition even across triangular iteration spaces.
+        // The auxiliary privatized buffer size is [T][bins] i64 and the serial reduction
+        // phase incurs O(T * bins) overhead, which is negligible relative to the overall
+        // accumulation work.
+        inline int64_t localHistogramTileFactor() { return 256; }
+    }
+}
+
 using namespace mlir;
+
+// ============================================================================
+// Thread-level histogram privatization (dhir-opt --local-histogram)
+//
+// PartialReduce operations targeting histograms involve data-dependent scatter
+// updates (hist[bin]++). Shard loops remain serial by default to prevent data
+// races on shared histogram bins across concurrent threads. When --local-histogram
+// is enabled, each eligible scatter loop is partitioned into T privatized tiles:
+// tile t executes the cyclic iteration partition { i : i == t (mod T) } and
+// accumulates into row t of an allocated [T][bins] private buffer, ensuring
+// disjoint access across tiles.
+//
+// The tiled computation is emitted as an scf.parallel over the T tiles (lowered
+// via standard pipeline passes to omp.parallel / omp.wsloop), followed by a
+// serial reduction summing the T rows back into the shard histogram, which then
+// feeds the unchanged MPI partialReduce reduction.
+//
+// Correctness guarantees:
+//   * Partition Disjointness: Cyclic partitioning of unit-step loops forms an
+//     exact and disjoint partition of the iteration domain; each iteration is
+//     executed exactly once.
+//   * Commutativity and Associativity: Updates are restricted to integer addition,
+//     ensuring the reduction across tiles is order-independent and bit-exact
+//     regardless of thread scheduling (floating-point scatter reductions are rejected).
+//   * Intra-iteration Evaluation Integrity: Computation within each iteration
+//     (e.g., dot product and bin search) remains contiguous and unmodified within
+//     its tile, preserving original evaluation order.
+// ============================================================================
+
+// Identifies loops whose memory side effects consist strictly of integer additive
+// read-modify-write updates targeting exactly one buffer in `histBufs` (a scatter-add
+// reduction). On success, sets `outHist` to that buffer.
+static bool matchIntegerScatterLoop(
+    mlir::scf::ForOp loop,
+    const llvm::SmallPtrSetImpl<mlir::Value> &histBufs,
+    mlir::Value &outHist)
+{
+    // Disallow loop-carried scalars: cross-iteration dependencies must be restricted
+    // strictly to the histogram reduction itself.
+    if (!loop.getInitArgs().empty())
+        return false;
+    // Require unit step: cyclic partitioning maps iteration i to tile (i - lb) mod T,
+    // requiring unit step for exact and disjoint iteration coverage.
+    auto stepC = loop.getStep().getDefiningOp<mlir::arith::ConstantIndexOp>();
+    if (!stepC || stepC.value() != 1)
+        return false;
+
+    auto definedInsideLoop = [&](mlir::Value v) -> bool {
+        if (mlir::Operation *d = v.getDefiningOp())
+            return loop->isAncestor(d);
+        // Block argument: defined internally if its owning region is nested within the loop.
+        mlir::Block *b = mlir::cast<mlir::BlockArgument>(v).getOwner();
+        return loop->isAncestor(b->getParentOp());
+    };
+
+    llvm::SmallPtrSet<mlir::Value, 2> written;
+    bool ok = true;
+
+    loop.getBody()->walk([&](mlir::Operation *nop) {
+        if (!ok)
+            return;
+        // Disallow function calls that could maintain state across iterations.
+        if (mlir::isa<mlir::CallOpInterface>(nop))
+        {
+            ok = false;
+            return;
+        }
+        // Disallow affine stores to histogram buffers; index redirection operates on memref stores.
+        if (mlir::isa<mlir::affine::AffineStoreOp>(nop))
+        {
+            auto st = mlir::cast<mlir::affine::AffineStoreOp>(nop);
+            if (histBufs.contains(st.getMemRef()))
+                ok = false;
+            return;
+        }
+        auto store = mlir::dyn_cast<mlir::memref::StoreOp>(nop);
+        if (!store)
+            return; // Read-only operations, arithmetic, and control flow without stores are valid.
+
+        mlir::Value mem = store.getMemRef();
+        // All memory stores in the loop must target a designated privatizable histogram buffer.
+        if (!histBufs.contains(mem))
+        {
+            ok = false;
+            return;
+        }
+        auto memTy = mlir::cast<mlir::MemRefType>(mem.getType());
+        if (!mlir::isa<mlir::IntegerType>(memTy.getElementType()))
+        {
+            ok = false; // Integer elements only; floating-point reassociation is disallowed.
+            return;
+        }
+        // The stored value must match: arith.addi(memref.load(same_cell), invariant_addend).
+        auto add = store.getValueToStore().getDefiningOp<mlir::arith::AddIOp>();
+        if (!add)
+        {
+            ok = false;
+            return;
+        }
+        auto isRmwLoad = [&](mlir::Value v) -> bool {
+            auto ld = v.getDefiningOp<mlir::memref::LoadOp>();
+            if (!ld || ld.getMemRef() != mem)
+                return false;
+            if (ld.getIndices().size() != store.getIndices().size())
+                return false;
+            for (auto [a, b] : llvm::zip(ld.getIndices(), store.getIndices()))
+                if (a != b)
+                    return false;
+            return true;
+        };
+        bool lhsRmw = isRmwLoad(add.getLhs());
+        bool rhsRmw = isRmwLoad(add.getRhs());
+        mlir::Value addend;
+        if (lhsRmw && !rhsRmw)
+            addend = add.getRhs();
+        else if (rhsRmw && !lhsRmw)
+            addend = add.getLhs();
+        else
+        {
+            ok = false; // Pattern does not match a clean read-modify-write of the target memory cell.
+            return;
+        }
+        // The addend must be loop-invariant to ensure a reduction rather than a scan dependency.
+        if (definedInsideLoop(addend))
+        {
+            ok = false;
+            return;
+        }
+        written.insert(mem);
+    });
+
+    if (!ok || written.size() != 1)
+        return false;
+    outHist = *written.begin();
+    return true;
+}
+
+// Redirects all memref load and store operations referencing `hist` within `body` to row
+// `tile` of the privatized buffer `histPriv`, prepending `tile` to the index coordinates.
+static void redirectHistToPrivateRow(
+    mlir::PatternRewriter &rewriter, mlir::Block *body,
+    mlir::Value hist, mlir::Value histPriv, mlir::Value tile)
+{
+    llvm::SmallVector<mlir::memref::LoadOp> loads;
+    llvm::SmallVector<mlir::memref::StoreOp> stores;
+    body->walk([&](mlir::Operation *nop) {
+        if (auto ld = mlir::dyn_cast<mlir::memref::LoadOp>(nop))
+        {
+            if (ld.getMemRef() == hist)
+                loads.push_back(ld);
+        }
+        else if (auto st = mlir::dyn_cast<mlir::memref::StoreOp>(nop))
+        {
+            if (st.getMemRef() == hist)
+                stores.push_back(st);
+        }
+    });
+    for (auto ld : loads)
+    {
+        rewriter.setInsertionPoint(ld);
+        llvm::SmallVector<mlir::Value> idx;
+        idx.push_back(tile);
+        idx.append(ld.getIndices().begin(), ld.getIndices().end());
+        auto nl = rewriter.create<mlir::memref::LoadOp>(ld.getLoc(), histPriv, idx);
+        rewriter.replaceOp(ld, nl.getResult());
+    }
+    for (auto st : stores)
+    {
+        rewriter.setInsertionPoint(st);
+        llvm::SmallVector<mlir::Value> idx;
+        idx.push_back(tile);
+        idx.append(st.getIndices().begin(), st.getIndices().end());
+        rewriter.create<mlir::memref::StoreOp>(st.getLoc(), st.getValueToStore(),
+                                               histPriv, idx);
+        rewriter.eraseOp(st);
+    }
+}
+
+// Replaces scatter `loop` (which additively updates `hist`) with:
+//   1. Allocation and zero-initialization of an auxiliary [T][hist dims...] private buffer;
+//   2. An scf.parallel loop over T tiles, where tile t executes cyclic iterations
+//      i in {lb + t, lb + t + T, ...} and accumulates into private slice t;
+//   3. A serial reduction accumulating the T rows back into `hist`;
+//   4. Deallocation of the private buffer.
+static void tileHistogramScatterLoop(
+    mlir::PatternRewriter &rewriter, mlir::scf::ForOp loop, mlir::Value hist)
+{
+    mlir::Location loc = loop.getLoc();
+    auto histTy = mlir::cast<mlir::MemRefType>(hist.getType());
+    unsigned R = histTy.getRank();
+    mlir::Type elemTy = histTy.getElementType();
+    int64_t T = mlir::dhir::localHistogramTileFactor();
+
+    rewriter.setInsertionPoint(loop);
+
+    // Allocate privatized accumulation buffer with leading dimension T: [T, hist dims...].
+    llvm::SmallVector<int64_t> privShape;
+    privShape.push_back(T);
+    for (int64_t d : histTy.getShape())
+        privShape.push_back(d);
+    auto privTy = mlir::MemRefType::get(privShape, elemTy);
+    llvm::SmallVector<mlir::Value> dynSizes;
+    for (unsigned d = 0; d < R; ++d)
+        if (histTy.isDynamicDim(d))
+            dynSizes.push_back(rewriter.create<mlir::memref::DimOp>(loc, hist, (int64_t)d));
+    mlir::Value histPriv = rewriter.create<mlir::memref::AllocOp>(loc, privTy, dynSizes);
+
+    mlir::Value c0 = rewriter.create<mlir::arith::ConstantIndexOp>(loc, 0);
+    mlir::Value c1 = rewriter.create<mlir::arith::ConstantIndexOp>(loc, 1);
+    mlir::Value cT = rewriter.create<mlir::arith::ConstantIndexOp>(loc, T);
+    mlir::Value zeroElem =
+        rewriter.create<mlir::arith::ConstantOp>(loc, rewriter.getZeroAttr(elemTy));
+
+    // Zero-initialize the privatized buffer across all R+1 dimensions.
+    std::function<void(mlir::Value, unsigned, llvm::SmallVectorImpl<mlir::Value> &)> zeroFill =
+        [&](mlir::Value mem, unsigned dim, llvm::SmallVectorImpl<mlir::Value> &idx) {
+            auto mt = mlir::cast<mlir::MemRefType>(mem.getType());
+            if (dim == (unsigned)mt.getRank())
+            {
+                rewriter.create<mlir::memref::StoreOp>(loc, zeroElem, mem, idx);
+                return;
+            }
+            mlir::Value ub = mt.isDynamicDim(dim)
+                ? rewriter.create<mlir::memref::DimOp>(loc, mem, (int64_t)dim).getResult()
+                : rewriter.create<mlir::arith::ConstantIndexOp>(loc, mt.getDimSize(dim)).getResult();
+            auto f = rewriter.create<mlir::scf::ForOp>(loc, c0, ub, c1);
+            mlir::OpBuilder::InsertPoint ip = rewriter.saveInsertionPoint();
+            rewriter.setInsertionPointToStart(f.getBody());
+            idx.push_back(f.getInductionVar());
+            zeroFill(mem, dim + 1, idx);
+            idx.pop_back();
+            rewriter.restoreInsertionPoint(ip);
+        };
+    {
+        llvm::SmallVector<mlir::Value> idx;
+        zeroFill(histPriv, 0, idx);
+    }
+
+    // Parallel execution across T tiles; tile t executes cyclic partition i in {lb + t, lb + t + T, ...}.
+    mlir::Value lb = loop.getLowerBound();
+    mlir::Value ub = loop.getUpperBound();
+    auto par = rewriter.create<mlir::scf::ParallelOp>(
+        loc, mlir::ValueRange{c0}, mlir::ValueRange{cT}, mlir::ValueRange{c1},
+        mlir::ValueRange{});
+    {
+        mlir::OpBuilder::InsertPoint ip = rewriter.saveInsertionPoint();
+        rewriter.setInsertionPointToStart(par.getBody());
+        mlir::Value t = par.getInductionVars()[0];
+        mlir::Value loStart = rewriter.create<mlir::arith::AddIOp>(loc, lb, t);
+        auto inner = rewriter.create<mlir::scf::ForOp>(loc, loStart, ub, cT);
+        rewriter.setInsertionPointToStart(inner.getBody());
+        mlir::IRMapping map;
+        map.map(loop.getInductionVar(), inner.getInductionVar());
+        for (auto &bodyOp : loop.getBody()->without_terminator())
+            rewriter.clone(bodyOp, map);
+        redirectHistToPrivateRow(rewriter, inner.getBody(), hist, histPriv, t);
+        rewriter.restoreInsertionPoint(ip);
+    }
+
+    // Serial reduction across tiles: hist[b...] += sum_{t=0}^{T-1} histPriv[t, b...].
+    rewriter.setInsertionPointAfter(par);
+    auto tLoop = rewriter.create<mlir::scf::ForOp>(loc, c0, cT, c1);
+    {
+        mlir::OpBuilder::InsertPoint ip = rewriter.saveInsertionPoint();
+        rewriter.setInsertionPointToStart(tLoop.getBody());
+        mlir::Value tt = tLoop.getInductionVar();
+        std::function<void(unsigned, llvm::SmallVectorImpl<mlir::Value> &)> combine =
+            [&](unsigned dim, llvm::SmallVectorImpl<mlir::Value> &bidx) {
+                if (dim == R)
+                {
+                    llvm::SmallVector<mlir::Value> pidx;
+                    pidx.push_back(tt);
+                    pidx.append(bidx.begin(), bidx.end());
+                    mlir::Value acc = rewriter.create<mlir::memref::LoadOp>(loc, hist, bidx);
+                    mlir::Value add = rewriter.create<mlir::memref::LoadOp>(loc, histPriv, pidx);
+                    mlir::Value sum = rewriter.create<mlir::arith::AddIOp>(loc, acc, add);
+                    rewriter.create<mlir::memref::StoreOp>(loc, sum, hist, bidx);
+                    return;
+                }
+                mlir::Value ub2 = histTy.isDynamicDim(dim)
+                    ? rewriter.create<mlir::memref::DimOp>(loc, hist, (int64_t)dim).getResult()
+                    : rewriter.create<mlir::arith::ConstantIndexOp>(loc, histTy.getDimSize(dim)).getResult();
+                auto f = rewriter.create<mlir::scf::ForOp>(loc, c0, ub2, c1);
+                mlir::OpBuilder::InsertPoint ip2 = rewriter.saveInsertionPoint();
+                rewriter.setInsertionPointToStart(f.getBody());
+                bidx.push_back(f.getInductionVar());
+                combine(dim + 1, bidx);
+                bidx.pop_back();
+                rewriter.restoreInsertionPoint(ip2);
+            };
+        llvm::SmallVector<mlir::Value> bidx;
+        combine(0, bidx);
+        rewriter.restoreInsertionPoint(ip);
+    }
+
+    rewriter.create<mlir::memref::DeallocOp>(loc, histPriv);
+    rewriter.eraseOp(loop);
+}
+
+// Traverses immediate scf.for operations in `block`. Tiles loops that represent
+// integer scatter-add reductions over a single histogram buffer; otherwise recurses
+// into nested loop bodies.
+static void parallelizeLocalHistogramScatters(
+    mlir::PatternRewriter &rewriter, mlir::Block *block,
+    const llvm::SmallPtrSetImpl<mlir::Value> &histBufs)
+{
+    llvm::SmallVector<mlir::scf::ForOp> loops;
+    for (auto f : block->getOps<mlir::scf::ForOp>())
+        loops.push_back(f);
+    for (auto loop : loops)
+    {
+        mlir::Value hist;
+        if (matchIntegerScatterLoop(loop, histBufs, hist))
+            tileHistogramScatterLoop(rewriter, loop, hist);
+        else
+            parallelizeLocalHistogramScatters(rewriter, loop.getBody(), histBufs);
+    }
+}
 
 struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
 {
@@ -1498,6 +1843,23 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
 
                     rewriter.eraseOp(clonedAffineFor);
                 }
+            }
+
+            // Thread-level histogram privatization (--local-histogram):
+            // Partitions rank-local partialReduce scatter loops across OpenMP workers.
+            // Rather than executing concurrently against a shared histogram (which introduces
+            // data races), each loop is decomposed into T privatized, disjoint iteration tiles
+            // followed by a serial integer reduction. Standard scf-to-openmp lowering distributes
+            // tile execution across node cores while preserving the downstream MPI reduction interface.
+            if (mlir::dhir::localHistogramEnabled() && hasPartialReduceOutput)
+            {
+                llvm::SmallPtrSet<mlir::Value, 4> histBufs;
+                for (size_t hb = 0; hb < outsVec.size(); ++hb)
+                    if (partialReduceOut[hb] && privateOutBuffers[hb])
+                        histBufs.insert(privateOutBuffers[hb]);
+                if (!histBufs.empty())
+                    parallelizeLocalHistogramScatters(
+                        rewriter, &taskOp.getRegion().front(), histBufs);
             }
 
             rewriter.setInsertionPointToEnd(&taskOp.getRegion().front());

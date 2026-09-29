@@ -142,6 +142,17 @@ static llvm::cl::opt<bool> printDistribution(
                    "default)"),
     llvm::cl::init(false));
 
+static llvm::cl::opt<bool> localHistogram(
+    "local-histogram",
+    llvm::cl::desc("Give each per-rank partialReduce scatter loop local "
+                   "(per-OpenMP-worker) parallelism: split it into T privatised, "
+                   "disjoint tiles that accumulate into their own histogram row, "
+                   "then sum the rows serially before the unchanged MPI combine. "
+                   "Integer bin counts only (no float reassociation); the pair "
+                   "dot-product/bin-search order is preserved. Experimental; off "
+                   "by default"),
+    llvm::cl::init(false));
+
 static llvm::cl::opt<bool> ompCostModelReport(
     "dhir-omp-cost-model-report",
     llvm::cl::desc("Print OpenMP-aware work, memory traffic, broadcast scaling, "
@@ -188,11 +199,12 @@ int main(int argc, char *argv[])
     // Enable verbose logging of per-output ownership decisions when requested.
     mlir::dhir::printOwnershipDecisions() = printOwnership;
     mlir::dhir::printUpliftDecisions() = printUplift;
-    // Partition-selection policy: an explicit experiment, so the default build
-    // keeps today's behaviour exactly.
+    // Configure partition selection policy flags; disabled by default to preserve baseline behavior.
     mlir::dhir::profitabilityFallbackEnabled() = profitabilityFallback;
     mlir::dhir::printDistributionDecisions() = printDistribution;
-
+    // Thread-level histogram privatization: experimental feature, disabled by default.
+    mlir::dhir::localHistogramEnabled() = localHistogram;
+    
     mlir::DialectRegistry registry;
     registry.insert<mlir::dhir::DhirDialect, mlir::affine::AffineDialect, mlir::memref::MemRefDialect, mlir::func::FuncDialect, mlir::arith::ArithDialect, mlir::scf::SCFDialect, mlir::DLTIDialect, mlir::gpu::GPUDialect, mlir::math::MathDialect, mlir::LLVM::LLVMDialect>();
 
@@ -232,12 +244,11 @@ int main(int argc, char *argv[])
     // context.disableMultithreading();
     // pm.enableIRPrinting();
 
-    // The uplift runs FIRST, before any DHIR conversion.  dhir-to-mpi
-    // dispatches on scf::ForOp and only pushes a deferred-sync frame there, so
-    // a timestep loop framed as scf.while can never reach the residency
-    // machinery; it has to already be an scf.for on arrival.  Kept off by
-    // default: it changes which loops the distribution machinery can see, and
-    // that is a decision for whoever runs the pipeline, not a silent default.
+    // The while-to-for uplift pass executes prior to DHIR conversion passes.
+    // Downstream distribution in dhir-to-mpi operates on scf::ForOp constructs when
+    // establishing deferred synchronization frames for stencil residency; loops framed
+    // as scf::WhileOp cannot participate in deferred communication optimizations.
+    // Disabled by default to avoid altering loop canonicalization without explicit user intent.
     if (upliftWhileToFor)
         pm.addPass(mlir::dhir::createUpliftWhileToForPass());
 
