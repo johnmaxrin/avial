@@ -56,9 +56,13 @@ namespace mlir
                     else if (r.isFunctionOfDim(d))
                         return -1;
                 }
-                if (count > 1)
+                
+                if (count > 1) return -1;
+                
+                int64_t sliceDim = getOperandSliceDim(op, opd, d);
+                if (sliceDim > 0)
                     return -1;
-                if (op.isDpsInit(&opd) && getOperandSliceDim(op, opd, d) != 0)
+                if (op.isDpsInit(&opd) && sliceDim != 0)
                     return -1;
             }
             return d;

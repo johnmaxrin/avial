@@ -288,6 +288,7 @@ LogicalResult checkContiguousForMPI(Location loc, Value buf)
     Value base;
     SmallVector<int64_t> offs, sizes, shape;
     bool unit = true;
+    // TODO: Prove runtime contiguity for dynamic memrefs before MPI transfer
     if (!getStaticSubview(buf, base, offs, sizes, shape, unit))
         return success();
     if (!unit || !isContiguousRegion(offs, sizes, shape))

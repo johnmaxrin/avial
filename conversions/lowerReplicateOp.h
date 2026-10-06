@@ -147,7 +147,7 @@ struct ConvertReplicateOp : public OpConversionPattern<mlir::dhir::ReplicateOp>
 
             for (Operation &inner : body.without_terminator())
             {
-                if (&inner != outerLoop)
+                if (!isa<scf::ForOp, affine::AffineForOp>(inner))
                 {
                     rewriter.clone(inner, mapping);
                     continue;
