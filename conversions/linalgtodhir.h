@@ -2,6 +2,8 @@
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/Pass/Pass.h"
 
@@ -9,8 +11,8 @@
 #include "includes/dhirOps.h"
 #include "includes/dhirTypes.h"
 #include "includes/utils.h"
-#include <llvm/ADT/SmallVector.h>
-#include <mlir/Dialect/Utils/StructuredOpsUtils.h>
+#include "analysis/linalgPartition.h"
+#include "analysis/broadcastAnalysis.h"
 
 using namespace mlir;
 using namespace dhir;
@@ -21,100 +23,135 @@ namespace dhir {
 #define GEN_PASS_DEF_CONVERTLINALGTODHIRPASS
 #include "dialect/Passes.h.inc"
 
+// linalg.index is tile-relative after slicing; shift it back to the global index.
+static void rebaseLinalgIndex(Operation *tiled, int64_t dim, int64_t offset,
+                              RewriterBase &rw) {
+  if (offset == 0)
+    return;
+  SmallVector<linalg::IndexOp> idxOps;
+  tiled->walk([&](linalg::IndexOp i) {
+    if (i.getDim() == static_cast<uint64_t>(dim))
+      idxOps.push_back(i);
+  });
+  for (auto i : idxOps) {
+    OpBuilder::InsertionGuard g(rw);
+    rw.setInsertionPointAfter(i);
+    Value c = rw.create<arith::ConstantIndexOp>(i.getLoc(), offset);
+    Value add = rw.create<arith::AddIOp>(i.getLoc(), i.getResult(), c);
+    i.getResult().replaceAllUsesExcept(add, add.getDefiningOp());
+  }
+}
+
+static LogicalResult
+lowerLinalgOpToTasks(linalg::LinalgOp op,
+                     ArrayRef<TargetDeviceSpecAttr> devices, int64_t repId,
+                     RewriterBase &rw) {
+  Location loc = op.getLoc();
+  Operation *raw = op.getOperation();
+
+  for (Type t : raw->getOperandTypes())
+    if (isa<TensorType>(t))
+      return op->emitError("linalg-to-dhir requires bufferized (memref) linalg ops");
+
+  // Must run before any IR changes: it inspects the later, still-unconverted linalg ops.
+  bool needBroadcast = false;
+  for (Value out : op.getDpsInits())
+    if (doesOutputNeedBroadcast(raw, out))
+      needBroadcast = true;
+
+  IntegerAttr repIdAttr = rw.getI64IntegerAttr(repId);
+  SmallVector<Value> bases(op.getDpsInits().begin(), op.getDpsInits().end());
+  int64_t dp = chooseParallelDim(op);
+
+  if (dp < 0) {
+    rw.setInsertionPoint(raw);
+
+    TaskSpec spec;
+    spec.device = devices[0];
+    for (OpOperand &opd : raw->getOpOperands())
+      (op.isDpsInit(&opd) ? spec.writes : spec.reads).push_back(opd.get());
+    spec.bases = bases;
+    spec.outStart = 0;
+    spec.outEnd = 0;
+    spec.repId = repIdAttr;
+    spec.needBroadcast = needBroadcast;
+    spec.name = "unpartitioned";
+    spec.partitioned = false;
+
+    auto task = createTaskShell(rw, loc, spec);
+    rw.moveOpBefore(raw, task.getRegion().front().getTerminator());
+    return success();
+  }
+
+  int64_t extent = op.getStaticLoopRanges()[dp];
+  auto chunksOr = computeCostBasedChunks(raw, devices, 0, extent);
+  if (failed(chunksOr))
+    return failure();
+
+  for (const DeviceChunk &c : *chunksOr) {
+    rw.setInsertionPoint(raw);
+    int64_t size = c.end - c.start;
+
+    TaskSpec spec;
+    spec.device = c.device;
+    SmallVector<Value> views;
+    for (OpOperand &opd : raw->getOpOperands()) {
+      Value view = opd.get();
+      int64_t sd = getOperandSliceDim(op, opd, dp);
+      if (sd >= 0 && isa<MemRefType>(view.getType()))
+        view = makeSliceAlongDim(rw, loc, view, sd, c.start, size);
+      views.push_back(view);
+      (op.isDpsInit(&opd) ? spec.writes : spec.reads).push_back(view);
+    }
+    spec.bases = bases;
+    spec.outStart = c.start;
+    spec.outEnd = c.end;
+    spec.repId = repIdAttr;
+    spec.needBroadcast = needBroadcast;
+    spec.name = std::to_string(c.deviceIndex);
+    spec.partitioned = true;
+
+    auto task = createTaskShell(rw, loc, spec);
+    rw.setInsertionPoint(task.getRegion().front().getTerminator());
+
+    // Rewire by operand position: one buffer may appear twice with different views.
+    Operation *tiled = rw.clone(*raw);
+    for (auto [i, v] : llvm::enumerate(views))
+      tiled->setOperand(i, v);
+    rebaseLinalgIndex(tiled, dp, c.start, rw);
+  }
+
+  rw.eraseOp(raw);
+  return success();
+}
+
 struct ConvertLinalgToDhirPass
     : public mlir::dhir::impl::ConvertLinalgToDhirPassBase<
           ConvertLinalgToDhirPass> {
   using ConvertLinalgToDhirPassBase::ConvertLinalgToDhirPassBase;
 
+  void getDependentDialects(DialectRegistry &registry) const override {
+    ConvertLinalgToDhirPassBase::getDependentDialects(registry);
+    registry.insert<memref::MemRefDialect, arith::ArithDialect>();
+  }
+
   void runOnOperation() override {
-    mlir::MLIRContext *context = &getContext();
-    auto *module = getOperation();
-    mlir::OpBuilder builder(context);
+    Operation *module = getOperation();
 
-    llvm::SmallVector<mlir::linalg::GenericOp, 4> toReplicateVector;
-    llvm::SmallVector<mlir::linalg::GenericOp, 4> toStubTaskVector;
-
-    module->walk([&](mlir::linalg::GenericOp genericOp) {
-      auto iteratorTypes = genericOp.getIteratorTypesArray();
-
-      if (iteratorTypes.empty()) {
-        llvm::errs() << "Wrapping scalar linalg.generic (no iterators) as "
-                        "single unpartitioned task: "
-                     << genericOp << "\n";
-        toStubTaskVector.push_back(genericOp);
-        return;
-      }
-
-      bool outerIsParallel = iteratorTypes.front() == utils::IteratorType::parallel;
-      if (outerIsParallel) {
-        toReplicateVector.push_back(genericOp);
-      } else {
-        llvm::errs() << "Wrapping linalg.generic with unsupported outer iterator "
-        "as single unpartitioned task: " << genericOp << "\n";
-        toStubTaskVector.push_back(genericOp);
-      }
-    });
-
-    int repId = 1;
-    for (auto genericOp : toReplicateVector) {
-      builder.setInsertionPoint(genericOp);
-
-      llvm::SmallVector<mlir::Value> ins(genericOp.getDpsInputs());
-      llvm::SmallVector<mlir::Value> outs(genericOp.getDpsInits().begin(),
-                                          genericOp.getDpsInits().end());
-
-      auto replicateOp = builder.create<mlir::dhir::ReplicateOp>(
-          genericOp.getLoc(), ins, outs);
-      replicateOp->setAttr("replicateID", builder.getI64IntegerAttr(repId));
-      replicateOp->setAttr("pattern", builder.getStringAttr("default"));
-
-      mlir::Region &replicateRegion = replicateOp.getBodyRegion();
-      mlir::Block *newBlock = builder.createBlock(&replicateRegion);
-
-      genericOp->moveBefore(newBlock, newBlock->end());
-      builder.setInsertionPointToEnd(newBlock);
-      builder.create<mlir::dhir::YieldOp>(builder.getUnknownLoc());
-
-      ++repId;
-    }
-
-    // stub single-device TaskOp wrapping
-    auto deviceVec =
-        extractTargetDeviceSpecs(llvm::dyn_cast<mlir::ModuleOp>(module));
-    if (deviceVec.empty()) {
-      llvm::errs() << "Error: no target devices found; cannot wrap unsupported "
-                      "linalg.generic ops.\n";
+    auto devicesOr = getTargetDevices(module);
+    if (failed(devicesOr) || devicesOr->empty()) {
+      module->emitError("linalg-to-dhir: no target devices found");
       return signalPassFailure();
     }
 
-    for (auto genericOp : toStubTaskVector) {
-      builder.setInsertionPoint(genericOp);
+    SmallVector<linalg::LinalgOp> ops;
+    module->walk([&](linalg::LinalgOp op) { ops.push_back(op); });
 
-      llvm::SmallVector<mlir::Value> ins(genericOp.getDpsInputs());
-      llvm::SmallVector<mlir::Value> outs(genericOp.getDpsInits().begin(),
-                                          genericOp.getDpsInits().end());
-
-      // TODO: outRanges is a placeholder {0, 0}. dhir-to-mpi's gather/broadcast
-      // will need the real output extent here before the stub can run through
-      // MPI lowering correctly.
-      auto taskOp = builder.create<dhir::TaskOp>(
-          genericOp.getLoc(), dhir::TaskRefType::get(builder.getContext()),
-          deviceVec[0], ValueRange(ins), builder.getDenseI64ArrayAttr({0, 0}),
-          ValueRange(outs), builder.getDenseI64ArrayAttr({0, 0}),
-          ValueRange(outs));
-      taskOp->setAttr("name", builder.getStringAttr("unpartitioned"));
-      taskOp->setAttr("needBroadcast", builder.getBoolAttr(false));
-      taskOp->setAttr("partitioned", builder.getBoolAttr(false));
-
-      if (taskOp.getRegion().empty())
-        builder.createBlock(&taskOp.getRegion());
-
-      builder.setInsertionPointToStart(&taskOp.getRegion().front());
-      genericOp->moveBefore(&taskOp.getRegion().front(),
-                            taskOp.getRegion().front().end());
-      builder.setInsertionPointToEnd(&taskOp.getRegion().front());
-      builder.create<dhir::YieldOp>(builder.getUnknownLoc());
-    }
+    IRRewriter rewriter(&getContext());
+    int64_t repId = nextRepId(module);
+    for (linalg::LinalgOp op : ops)
+      if (failed(lowerLinalgOpToTasks(op, *devicesOr, repId++, rewriter)))
+        return signalPassFailure();
   }
 };
 
