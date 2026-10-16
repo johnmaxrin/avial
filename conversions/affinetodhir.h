@@ -478,6 +478,309 @@ namespace mlir
                 return !hasNested;
             }
 
+            // Fissions loops with multiple output accumulations (e.g., atax, bicg)
+            // into distinct single-output nests to expose parallelism without
+            // reassociating reductions.
+
+            // Returns true if the leading dimension of memOp is indexed by iv.
+            bool firstAffineIndexIsIV(mlir::Operation *memOp, mlir::Value iv)
+            {
+                AffineMap map;
+                mlir::Operation::operand_range operands(memOp->getOperands());
+                if (auto ld = mlir::dyn_cast<mlir::affine::AffineLoadOp>(memOp))
+                {
+                    map = ld.getAffineMap();
+                    operands = ld.getMapOperands();
+                }
+                else if (auto st = mlir::dyn_cast<mlir::affine::AffineStoreOp>(memOp))
+                {
+                    map = st.getAffineMap();
+                    operands = st.getMapOperands();
+                }
+                else
+                    return false;
+
+                if (map.getNumResults() == 0)
+                    return false;
+                auto dim = mlir::dyn_cast<mlir::AffineDimExpr>(map.getResult(0));
+                if (!dim)
+                    return false;
+                unsigned pos = dim.getPosition();
+                if (pos >= map.getNumDims() || pos >= operands.size())
+                    return false;
+                return operands[pos] == iv;
+            }
+
+            static mlir::Value affineMemRef(mlir::Operation *op)
+            {
+                if (auto ld = mlir::dyn_cast<mlir::affine::AffineLoadOp>(op))
+                    return ld.getMemRef();
+                if (auto st = mlir::dyn_cast<mlir::affine::AffineStoreOp>(op))
+                    return st.getMemRef();
+                return nullptr;
+            }
+
+            // Partitions a run of non-loop operations into disjoint backward slices
+            // per affine.store. Returns false if slices overlap or leave unassigned ops.
+            bool splitRunByStores(
+                llvm::ArrayRef<mlir::Operation *> run,
+                llvm::SmallVectorImpl<llvm::SmallVector<mlir::Operation *>> &out)
+            {
+                llvm::SmallVector<mlir::Operation *> stores;
+                for (mlir::Operation *op : run)
+                    if (mlir::isa<mlir::affine::AffineStoreOp>(op))
+                        stores.push_back(op);
+                if (stores.size() < 2)
+                    return false;
+
+                llvm::SmallPtrSet<mlir::Operation *, 16> inRun(run.begin(), run.end());
+                llvm::SmallPtrSet<mlir::Operation *, 16> claimed;
+                llvm::SmallVector<llvm::SmallVector<mlir::Operation *>> groups;
+
+                for (mlir::Operation *store : stores)
+                {
+                    // Intra-run backward slice for store.
+                    llvm::SmallPtrSet<mlir::Operation *, 16> slice;
+                    llvm::SmallVector<mlir::Operation *> worklist = {store};
+                    while (!worklist.empty())
+                    {
+                        mlir::Operation *cur = worklist.pop_back_val();
+                        if (!slice.insert(cur).second)
+                            return false; // Dependency cycle or non-tree structure.
+                        for (mlir::Value v : cur->getOperands())
+                        {
+                            mlir::Operation *def = v.getDefiningOp();
+                            if (def && inRun.count(def) && !slice.count(def))
+                                worklist.push_back(def);
+                        }
+                    }
+                    // Ensure store slices are strictly disjoint.
+                    for (mlir::Operation *op : slice)
+                        if (!claimed.insert(op).second)
+                            return false;
+
+                    llvm::SmallVector<mlir::Operation *> group;
+                    for (mlir::Operation *op : run)
+                        if (slice.count(op))
+                            group.push_back(op);
+                    groups.push_back(std::move(group));
+                }
+
+                // Reject if any operation in the run is unassigned.
+                for (mlir::Operation *op : run)
+                    if (!claimed.count(op))
+                        return false;
+
+                out.append(groups.begin(), groups.end());
+                return true;
+            }
+
+            // Returns true if loop would already be partitioned as a ReplicateOp.
+            bool alreadyReplicated(mlir::affine::AffineForOp loop)
+            {
+                if (loop.getNumRegionIterArgs() != 0)
+                    return false;
+                if (loop.getInductionVar().use_empty())
+                    return false;
+                if (hasScaledFlatSlabStore(loop))
+                    return false;
+                return checkLoopDependence(loop, 1) == 0;
+            }
+
+            // Returns the outermost enclosing affine.for considered by the classifier.
+            mlir::affine::AffineForOp
+            enclosingTopLevelAffineFor(mlir::affine::AffineForOp loop)
+            {
+                mlir::affine::AffineForOp top = loop;
+                for (mlir::Operation *p = loop->getParentOp(); p;
+                     p = p->getParentOp())
+                {
+                    if (auto f = mlir::dyn_cast<mlir::affine::AffineForOp>(p))
+                        top = f;
+                    else if (mlir::isa<mlir::func::FuncOp>(p))
+                        return top;
+                    else
+                        return nullptr;
+                }
+                return nullptr;
+            }
+
+            // Attempts to fission outer into one loop per output group.
+            bool tryDistributeOutputOwnedNest(mlir::affine::AffineForOp outer)
+            {
+                if (outer.getStepAsInt() != 1 || outer.getNumRegionIterArgs() != 0)
+                    return false;
+
+                // Group body operations into nested loops and runs of non-loop ops.
+                llvm::SmallVector<llvm::SmallVector<mlir::Operation *>> groups;
+                llvm::SmallVector<mlir::Operation *> run;
+                auto flushRun = [&]() {
+                    if (run.empty())
+                        return;
+                    llvm::SmallVector<llvm::SmallVector<mlir::Operation *>> split;
+                    if (splitRunByStores(run, split))
+                        groups.append(split.begin(), split.end());
+                    else
+                        groups.push_back(run);
+                    run.clear();
+                };
+
+                for (mlir::Operation &op : outer.getBody()->without_terminator())
+                {
+                    if (mlir::isa<mlir::affine::AffineForOp>(&op))
+                    {
+                        flushRun();
+                        groups.push_back({&op});
+                        continue;
+                    }
+                    // Only reorder affine accesses and side-effect-free operations.
+                    if (!mlir::isa<mlir::affine::AffineLoadOp,
+                                   mlir::affine::AffineStoreOp>(&op) &&
+                        (op.getNumRegions() != 0 || !mlir::isMemoryEffectFree(&op)))
+                        return false;
+                    run.push_back(&op);
+                }
+                flushRun();
+
+                if (groups.size() < 2)
+                    return false;
+
+                // Every group must contain at least one store.
+                for (auto &group : groups)
+                {
+                    bool stores = false;
+                    for (mlir::Operation *op : group)
+                        op->walk([&](mlir::affine::AffineStoreOp) { stores = true; });
+                    if (!stores)
+                        return false;
+                }
+
+                // Disallow cross-group SSA value dependencies.
+                llvm::DenseMap<mlir::Operation *, unsigned> groupOf;
+                for (unsigned g = 0; g < groups.size(); ++g)
+                    for (mlir::Operation *op : groups[g])
+                        op->walk([&](mlir::Operation *nested) { groupOf[nested] = g; });
+                for (unsigned g = 0; g < groups.size(); ++g)
+                {
+                    bool foreign = false;
+                    for (mlir::Operation *op : groups[g])
+                        op->walk([&](mlir::Operation *nested) {
+                            for (mlir::Value v : nested->getOperands())
+                                if (mlir::Operation *def = v.getDefiningOp())
+                                {
+                                    auto it = groupOf.find(def);
+                                    if (it != groupOf.end() && it->second != g)
+                                        foreign = true;
+                                }
+                        });
+                    if (foreign)
+                        return false;
+                }
+
+                // Track memref accesses and accessing groups.
+                mlir::Value iv = outer.getInductionVar();
+                llvm::MapVector<mlir::Value, llvm::SmallVector<mlir::Operation *>> accesses;
+                llvm::DenseMap<mlir::Value, llvm::SmallPtrSet<void *, 4>> touchedBy;
+                llvm::DenseSet<mlir::Value> written;
+                bool unsupported = false;
+                for (unsigned g = 0; g < groups.size(); ++g)
+                    for (mlir::Operation *op : groups[g])
+                        op->walk([&](mlir::Operation *nested) {
+                            if (mlir::isa<mlir::memref::StoreOp, mlir::memref::LoadOp>(nested))
+                            {
+                                // Raw memref operations cannot be verified.
+                                unsupported = true;
+                                return;
+                            }
+                            mlir::Value m = affineMemRef(nested);
+                            if (!m)
+                                return;
+                            accesses[m].push_back(nested);
+                            touchedBy[m].insert(reinterpret_cast<void *>(
+                                static_cast<uintptr_t>(g) + 1));
+                            if (mlir::isa<mlir::affine::AffineStoreOp>(nested))
+                                written.insert(m);
+                        });
+                if (unsupported)
+                    return false;
+
+                // Disallow aliased memrefs with distinct coordinate systems.
+                for (auto &lhs : accesses)
+                    for (auto &rhs : accesses)
+                        if (lhs.first != rhs.first &&
+                            mlir::dhir::viewRoot(lhs.first) ==
+                                mlir::dhir::viewRoot(rhs.first))
+                            return false;
+
+                // Legality: Fission is valid if shared written buffers are indexed
+                // by the distributed loop IV on dimension 0, confining dependencies
+                // to within each iteration.
+                for (auto &entry : accesses)
+                {
+                    mlir::Value m = entry.first;
+                    if (touchedBy[m].size() < 2)
+                        continue;
+                    if (!written.count(m))
+                        continue;
+                    for (mlir::Operation *acc : entry.second)
+                        if (!firstAffineIndexIsIV(acc, iv))
+                        {
+                            llvm::errs() << "Output-owned distribution refused: a "
+                                            "shared written buffer is not indexed "
+                                            "by the distributed loop IV\n";
+                            return false;
+                        }
+                }
+
+                // Do not fission nests the classifier can already partition as a whole.
+                mlir::affine::AffineForOp top = enclosingTopLevelAffineFor(outer);
+                if (!top || alreadyReplicated(top))
+                    return false;
+
+                // Clone outer for each group and prune ops belonging to other groups.
+                mlir::OpBuilder builder(outer);
+                for (auto &group : groups)
+                {
+                    mlir::IRMapping map;
+                    auto clone = mlir::cast<mlir::affine::AffineForOp>(
+                        builder.clone(*outer.getOperation(), map));
+                    llvm::SmallPtrSet<mlir::Operation *, 8> keep;
+                    for (mlir::Operation *op : group)
+                        keep.insert(map.lookupOrNull(op));
+                    llvm::SmallVector<mlir::Operation *> dead;
+                    for (mlir::Operation &op : clone.getBody()->without_terminator())
+                        if (!keep.count(&op))
+                            dead.push_back(&op);
+                    for (mlir::Operation *op : llvm::reverse(dead))
+                        op->erase();
+                }
+                outer.erase();
+                llvm::errs() << "Distributed an output-owned loop nest into "
+                             << groups.size() << " per-output nests\n";
+                return true;
+            }
+
+            // Distributes output-owned nests innermost-first until convergence.
+            void distributeOutputOwnedNests(mlir::Operation *module)
+            {
+                const unsigned kMaxRounds = 16;
+                for (unsigned round = 0; round < kMaxRounds; ++round)
+                {
+                    llvm::SmallVector<mlir::affine::AffineForOp> loops;
+                    module->walk<mlir::WalkOrder::PostOrder>(
+                        [&](mlir::affine::AffineForOp loop) { loops.push_back(loop); });
+                    bool changed = false;
+                    for (mlir::affine::AffineForOp loop : loops)
+                        if (tryDistributeOutputOwnedNest(loop))
+                        {
+                            changed = true;
+                            break; // Rescan after IR modification.
+                        }
+                    if (!changed)
+                        return;
+                }
+            }
+
             // Interchanges a perfect 2-deep affine loop nest when an outer reduction loop
             // encloses a parallel per-output loop, exposing the parallel loop at the outermost
             // level for ReplicateOp partitioning. Returns true if interchange was performed.
@@ -1087,6 +1390,8 @@ namespace mlir
 
                 // Expose outer parallelism (loop interchange) before the nests
                 // are classified into Replicate/Converge/Task.
+                // Distribute multi-output loop nests before interchange and partitioning.
+                distributeOutputOwnedNests(module);
                 hoistParallelReductionNests(module);
 
                 // Split a loop that mixes distributable assignment with a
