@@ -513,8 +513,8 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
         // Clone constants and non-task, non-loop operations
         for (auto &innerOp : op.getBodyRegion().front().getOperations())
         {
-            if (mlir::isa<mlir::dhir::TaskOp>(innerOp) || 
-                mlir::isa<mlir::dhir::YieldOp>(innerOp) || 
+            if (mlir::isa<mlir::dhir::TaskOp>(innerOp) ||
+                mlir::isa<mlir::dhir::YieldOp>(innerOp) ||
                 mlir::isa<mlir::scf::ForOp>(innerOp))
                 continue;
 
@@ -526,34 +526,34 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
         if (outerLoop)
         {
             llvm::errs() << "Cloning scf.for loop structure\n";
-            
+
             // Map loop bounds
             Value lowerBound = mapping.lookupOrDefault(outerLoop.getLowerBound());
             Value upperBound = mapping.lookupOrDefault(outerLoop.getUpperBound());
             Value step = mapping.lookupOrDefault(outerLoop.getStep());
-            
+
             // Create new loop
             newForOp = rewriter.create<mlir::scf::ForOp>(loc, lowerBound, upperBound, step);
-            
+
             // Map the induction variable
             mapping.map(outerLoop.getInductionVar(), newForOp.getInductionVar());
-            
+
             // Clone operations inside the loop (subviews, constants, etc.) EXCEPT tasks
             Block *loopBody = newForOp.getBody();
             rewriter.setInsertionPointToStart(loopBody);
-            
+
             for (auto &loopOp : outerLoop.getBody()->getOperations())
             {
                 if (mlir::isa<mlir::scf::YieldOp>(loopOp) || mlir::isa<mlir::dhir::TaskOp>(loopOp))
                     continue;
-                
+
                 Operation *clonedOp = rewriter.clone(loopOp, mapping);
             }
-            
+
             // Set insertion point at the END of loop body, before the yield
             // This is where we'll insert task execution and communication
             rewriter.setInsertionPoint(loopBody->getTerminator());
-            
+
             llvm::errs() << "Insertion point set inside loop body\n";
         }
 
@@ -580,7 +580,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                 auto cond = rewriter.create<arith::CmpIOp>(loc, rewriter.getI1Type(), arith::CmpIPredicate::eq, rankNode, targetNode);
 
                 rewriter.create<mlir::scf::IfOp>(loc, cond, [&](OpBuilder &ifbuilder, Location loc)
-                {
+                                                 {
                     Block &taskBlock = task->op->getRegion(0).front(); 
                     IRMapping rankMapping = mapping; 
 
@@ -703,7 +703,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
                 int targetNodeIdx = deviceToIndex[targetDevice];
 
                 llvm::ArrayRef outRanges = taskOp.getOutRanges();
-                
+
                 // Get the base buffer from mapping (now subviews are in mapping!)
                 Value buffer = mapping.lookupOrNull(task->writes[0]);
 
@@ -764,8 +764,8 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
             Value broadcastRootRank = rewriter.create<memref::LoadOp>(loc, nodeToRankMap, ValueRange{broadcastRootNodeIndex});
 
             if (failed(generateBroadcastCommunication(
-                rewriter, loc, toBroadcast, rank.getResult(0), broadcastRootRank,
-                comm->getResult(0), retVal, tag.getResult(), getNodes->getResult(1))))
+                    rewriter, loc, toBroadcast, rank.getResult(0), broadcastRootRank,
+                    comm->getResult(0), retVal, tag.getResult(), getNodes->getResult(1))))
                 return failure();
 
             toBroadcast.clear();
@@ -789,7 +789,7 @@ struct ConvertScheduleOp : public OpConversionPattern<mlir::dhir::ScheduleOp>
         rewriter.create<mpi::Barrier>(loc, retVal, comm->getResult(0));
         rewriter.create<func::ReturnOp>(loc);
         rewriter.eraseOp(op);
-        
+
         return success();
     }
 };

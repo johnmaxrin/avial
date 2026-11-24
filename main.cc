@@ -78,7 +78,6 @@ static llvm::cl::opt<std::string> configFileName(
     llvm::cl::desc("<Cluster Config File>"),
     llvm::cl::Required);
 
-
 static llvm::cl::opt<bool> dhirToMPI(
     "dhir-to-mpi",
     llvm::cl::desc("Enable DHIR to MPI conversion"),
@@ -209,7 +208,7 @@ int main(int argc, char *argv[])
         pm.addPass(mlir::dhir::createLowerReplicateOpPass());
     }
 
-    if(lowerConverge)
+    if (lowerConverge)
     {
         pm.addPass(mlir::dhir::createLowerConvergeOpPass());
     }

@@ -25,7 +25,6 @@
 
 #include "mlir/Conversion/Passes.h"
 
-
 #include <string>
 
 using namespace mlir;
@@ -47,7 +46,7 @@ struct ConvertToDhir : public OpConversionPattern<mlir::func::FuncOp>
         mlir::Region &oldRegion = op.getBody();
 
         mlir::IRMapping mapping;
-        
+
         mlir::StringAttr schName = rewriter.getStringAttr(op.getName());
 
         for (auto arg : args)
@@ -81,14 +80,14 @@ struct ConvertToDhir : public OpConversionPattern<mlir::func::FuncOp>
             if (mlir::isa<mlir::func::ReturnOp>(innerop))
                 continue;
 
-            if(innerop.hasAttr("task"))
+            if (innerop.hasAttr("task"))
             {
                 // Create the taskOp
                 auto archAttr = rewriter.getStringAttr("arch");
                 auto archVal = rewriter.getStringAttr("sm_61");
                 auto entry1 = mlir::DataLayoutEntryAttr::get(archAttr, archVal);
                 auto targetDlti = mlir::TargetDeviceSpecAttr::get(innerop.getContext(), {entry1});
-                auto taskOp = rewriter.create<dhir::TaskOp>(innerop.getLoc(), dhir::TaskRefType::get(rewriter.getContext()), targetDlti, mlir::ValueRange{},mlir::DenseI64ArrayAttr{}, mlir::ValueRange{}, mlir::DenseI64ArrayAttr{}, mlir::ValueRange{});
+                auto taskOp = rewriter.create<dhir::TaskOp>(innerop.getLoc(), dhir::TaskRefType::get(rewriter.getContext()), targetDlti, mlir::ValueRange{}, mlir::DenseI64ArrayAttr{}, mlir::ValueRange{}, mlir::DenseI64ArrayAttr{}, mlir::ValueRange{});
 
                 rewriter.setInsertionPointToStart(&taskOp.getBodyRegion().getBlocks().front());
 
@@ -98,23 +97,17 @@ struct ConvertToDhir : public OpConversionPattern<mlir::func::FuncOp>
             }
             else
                 Operation *cloned = rewriter.clone(innerop, mapping);
-        
+
             rewriter.setInsertionPointToEnd(&schOp.getBodyRegion().getBlocks().front());
         }
 
-
-
-
         rewriter.setInsertionPointToEnd(&schOp.getBodyRegion().getBlocks().front());
         rewriter.create<mlir::dhir::YieldOp>(rewriter.getUnknownLoc());
-
 
         rewriter.eraseOp(op);
         return success();
     }
 };
-
-
 
 namespace mlir
 {
@@ -131,13 +124,12 @@ namespace mlir
                 mlir::MLIRContext *context = &getContext();
                 auto *module = getOperation();
 
-
                 ConversionTarget target(getContext());
                 target.addIllegalOp<func::FuncOp>();
 
                 target.addLegalDialect<dhir::DhirDialect>();
-                target.markUnknownOpDynamicallyLegal([](Operation *op) { return true; });
-
+                target.markUnknownOpDynamicallyLegal([](Operation *op)
+                                                     { return true; });
 
                 RewritePatternSet patterns(context);
 
@@ -147,7 +139,6 @@ namespace mlir
                 {
                     signalPassFailure();
                 }
-
             }
         };
     }
